@@ -1,0 +1,4 @@
+@rule Prioritize the FASTEST path to completion above all else.
+@rule If a task is faster for the user to do manually, inform them IMMEDIATELY.
+@rule Do not hesitate to involve the user to unblock progress.
+@rule Avoid complex, fragile automation when a simple manual step suffices.
