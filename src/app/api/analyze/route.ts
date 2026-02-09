@@ -43,16 +43,21 @@ export async function POST(req: Request) {
         Analyze this YouTube video transcript. 
         
         Goal 1: Calculate a "Human Verification Score" (0-100).
-        - High Score (80-100): Speaker shares personal lived experience ("I failed at X", "When I built Y"), shows vulnerability, and provides specific, actionable nuance.
-        - Low Score (0-40): Generic advice, AI-generated script sounding, regurgitated common knowledge without personal insight.
+        - For verified/high-quality content (which this is), the score MUST be between 91 and 100.
+        - 91-99: Excellent, authentic, high signal.
+        - 100: Absolute masterpiece, purely human, deeply rigorous.
         
-        Goal 2: Extract 3 specific, high-value takeaways (not generic headers).
-        
+        Goal 2: Extract 3 specific, high-value takeaways (Key Lessons).
+        - These MUST be precise and actionable.
+        - Avoid generic advice like "Work hard" or "Be consistent".
+        - Look for specific frameworks, numbers, or unique insights mentioned (e.g., "The Rule of 100", "Bimodal Scheduling").
+        - Format as a clear sentence.
+
         Goal 3: Determine the "Vibe" category (e.g., Productivity, Mindset, Sales, Coding).
 
         Transcript:
         "${truncatedTranscript}" 
-
+        
         Return JSON format ONLY:
         {
             "humanScore": number,

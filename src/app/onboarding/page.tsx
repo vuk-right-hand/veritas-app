@@ -4,10 +4,12 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Target, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { saveMission } from '../actions/saveMission';
 
 export default function Onboarding() {
     const router = useRouter();
     const [step, setStep] = useState(1);
+    const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         goal: '',
         struggle: '',
@@ -15,30 +17,71 @@ export default function Onboarding() {
         email: ''
     });
 
+    const [customGoal, setCustomGoal] = useState('');
+    const [customStruggle, setCustomStruggle] = useState('');
+
     const GOALS = [
         "Make Money Online",
         "Master Video Editing",
         "Learn to Code",
-        "Build a Personal Brand"
+        "Build a Personal Brand",
+        "Other..."
     ];
 
     const STRUGGLES = [
         "Procrastination",
         "Lack of Focus",
         "Overwhelm / Anxiety",
-        "Don't Know Where to Start"
+        "Don't Know Where to Start",
+        "Other..."
     ];
 
-    const handleNext = () => {
+    const handleGoalSelect = (selected: string) => {
+        if (selected === "Other...") {
+            setFormData({ ...formData, goal: "Other" });
+            // Don't auto-advance, let them type
+        } else {
+            setFormData({ ...formData, goal: selected });
+            handleNext();
+        }
+    };
+
+    const handleStruggleSelect = (selected: string) => {
+        if (selected === "Other...") {
+            setFormData({ ...formData, struggle: "Other" });
+        } else {
+            setFormData({ ...formData, struggle: selected });
+            handleNext();
+        }
+    };
+
+    const handleNext = async () => {
         if (step < 3) {
             setStep(step + 1);
         } else {
             // Final Submit
-            console.log("Saving Profile:", formData);
-            // Simulating API call...
-            setTimeout(() => {
-                router.push('/dashboard');
-            }, 800);
+            setLoading(true);
+            const finalData = {
+                ...formData,
+                goal: formData.goal === "Other" ? customGoal : formData.goal,
+                struggle: formData.struggle === "Other" ? customStruggle : formData.struggle
+            };
+
+            console.log("Saving Profile:", finalData);
+
+            try {
+                const result = await saveMission(finalData);
+                if (result.success) {
+                    router.push('/dashboard');
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Something went wrong.');
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -67,7 +110,7 @@ export default function Onboarding() {
                 <motion.div
                     className="bg-zinc-900/40 border border-white/5 backdrop-blur-md rounded-3xl p-8 shadow-2xl relative overflow-hidden"
                     initial={{ height: 'auto' }}
-                    animate={{ height: 'auto' }} // Animate height change? simpler without for now
+                    animate={{ height: 'auto' }}
                 >
                     {/* Progress Bar */}
                     <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
@@ -81,26 +124,39 @@ export default function Onboarding() {
                             key="step1"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-purple-400">01.</span> What is your main goal for the next 3-6 months?
+                                <span className="text-purple-400">01.</span> What is your main goal?
                             </h2>
                             <div className="space-y-3">
                                 {GOALS.map((goal) => (
                                     <button
                                         key={goal}
-                                        onClick={() => { setFormData({ ...formData, goal }); handleNext(); }}
-                                        className="w-full text-left p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-purple-500/50 transition-all group flex items-center justify-between"
+                                        onClick={() => handleGoalSelect(goal)}
+                                        className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${formData.goal === goal || (goal === "Other..." && formData.goal === "Other")
+                                                ? "bg-purple-500/20 border-purple-500"
+                                                : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-purple-500/50"
+                                            }`}
                                     >
                                         <span className="font-medium text-gray-200 group-hover:text-white">{goal}</span>
                                         <ArrowRight className="w-4 h-4 text-white/0 group-hover:text-purple-400 transition-all transform -translate-x-2 group-hover:translate-x-0 opacity-0 group-hover:opacity-100" />
                                     </button>
                                 ))}
-                                <input
-                                    type="text"
-                                    placeholder="Other..."
-                                    className="w-full bg-transparent border-b border-white/10 p-2 focus:outline-none focus:border-purple-500 transition-colors mt-2 text-sm"
-                                    onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleNext()}
-                                />
+
+                                {formData.goal === "Other" && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Type your specific goal..."
+                                            autoFocus
+                                            className="w-full bg-transparent border-b border-purple-500 p-2 focus:outline-none text-white mt-2"
+                                            value={customGoal}
+                                            onChange={(e) => setCustomGoal(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleNext()}
+                                        />
+                                        <button onClick={handleNext} className="mt-2 text-xs text-purple-400 font-bold uppercase tracking-wider hover:text-purple-300">
+                                            Confirm
+                                        </button>
+                                    </motion.div>
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -114,19 +170,39 @@ export default function Onboarding() {
                             key="step2"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-blue-400">02.</span> What are you currently struggling the most with?
+                                <span className="text-blue-400">02.</span> What is your biggest obstacle?
                             </h2>
                             <div className="space-y-3">
                                 {STRUGGLES.map((item) => (
                                     <button
                                         key={item}
-                                        onClick={() => { setFormData({ ...formData, struggle: item }); handleNext(); }}
-                                        className="w-full text-left p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-blue-500/50 transition-all group flex items-center justify-between"
+                                        onClick={() => handleStruggleSelect(item)}
+                                        className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${formData.struggle === item || (item === "Other..." && formData.struggle === "Other")
+                                                ? "bg-blue-500/20 border-blue-500"
+                                                : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-blue-500/50"
+                                            }`}
                                     >
                                         <span className="font-medium text-gray-200 group-hover:text-white">{item}</span>
                                         <Zap className="w-4 h-4 text-white/0 group-hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100" />
                                     </button>
                                 ))}
+
+                                {formData.struggle === "Other" && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Type your specific obstacle..."
+                                            autoFocus
+                                            className="w-full bg-transparent border-b border-blue-500 p-2 focus:outline-none text-white mt-2"
+                                            value={customStruggle}
+                                            onChange={(e) => setCustomStruggle(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleNext()}
+                                        />
+                                        <button onClick={handleNext} className="mt-2 text-xs text-blue-400 font-bold uppercase tracking-wider hover:text-blue-300">
+                                            Confirm
+                                        </button>
+                                    </motion.div>
+                                )}
                             </div>
                             <button onClick={() => setStep(1)} className="mt-6 text-sm text-gray-500 hover:text-white">Back</button>
                         </motion.div>
@@ -165,9 +241,10 @@ export default function Onboarding() {
 
                                 <button
                                     onClick={handleNext}
-                                    className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                                    disabled={loading}
+                                    className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
-                                    Build My Feed <CheckCircle2 className="w-5 h-5" />
+                                    {loading ? 'Saving...' : 'Build My Feed'} <CheckCircle2 className="w-5 h-5" />
                                 </button>
                             </div>
                         </motion.div>

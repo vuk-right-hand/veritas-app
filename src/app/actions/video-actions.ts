@@ -100,55 +100,44 @@ export async function getPendingVideos() {
     return data;
 }
 
-export async function moderateVideo(videoId: string, action: 'approve' | 'ban') {
-    const newStatus = action === 'approve' ? 'verified' : 'banned';
+export async function moderateVideo(videoId: string, action: 'approve' | 'ban' | 'storage' | 'pending') {
+    let newStatus = 'pending';
+    if (action === 'approve') newStatus = 'verified';
+    else if (action === 'ban') newStatus = 'banned';
+    else if (action === 'storage') newStatus = 'storage';
+    else newStatus = 'pending';
 
-    console.log(`[moderateVideo] Attempting to ${action} video: ${videoId}`);
-    console.log(`[moderateVideo] Using Service Key: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
+    console.log(`[moderateVideo] Attempting to set video ${videoId} to ${newStatus}`);
 
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
         .from('videos')
         .update({ status: newStatus })
         .eq('id', videoId)
-        .select(); // Add .select() to get back the updated row
+        .select();
 
     if (error) {
         console.error('[moderateVideo] Update Error:', error);
         return { success: false, message: error.message };
     }
 
-    // Check if any rows were actually updated
-    if (!data || data.length === 0) {
-        console.error('[moderateVideo] No rows updated! RLS may be blocking.');
-        return { success: false, message: 'Update failed. Check RLS policies or Service Role Key.' };
-    }
-
-    console.log('[moderateVideo] Update successful:', data);
-
-    // Trigger analysis if approving (background, non-blocking)
+    // Trigger analysis if approving (background)
     if (action === 'approve') {
         const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        console.log('[moderateVideo] Triggering analysis for:', videoUrl);
-
-        // Fire-and-forget: Don't block the approval on analysis completion
         fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: videoUrl })
-        }).then(res => {
-            if (res.ok) console.log('[moderateVideo] Analysis triggered successfully');
-            else console.error('[moderateVideo] Analysis trigger failed');
         }).catch(err => console.error('[moderateVideo] Analysis trigger error:', err));
     }
 
-    revalidatePath('/dashboard'); // Refresh main feed
-    revalidatePath('/founder-meeting'); // Refresh admin list
+    revalidatePath('/dashboard');
+    revalidatePath('/founder-meeting');
 
-    return { success: true, message: `Video ${action}d` };
+    return { success: true, message: `Video moved to ${newStatus}` };
 }
 
 export async function getVerifiedVideos() {
-    noStore(); // Force dynamic fetch
+    noStore();
     const { data, error } = await supabase
         .from('videos')
         .select('*')
@@ -157,4 +146,51 @@ export async function getVerifiedVideos() {
 
     if (error) return [];
     return data;
+}
+
+export async function getDeniedVideos() {
+    noStore();
+    const { data, error } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('status', 'banned')
+        .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data;
+}
+
+export async function getStorageVideos() {
+    noStore();
+    const { data, error } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('status', 'storage')
+        .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data;
+}
+
+export async function deleteVideo(videoId: string) {
+    console.log(`[deleteVideo] Deleting video: ${videoId}`);
+
+    // First delete from mission_curations if any reference exists (though cascade might handle this, it's safer to be explicit or use cascade in DB)
+    // Assuming DB has ON DELETE CASCADE for foreign keys, otherwise we need to delete relations first.
+    // For now, let's try direct delete.
+
+    const { error } = await supabase
+        .from('videos')
+        .delete()
+        .eq('id', videoId);
+
+    if (error) {
+        console.error('[deleteVideo] Error:', error);
+        return { success: false, message: error.message };
+    }
+
+    revalidatePath('/dashboard');
+    revalidatePath('/founder-meeting');
+
+    return { success: true, message: "Video deleted successfully" };
 }

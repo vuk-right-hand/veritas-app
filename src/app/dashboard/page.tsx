@@ -211,11 +211,13 @@ export default function Dashboard() {
                 <div className="mb-12 flex flex-col md:flex-row items-end md:items-center justify-between gap-6">
                     <h2 className="text-2xl font-semibold text-white whitespace-nowrap">Your Feed</h2>
 
-                    {/* Suggestion Bar - Centered relative to available space roughly */}
+                    {/* Suggestion Bar - Demands Attention */}
                     <div className="flex-1 w-full max-w-lg mx-auto flex flex-col items-center">
-                        <span className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-bold">Let's promote the good ones</span>
+                        <span className="text-[10px] text-red-500 uppercase tracking-widest mb-2 font-bold animate-pulse">Let's promote the good ones</span>
                         <div className="w-full relative group">
-                            <div className="absolute inset-0 bg-red-900/20 rounded-full blur-md group-hover:bg-red-900/30 transition-all opacity-0 group-hover:opacity-100" />
+                            {/* Pulsating Glow Background */}
+                            <div className="absolute inset-0 bg-red-600/30 rounded-full blur-xl animate-pulse" />
+
                             <input
                                 type="text"
                                 value={suggestionStatus === 'success' ? "Success! Thank you!" : suggestionUrl}
@@ -225,9 +227,9 @@ export default function Dashboard() {
                                 onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
                                 placeholder="Paste your favorite video/creator..."
                                 disabled={suggestionStatus === 'success'}
-                                className={`w-full border rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 shadow-lg ${suggestionStatus === 'success'
-                                        ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center tracking-wide'
-                                        : 'bg-[#1a1a1a] border-white/10 text-gray-300 focus:border-red-500/50 focus:bg-[#202020] placeholder:text-gray-600'
+                                className={`w-full border-2 rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 shadow-[0_0_20px_rgba(220,38,38,0.4)] ${suggestionStatus === 'success'
+                                    ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center tracking-wide'
+                                    : 'bg-[#1a1a1a] border-red-600/60 text-white placeholder:text-red-300/50 focus:border-red-500 focus:bg-[#202020] animate-pulse focus:animate-none'
                                     }`}
                             />
                             <div className="absolute right-2 top-1.5 z-20">
@@ -235,8 +237,8 @@ export default function Dashboard() {
                                     onClick={handleSuggest}
                                     disabled={isSuggesting || suggestionStatus === 'success'}
                                     className={`p-1.5 rounded-full transition-all duration-500 ease-out disabled:opacity-100 ${suggestionStatus === 'success'
-                                            ? 'bg-green-500 text-white transform scale-125 shadow-[0_0_20px_rgba(34,197,94,0.6)]'
-                                            : 'bg-white/5 hover:bg-red-600 hover:text-white text-gray-500'
+                                        ? 'bg-green-500 text-white transform scale-125 shadow-[0_0_20px_rgba(34,197,94,0.6)]'
+                                        : 'bg-red-600 text-white hover:bg-red-500 shadow-[0_0_10px_rgba(220,38,38,0.8)]'
                                         }`}
                                 >
                                     <span className="sr-only">Submit</span>
