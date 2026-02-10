@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
+import { cookies } from 'next/headers';
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -193,4 +194,36 @@ export async function deleteVideo(videoId: string) {
     revalidatePath('/founder-meeting');
 
     return { success: true, message: "Video deleted successfully" };
+}
+
+export async function getUserMission(missionId: string) {
+    noStore();
+    const { data: mission, error } = await supabase
+        .from('user_missions')
+        .select(`
+            *,
+            mission_curations (
+                curation_reason,
+                videos (
+                    *
+                )
+            )
+        `)
+        .eq('id', missionId)
+        .single();
+
+    if (error) {
+        console.error("Error fetching mission:", error);
+        return null;
+    }
+    return mission;
+}
+
+export async function getMyMission() {
+    noStore();
+    const cookieStore = await cookies();
+    const missionId = cookieStore.get('veritas_user')?.value;
+
+    if (!missionId) return null;
+    return getUserMission(missionId);
 }

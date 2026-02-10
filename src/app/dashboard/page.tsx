@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { User, Settings, LogOut, DollarSign, Zap, LayoutGrid, Brain, CheckCircle2 } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
-import { suggestVideo, getVerifiedVideos } from '@/app/actions/video-actions';
+import { suggestVideo, getVerifiedVideos, getMyMission } from '@/app/actions/video-actions';
 
 // Mock Data for V1
 const MOCK_VIDEOS = [
@@ -105,6 +105,26 @@ export default function Dashboard() {
 
     React.useEffect(() => {
         const loadVideos = async () => {
+            // 1. Check for Active Mission (Zero Distraction Rule)
+            const mission = await getMyMission();
+
+            if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
+                console.log("Found Active Mission:", mission.goal);
+                const curated = mission.mission_curations.map((c: any) => ({
+                    id: c.videos.id,
+                    title: c.videos.title,
+                    humanScore: c.videos.human_score || 99,
+                    category: c.videos.category_tag || 'Mission',
+                    channel: c.videos.channel_id || 'Human Expert',
+                    takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`]
+                }));
+
+                // STRICT MODE: Only show curated videos
+                setVideos(curated);
+                return;
+            }
+
+            // 2. Fallback: Generic Feed
             const verified = await getVerifiedVideos();
             if (verified && verified.length > 0) {
                 // Merge verified videos with mocks (or replace, depending on preference. Here we prepend)
@@ -117,8 +137,10 @@ export default function Dashboard() {
                     channel: v.channel_id || 'Unknown',
                     takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."]
                 }));
-                // Combine: Real at top, Mocks below
-                setVideos([...formattedVerified, ...MOCK_VIDEOS]);
+                // Combine: Real at top, Mocks below, avoiding duplicates
+                const verifiedIds = new Set(formattedVerified.map(v => v.id));
+                const uniqueMocks = MOCK_VIDEOS.filter(mock => !verifiedIds.has(mock.id));
+                setVideos([...formattedVerified, ...uniqueMocks]);
             }
         };
         loadVideos();
