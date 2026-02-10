@@ -43,15 +43,21 @@ export async function POST(req: Request) {
         Analyze this YouTube video transcript. 
         
         Goal 1: Calculate a "Human Verification Score" (0-100).
-        - For verified/high-quality content (which this is), the score MUST be between 91 and 100.
+        - CRITICAL: For verified/high-quality content (which this is), the score MUST be between 91 and 100.
         - 91-99: Excellent, authentic, high signal.
         - 100: Absolute masterpiece, purely human, deeply rigorous.
+        - NEVER return a score below 91 for this specific task.
         
-        Goal 2: Extract 3 specific, high-value takeaways (Key Lessons).
-        - These MUST be precise and actionable.
-        - Avoid generic advice like "Work hard" or "Be consistent".
-        - Look for specific frameworks, numbers, or unique insights mentioned (e.g., "The Rule of 100", "Bimodal Scheduling").
-        - Format as a clear sentence.
+        Goal 2: Extract 3 specific, high-value Key Lessons.
+        - STYLE: Curiosity-Driven & Benefit-Oriented.
+        - LENGTH: Each lesson MUST be 75 characters or less (including spaces/punctuation).
+        - Do NOT just summarize. Tease the value.
+        - BAD: "He talks about being consistent."
+        - GOOD: "The 'Rule of 100' framework that guarantees your first result."
+        - GOOD: "Why 'Shallow Work' destroys careers (and the fix)."
+        - Make the user feel they *must* watch to get the full secret.
+        - Look for specific frameworks, numbers, or unique insights.
+        - Keep it punchy and concise - single line per lesson!
 
         Goal 3: Determine the "Vibe" category (e.g., Productivity, Mindset, Sales, Coding).
 
@@ -62,7 +68,7 @@ export async function POST(req: Request) {
         {
             "humanScore": number,
             "humanScoreReason": "short sentence explaining why",
-            "takeaways": ["point 1", "point 2", "point 3"],
+            "takeaways": ["lesson 1", "lesson 2", "lesson 3"],
             "category": "string"
         }
         `;
@@ -79,6 +85,12 @@ export async function POST(req: Request) {
         const jsonString = responseText.replace(/```json|```/g, '').trim();
         const analysis = JSON.parse(jsonString);
 
+        // FORCE SCORE TO BE 91-100 (Safety Net)
+        if (analysis.humanScore < 91) {
+            analysis.humanScore = Math.floor(Math.random() * (99 - 91 + 1) + 91);
+        }
+        if (analysis.humanScore > 100) analysis.humanScore = 100;
+
         // 4. Save to Database (The Library)
         await saveVideoAnalysis(meta, analysis, embeddingVector);
 
@@ -90,9 +102,11 @@ export async function POST(req: Request) {
         });
 
     } catch (error: any) {
-        console.error("Bridge Error:", error.message);
+        console.error("Bridge Error:", error);
+        console.error("Full Error:", JSON.stringify(error, null, 2));
         return NextResponse.json({
-            error: error.message || "Something went wrong during analysis."
+            error: error.message || "Something went wrong during analysis.",
+            details: error.errorDetails || error.status || "No additional details"
         }, { status: 500 });
     }
 }

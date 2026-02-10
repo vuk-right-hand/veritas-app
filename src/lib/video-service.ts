@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export interface VideoMetadata {
     youtube_id: string;
@@ -74,7 +75,8 @@ export async function saveVideoAnalysis(
     console.log(`Saving to DB: ${meta.title}`);
 
     // 1. Upsert Channel (to ensure FK exists)
-    const { error: channelError } = await supabase
+    // Use admin client to bypass RLS
+    const { error: channelError } = await supabaseAdmin
         .from('channels')
         .upsert({
             youtube_channel_id: meta.channel_id,
@@ -87,27 +89,28 @@ export async function saveVideoAnalysis(
         // Continue? If channel fails, video might fail due to FK.
     }
 
-    // 2. Upsert Video
-    const { data, error } = await supabase
+    // 2. Update Video with Analysis (don't touch existing metadata)
+    // Use admin client to bypass RLS
+    const { data, error } = await supabaseAdmin
         .from('videos')
-        .upsert({
-            id: meta.youtube_id, // Corrected column name
-            title: meta.title,
-            channel_id: meta.channel_id, // mapped FK
-            thumbnail_url: meta.thumbnail_url,
+        .update({
             human_score: analysis.humanScore,
-            human_score_reason: analysis.humanScoreReason,
-            summary_points: analysis.takeaways, // Corrected column name
-            category_tag: analysis.category, // Corrected column name
-            embedding: embedding, // The text-embedding-004 vector
-            created_at: new Date().toISOString()
-        }, { onConflict: 'id' }) // Corrected conflict target
+            summary_points: analysis.takeaways,
+            category_tag: analysis.category,
+        })
+        .eq('id', meta.youtube_id.trim())
         .select()
-        .single();
+        .maybeSingle(); // Handle case where video doesn't exist
 
     if (error) {
         console.error("Supabase Save Error:", error);
         throw new Error(error.message);
+    }
+
+    if (!data) {
+        console.error("[SAVE] UPDATE affected 0 rows - video not found:", meta.youtube_id);
+        // Return null instead of throwing to avoid crashing the whole request if one video is missing
+        return null;
     }
 
     return data;

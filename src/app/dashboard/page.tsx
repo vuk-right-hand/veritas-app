@@ -220,6 +220,7 @@ export default function Dashboard() {
 
                             <input
                                 type="text"
+                                suppressHydrationWarning
                                 value={suggestionStatus === 'success' ? "Success! Thank you!" : suggestionUrl}
                                 onChange={(e) => {
                                     if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value);
@@ -232,7 +233,7 @@ export default function Dashboard() {
                                     : 'bg-[#1a1a1a] border-red-600/60 text-white placeholder:text-red-300/50 focus:border-red-500 focus:bg-[#202020] animate-pulse focus:animate-none'
                                     }`}
                             />
-                            <div className="absolute right-2 top-1.5 z-20">
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
                                 <button
                                     onClick={handleSuggest}
                                     disabled={isSuggesting || suggestionStatus === 'success'}

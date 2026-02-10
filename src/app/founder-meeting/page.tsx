@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MessageSquare, Send, Sparkles, AlertCircle, CheckCircle2, XCircle, Box, MoreVertical, Trash2, Calendar, Lightbulb } from 'lucide-react';
 import SmartVideoPlayer from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
+import Hexagon from '@/components/Hexagon';
+import Portal from '@/components/ui/portal';
 import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo } from '@/app/actions/video-actions';
 
 // Mock Data for "Founder Updates" (Restored)
@@ -48,6 +50,7 @@ export default function FounderMeeting() {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
     // Initial Load
     useEffect(() => {
@@ -109,6 +112,16 @@ export default function FounderMeeting() {
             alert(`Failed to move: ${result.message}`);
             loadAllVideos(); // Revert
         }
+    };
+
+    const handleMenuOpen = (videoId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMenuPosition({
+            top: rect.bottom + window.scrollY,
+            left: rect.right + window.scrollX - 160 // Align right edge (160px width)
+        });
+        setActiveMenuId(activeMenuId === videoId ? null : videoId);
     };
 
     const handleDelete = async (videoId: string, e: React.MouseEvent) => {
@@ -179,28 +192,11 @@ export default function FounderMeeting() {
                             {/* 4. Action Dots (Far Right) */}
                             <div className="relative flex-shrink-0">
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveMenuId(activeMenuId === video.id ? null : video.id);
-                                    }}
-                                    className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-white transition-colors"
+                                    onClick={(e) => handleMenuOpen(video.id, e)}
+                                    className={`p-1 hover:bg-white/10 rounded transition-colors ${activeMenuId === video.id ? 'text-white bg-white/10' : 'text-gray-500 hover:text-white'}`}
                                 >
                                     <MoreVertical className="w-4 h-4" />
                                 </button>
-
-                                {/* Dropdown Menu */}
-                                {activeMenuId === video.id && (
-                                    <div className="absolute right-0 top-6 z-50 w-40 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden py-1">
-                                        {status !== 'pending' && <button onClick={(e) => handleMove(video.id, 'pending', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-yellow-500">Move to Pending</button>}
-                                        {status !== 'verified' && <button onClick={(e) => handleMove(video.id, 'verified', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Approve</button>}
-                                        {status !== 'storage' && <button onClick={(e) => handleMove(video.id, 'storage', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-blue-500">Move to Storage</button>}
-                                        {status !== 'banned' && <button onClick={(e) => handleMove(video.id, 'banned', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-red-500">Deny</button>}
-                                        <div className="h-px bg-white/10 my-1"></div>
-                                        <button onClick={(e) => handleDelete(video.id, e)} className="w-full text-left px-3 py-2 text-xs hover:bg-red-900/20 text-red-600 font-bold flex items-center gap-2">
-                                            <Trash2 className="w-3 h-3" /> Delete
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -378,6 +374,49 @@ export default function FounderMeeting() {
                             {renderColumn('Approved', 'verified', <CheckCircle2 className="w-4 h-4" />, 'text-green-500')}
                             {renderColumn('Denied', 'banned', <XCircle className="w-4 h-4" />, 'text-red-500')}
                             {renderColumn('Storage', 'storage', <Box className="w-4 h-4" />, 'text-blue-500')}
+
+                            {/* Global Dropdown via Portal */}
+                            {activeMenuId && (
+                                <Portal>
+                                    <div
+                                        className="fixed z-50 w-40 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden py-1"
+                                        style={{ top: menuPosition.top, left: menuPosition.left }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {(() => {
+                                            // Find the active video and its status
+                                            let activeVideo: any = null;
+                                            let activeStatus: StatusColumn | null = null;
+
+                                            for (const statusEnv of ['pending', 'verified', 'banned', 'storage'] as StatusColumn[]) {
+                                                const found = columns[statusEnv].find(v => v.id === activeMenuId);
+                                                if (found) {
+                                                    activeVideo = found;
+                                                    activeStatus = statusEnv;
+                                                    break;
+                                                }
+                                            }
+
+                                            if (!activeVideo || !activeStatus) return null;
+
+                                            return (
+                                                <>
+                                                    {activeStatus !== 'pending' && <button onClick={(e) => handleMove(activeVideo.id, 'pending', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-yellow-500">Move to Pending</button>}
+                                                    {activeStatus !== 'verified' && <button onClick={(e) => handleMove(activeVideo.id, 'verified', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Approve</button>}
+                                                    {activeStatus !== 'storage' && <button onClick={(e) => handleMove(activeVideo.id, 'storage', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-blue-500">Move to Storage</button>}
+                                                    {activeStatus !== 'banned' && <button onClick={(e) => handleMove(activeVideo.id, 'banned', e)} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-red-500">Deny</button>}
+                                                    <div className="h-px bg-white/10 my-1"></div>
+                                                    <button onClick={(e) => handleDelete(activeVideo.id, e)} className="w-full text-left px-3 py-2 text-xs hover:bg-red-900/20 text-red-600 font-bold flex items-center gap-2">
+                                                        <Trash2 className="w-3 h-3" /> Delete
+                                                    </button>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                    {/* Backdrop for explicit click-outside */}
+                                    <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
+                                </Portal>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

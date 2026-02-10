@@ -55,6 +55,7 @@ export default function ProblemSolver() {
                         </div>
                         <input
                             type="text"
+                            suppressHydrationWarning
                             className="w-full bg-transparent text-white p-6 text-lg placeholder:text-gray-500 focus:outline-none"
                             placeholder="Describe your current struggle (e.g., 'I'm lazy but I want to make $10k')..."
                             value={query}

@@ -11,7 +11,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 // We use the 'gemini-1.5-flash' model for speed and efficiency
 // It creates the model instance we'll use throughout the app
 export const aiModel = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     generationConfig: {
         // Force the AI to be more deterministic (less random) for scoring
         temperature: 0.3,
@@ -19,7 +19,7 @@ export const aiModel = genAI.getGenerativeModel({
 });
 
 // Model specifically for creating vector embeddings
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
 export async function generateEmbedding(text: string): Promise<number[]> {
     const result = await embeddingModel.embedContent(text);
