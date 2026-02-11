@@ -10,26 +10,106 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Query is required' }, { status: 400 });
         }
 
-        // 1. Generate Embedding for the User's Query
-        // "I want to cure my laziness" -> [0.01, -0.05, ...]
-        const embedding = await generateEmbedding(query);
+        const cleanQuery = query.trim().toLowerCase();
+        let embedding: number[] = [];
 
-        // 2. Search Database using Similarity
-        // We call the 'match_videos' RPC function we made in SQL
-        const { data: videos, error } = await supabase.rpc('match_videos', {
-            query_embedding: embedding,
-            match_threshold: 0.5, // Only return relevant matches
-            match_count: 5 // Top 5
-        });
+        // 1. Check Cache First (Save $$$)
+        const { data: cached } = await supabase
+            .from('search_cache')
+            .select('embedding')
+            .eq('query_text', cleanQuery)
+            .single();
 
-        if (error) {
-            console.error("Supabase Search Error:", error);
-            throw new Error(error.message);
+        if (cached) {
+            console.log("🎯 Cache Hit for:", cleanQuery);
+            embedding = JSON.parse(cached.embedding as any); // Supabase returns vector as string sometimes, need to handle
+            // Actually supabase-js handles vector parsed as string usually, but let's be safe if it's already an array
+            if (typeof cached.embedding === 'string') {
+                embedding = JSON.parse(cached.embedding);
+            } else {
+                embedding = cached.embedding;
+            }
+        } else {
+            console.log("💨 Cache Miss - Generating Custom Embedding...");
+            // 2. Generate Embedding via Gemini
+            embedding = await generateEmbedding(cleanQuery);
+
+            // 3. Save to Cache (Fire & Forget)
+            // We use upsert to handle race conditions if two people search same thing at once
+            const { error: cacheError } = await supabase
+                .from('search_cache')
+                .upsert({
+                    query_text: cleanQuery,
+                    embedding: embedding
+                }, { onConflict: 'query_text' });
+
+            if (cacheError) console.error("Cache Write Error:", cacheError);
+        }
+
+        // 4. Search Database - Bypassing RPC due to type issues, using direct SQL
+        // Fetch all videos with embeddings and calculate similarity manually
+        const { data: allVideos, error: fetchError } = await supabase
+            .from('videos')
+            .select('id, title, human_score, embedding')
+            .not('embedding', 'is', null);
+
+        if (fetchError) {
+            console.error("Supabase Fetch Error:", fetchError);
+            throw new Error(fetchError.message);
+        }
+
+        if (!allVideos || allVideos.length === 0) {
+            return NextResponse.json({
+                success: true,
+                matches: []
+            });
+        }
+
+        // Calculate cosine similarity for each video
+        const results = allVideos.map(video => {
+            // Parse embedding - Supabase stores vectors as strings
+            let videoEmbedding: number[];
+            if (typeof video.embedding === 'string') {
+                videoEmbedding = JSON.parse(video.embedding);
+            } else if (Array.isArray(video.embedding)) {
+                videoEmbedding = video.embedding;
+            } else {
+                console.warn(`Unexpected embedding format for "${video.title}"`);
+                return null;
+            }
+
+            // Cosine similarity calculation
+            let dotProduct = 0;
+            let normA = 0;
+            let normB = 0;
+
+            for (let i = 0; i < embedding.length; i++) {
+                dotProduct += embedding[i] * videoEmbedding[i];
+                normA += embedding[i] * embedding[i];
+                normB += videoEmbedding[i] * videoEmbedding[i];
+            }
+
+            const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+
+            return {
+                id: video.id,
+                title: video.title,
+                human_score: video.human_score,
+                similarity
+            };
+        })
+            .filter((v): v is NonNullable<typeof v> => v !== null && v.similarity > 0.3)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 5);
+
+        console.log(`Found ${results.length} matches above 0.3 threshold`);
+        if (results.length > 0) {
+            console.log('Top match:', results[0].title, 'similarity:', results[0].similarity.toFixed(3));
         }
 
         return NextResponse.json({
             success: true,
-            matches: videos
+            matches: results
         });
 
     } catch (error: any) {

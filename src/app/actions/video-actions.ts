@@ -12,18 +12,40 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Use Service Role if available to bypass RLS for insertions
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
 
-// Helper: Fetch YouTube video title via oEmbed (no API key needed)
-async function getYouTubeVideoTitle(videoId: string): Promise<string> {
+// Helper: Fetch YouTube video metadata via oEmbed + HTML Scrape
+async function getYouTubeMetadata(videoId: string): Promise<{ title: string; author_name: string; author_url: string; description: string }> {
+    let title = "Unknown Title";
+    let author_name = "Unknown Channel";
+    let author_url = "";
+    let description = "";
+
     try {
+        // 1. oEmbed for reliable Title/Author
         const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
         const response = await fetch(oembedUrl);
-        if (!response.ok) return "Unknown Title";
-        const data = await response.json();
-        return data.title || "Unknown Title";
+        if (response.ok) {
+            const data = await response.json();
+            title = data.title || title;
+            author_name = data.author_name || author_name;
+            author_url = data.author_url || author_url;
+        }
+
+        // 2. Scrape Page for Description (oEmbed misses it)
+        const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+            }
+        });
+        const html = await pageResponse.text();
+        const descriptionMatch = html.match(/<meta\s+name="description"\s+content="([^"]*)"/i);
+        if (descriptionMatch && descriptionMatch[1]) {
+            description = descriptionMatch[1];
+        }
     } catch (e) {
-        console.error("Failed to fetch YouTube title:", e);
-        return "Unknown Title";
+        console.error("Failed to fetch YouTube metadata:", e);
     }
+
+    return { title, author_name, author_url, description };
 }
 
 export async function suggestVideo(videoUrl: string) {
@@ -65,27 +87,44 @@ export async function suggestVideo(videoUrl: string) {
         return { success: true, message: "Video already pending. We added your vote!" };
     }
 
-    // 3. Fetch real title from YouTube
-    const videoTitle = await getYouTubeVideoTitle(videoId);
+    // 3. Fetch real metadata from YouTube
+    const metadata = await getYouTubeMetadata(videoId);
 
     // 4. Insert new Pending Video
     const { error: insertError } = await supabase
         .from('videos')
         .insert({
             id: videoId,
-            title: videoTitle,
+            title: metadata.title,
+            description: metadata.description, // Store the description
+            channel_title: metadata.author_name,
+            channel_url: metadata.author_url,
             status: 'pending',
-            human_score: 50, // Default starting score until analyzed
-            channel_id: null,
+            human_score: 50,
             suggestion_count: 1
         });
 
     if (insertError) {
         console.error("Insert Error:", insertError);
-        return { success: false, message: "Failed to submit video. " + insertError.message };
+        // Fallback: Try inserting without new columns if it failed
+        if (insertError.message.includes("column")) {
+            // Retry without description/channel info if schema is old
+            const { error: retryError } = await supabase
+                .from('videos')
+                .insert({
+                    id: videoId,
+                    title: metadata.title,
+                    status: 'pending',
+                    human_score: 50,
+                    suggestion_count: 1
+                });
+            if (retryError) return { success: false, message: "Failed to submit video. " + retryError.message };
+        } else {
+            return { success: false, message: "Failed to submit video. " + insertError.message };
+        }
     }
 
-    revalidatePath('/founder-meeting'); // Refresh the admin list
+    revalidatePath('/founder-meeting');
     return { success: true, message: "Video submitted for verification!" };
 }
 
@@ -143,6 +182,7 @@ export async function getVerifiedVideos() {
         .from('videos')
         .select('*')
         .eq('status', 'verified')
+        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null')
         .order('created_at', { ascending: false });
 
     if (error) return [];
@@ -226,4 +266,39 @@ export async function getMyMission() {
 
     if (!missionId) return null;
     return getUserMission(missionId);
+}
+
+export async function getComments(videoId: string, limit = 10, offset = 0) {
+    noStore();
+    const { data, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('video_id', videoId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    if (error) {
+        console.error('Error fetching comments:', error);
+        return [];
+    }
+    return data;
+}
+
+export async function postComment(videoId: string, text: string, userName = 'Community Member') {
+    const { data, error } = await supabase
+        .from('comments')
+        .insert({
+            video_id: videoId,
+            text,
+            user_name: userName
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error posting comment:', error);
+        return { success: false, message: error.message };
+    }
+
+    return { success: true, comment: data };
 }

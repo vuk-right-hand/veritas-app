@@ -1,0 +1,10 @@
+[dotenv@17.2.4] injecting env (4) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+Fetching models from: https://generativelanguage.googleapis.com/v1beta/models?key=HIDDEN_KEY
+Found 45 models.
+
+--- Embedding Models ---
+Name: models/gemini-embedding-001
+DisplayName: Gemini Embedding 001
+Methods: embedContent, countTextTokens, countTokens, asyncBatchEmbedContent
+Input Limit: 2048
+---

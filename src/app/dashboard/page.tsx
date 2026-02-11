@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { User, Settings, LogOut, DollarSign, Zap, LayoutGrid, Brain, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, DollarSign, Zap, LayoutGrid, Brain, CheckCircle2, ChevronDown } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
 import { suggestVideo, getVerifiedVideos, getMyMission } from '@/app/actions/video-actions';
@@ -15,7 +15,9 @@ const MOCK_VIDEOS = [
         title: "How I Started A $100M Company (In 2024)",
         humanScore: 98,
         category: "Sales & Marketing",
-        channel: "Alex Hormozi",
+        channelTitle: "Alex Hormozi",
+        channelUrl: "https://www.youtube.com/@AlexHormozi",
+        publishedAt: "2024-01-15T12:00:00Z",
         takeaways: [
             "The 'Rule of 100' for initial outreach volume",
             "Why you should sell the implementation, not the information",
@@ -27,7 +29,9 @@ const MOCK_VIDEOS = [
         title: "The Ultimate Guide To Deep Work",
         humanScore: 92,
         category: "Productivity",
-        channel: "Cal Newport",
+        channelTitle: "Cal Newport",
+        channelUrl: "https://www.youtube.com/@CalNewportMedia",
+        publishedAt: "2023-11-20T14:30:00Z",
         takeaways: [
             "Difference between 'Deep Work' and 'Shallow Work'",
             "The bimodal scheduling strategy for busy professionals",
@@ -39,7 +43,9 @@ const MOCK_VIDEOS = [
         title: "Vibe Coding: The Future of Software",
         humanScore: 88,
         category: "VibeCoding",
-        channel: "Andrej Karpathy",
+        channelTitle: "Andrej Karpathy",
+        channelUrl: "https://www.youtube.com/@AndrejKarpathy",
+        publishedAt: "2024-02-01T09:00:00Z",
         takeaways: [
             "How LLMs are changing the coding paradigm",
             "Why syntax memorization is becoming obsolete",
@@ -51,7 +57,9 @@ const MOCK_VIDEOS = [
         title: "Mental Models for Founders",
         humanScore: 95,
         category: "Mindset",
-        channel: "Naval Ravikant",
+        channelTitle: "Naval Ravikant",
+        channelUrl: "https://www.youtube.com/@naval",
+        publishedAt: "2023-12-10T16:45:00Z",
         takeaways: [
             "Inversion: Solving problems backwards",
             "Principal-Agent problem in hiring",
@@ -63,7 +71,9 @@ const MOCK_VIDEOS = [
         title: "Testing Gemini 1.5 Pro vs GPT-4",
         humanScore: 85,
         category: "Tech",
-        channel: "Matthew Berman",
+        channelTitle: "Matthew Berman",
+        channelUrl: "https://www.youtube.com/@MatthewBerman",
+        publishedAt: "2024-02-10T10:15:00Z",
         takeaways: [
             "Context window comparison (1M vs 128k)",
             "Coding performance benchmarks",
@@ -75,7 +85,9 @@ const MOCK_VIDEOS = [
         title: "Stoicism for Modern Life",
         humanScore: 99,
         category: "Mindset",
-        channel: "Ryan Holiday",
+        channelTitle: "Ryan Holiday",
+        channelUrl: "https://www.youtube.com/@DailyStoic",
+        publishedAt: "2024-01-05T08:20:00Z",
         takeaways: [
             "Control what you can, accept what you can't",
             "The obstacle is the way",
@@ -91,17 +103,38 @@ const TABS = [
     { id: 'mindset', label: 'Mindset', icon: Brain },
 ];
 
+const RELEVANCY_OPTIONS = [
+    "Last 14 days",
+    "Last 28 days",
+    "Last 60 days",
+    "Evergreen"
+];
+
+function filterByRelevancy(videos: any[], filter: string) {
+    if (filter === "Evergreen") return videos;
+    const now = new Date();
+    const days = filter === "Last 14 days" ? 14 : filter === "Last 28 days" ? 28 : 60;
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    return videos.filter(v => {
+        const date = v.publishedAt ? new Date(v.publishedAt) : new Date(0); // If no date, assume old unless fallback logic applies
+        return date >= cutoff;
+    });
+}
+
 export default function Dashboard() {
     const [activeTab, setActiveTab] = useState('money');
+    const [relevancy, setRelevancy] = useState('Evergreen');
+    const [isRelevancyOpen, setIsRelevancyOpen] = useState(false);
 
     // Suggestion State
     const [suggestionUrl, setSuggestionUrl] = useState("");
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionStatus, setSuggestionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-    const [suggestionMessage, setSuggestionMessage] = useState("");
 
     // Video Feed State
     const [videos, setVideos] = useState<any[]>(MOCK_VIDEOS);
+    const [filteredVideos, setFilteredVideos] = useState<any[]>(MOCK_VIDEOS);
 
     React.useEffect(() => {
         const loadVideos = async () => {
@@ -115,7 +148,9 @@ export default function Dashboard() {
                     title: c.videos.title,
                     humanScore: c.videos.human_score || 99,
                     category: c.videos.category_tag || 'Mission',
-                    channel: c.videos.channel_id || 'Human Expert',
+                    channelTitle: c.videos.channel_title || 'Human Expert',
+                    channelUrl: c.videos.channel_url || '',
+                    publishedAt: c.videos.published_at || c.videos.created_at, // Fallback to created_at
                     takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`]
                 }));
 
@@ -127,24 +162,45 @@ export default function Dashboard() {
             // 2. Fallback: Generic Feed
             const verified = await getVerifiedVideos();
             if (verified && verified.length > 0) {
-                // Merge verified videos with mocks (or replace, depending on preference. Here we prepend)
-                // Mapping DB shape to UI shape (Takeaways might be null in DB, so providing defaults)
                 const formattedVerified = verified.map(v => ({
                     id: v.id,
                     title: v.title,
-                    humanScore: v.human_score || 0, // Default if not analyzed yet
+                    humanScore: v.human_score || 0,
                     category: v.category_tag || 'Community',
-                    channel: v.channel_id || 'Unknown',
+                    description: v.description || '', // Pass description
+                    channelTitle: v.channel_title || 'Community Creator',
+                    channelUrl: v.channel_url || '',
+                    publishedAt: v.published_at || v.created_at, // Fallback to created_at if published_at missing
                     takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."]
                 }));
-                // Combine: Real at top, Mocks below, avoiding duplicates
+
                 const verifiedIds = new Set(formattedVerified.map(v => v.id));
                 const uniqueMocks = MOCK_VIDEOS.filter(mock => !verifiedIds.has(mock.id));
                 setVideos([...formattedVerified, ...uniqueMocks]);
+            } else {
+                setVideos(MOCK_VIDEOS); // Ensure mocks are loaded if no verified videos
             }
         };
         loadVideos();
     }, []);
+
+    // Apply Filters (Tab + Relevancy)
+    React.useEffect(() => {
+        // First filter by Relevancy
+        let result = filterByRelevancy(videos, relevancy);
+
+        // Then filter by Category/Tab (if implementing tab filtering later, currently strictly UI)
+        // For now, tabs are just UI or sorting? User asked for filtering logic for Relevancy.
+        // If tabs should filter by category, I should implement that too.
+        // Assuming tabs SHOULD filter by category:
+        // const categoryMap: Record<string, string> = { money: 'Sales & Marketing', productivity: 'Productivity', coding: 'VibeCoding', mindset: 'Mindset' };
+        // const targetCat = categoryMap[activeTab]; 
+        // if (targetCat) result = result.filter(v => v.category === targetCat || v.category === 'Mission'); // Mission always shows?
+
+        // User didn't explicitly ask to fix TAB filtering, just RELEVANCY.
+        // But let's apply Relevancy.
+        setFilteredVideos(result);
+    }, [videos, relevancy, activeTab]);
 
     const handleSuggest = async () => {
         if (!suggestionUrl) return;
@@ -215,7 +271,7 @@ export default function Dashboard() {
             <main className="pt-32 pb-20 px-8 max-w-[1600px] mx-auto">
 
                 {/* Header Section */}
-                <div className="mb-16 text-center">
+                <div className="mb-8 text-center">
                     <h1 className="text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50 mb-6 tracking-tight">
                         Solve Your Problem.
                     </h1>
@@ -227,14 +283,39 @@ export default function Dashboard() {
                 {/* The Brain (Search) */}
                 <ProblemSolver />
 
-                {/* Separation Line */}
-                <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-16" />
+                {/* Filters - Centered below Search */}
+                <div className="mt-8 mb-16 flex justify-center w-full">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5">
+                        <span className="pl-3 pr-2 text-xs font-semibold uppercase tracking-wider opacity-60">Filter by:</span>
+                        {/* Tabs */}
+                        <div className="flex items-center gap-1">
+                            {TABS.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`
+                                        px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border
+                                        ${activeTab === tab.id
+                                            ? 'bg-red-950/30 text-red-200 border-red-900/50 shadow-[0_0_10px_rgba(220,38,38,0.2)]'
+                                            : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5'}
+                                    `}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
 
-                <div className="mb-12 flex flex-col md:flex-row items-end md:items-center justify-between gap-6">
-                    <h2 className="text-2xl font-semibold text-white whitespace-nowrap">Your Feed</h2>
 
-                    {/* Suggestion Bar - Demands Attention */}
-                    <div className="flex-1 w-full max-w-lg mx-auto flex flex-col items-center">
+                {/* Controls Row: Spacer | Suggestion | Relevancy */}
+                <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6 items-end">
+
+                    {/* Left: Spacer (Empty for balance) */}
+                    <div className="hidden lg:block"></div>
+
+                    {/* Center: Suggestion Bar - Demands Attention */}
+                    <div className="w-full max-w-lg mx-auto flex flex-col items-center">
                         <span className="text-[10px] text-red-500 uppercase tracking-widest mb-2 font-bold animate-pulse">Let's promote the good ones</span>
                         <div className="w-full relative group">
                             {/* Pulsating Glow Background */}
@@ -277,24 +358,44 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span>Filter by:</span>
-                        {/* Tabs */}
-                        <div className="flex items-center gap-2">
-                            {TABS.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border
-                                        ${activeTab === tab.id
-                                            ? 'bg-red-950/30 text-red-200 border-red-900/50'
-                                            : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300'}
-                                    `}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
+                    {/* Right: Relevancy Dropdown */}
+                    <div className="flex justify-center lg:justify-end">
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsRelevancyOpen(!isRelevancyOpen)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:border-white/20 transition-all min-w-[140px] justify-between"
+                            >
+                                <span className="opacity-50">Filter:</span>
+                                <span className="text-gray-200">{relevancy}</span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isRelevancyOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {isRelevancyOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 p-1"
+                                    >
+                                        {RELEVANCY_OPTIONS.map((option) => (
+                                            <button
+                                                key={option}
+                                                onClick={() => {
+                                                    setRelevancy(option);
+                                                    setIsRelevancyOpen(false);
+                                                }}
+                                                className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${relevancy === option
+                                                    ? 'bg-red-900/20 text-red-200'
+                                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                                    }`}
+                                            >
+                                                {option}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </div>
                 </div>
@@ -302,13 +403,17 @@ export default function Dashboard() {
 
                 {/* Video Grid - 3 Columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {videos.map((video) => (
+                    {filteredVideos.map((video) => (
                         <VideoCard
                             key={video.id} // Ensure IDs are unique between mocks and real
                             videoId={video.id}
                             title={video.title}
                             humanScore={video.humanScore}
                             takeaways={video.takeaways}
+                            channelTitle={video.channelTitle}
+                            channelUrl={video.channelUrl}
+                            description={video.description}
+                            publishedAt={video.publishedAt}
                             onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
                         />
                     ))}

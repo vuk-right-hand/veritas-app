@@ -1,0 +1,11 @@
+Error processing The 5 levels of business in 12 minutes:
+Status: 404
+C:\Antigravity\veritas-app\tools\backfill_embeddings.js:72
+            console.error(`Payload: "${context.substring(0, 100)}..."`);
+                                       ^
+
+ReferenceError: context is not defined
+    at backfill (C:\Antigravity\veritas-app\tools\backfill_embeddings.js:72:40)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v24.13.0

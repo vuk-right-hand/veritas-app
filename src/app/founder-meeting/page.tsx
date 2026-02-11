@@ -3,12 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, Send, Sparkles, AlertCircle, CheckCircle2, XCircle, Box, MoreVertical, Trash2, Calendar, Lightbulb } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Sparkles, AlertCircle, CheckCircle2, XCircle, Box, MoreVertical, Trash2, Calendar, Lightbulb, Loader2, ChevronDown } from 'lucide-react';
 import SmartVideoPlayer from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
 import Hexagon from '@/components/Hexagon';
 import Portal from '@/components/ui/portal';
-import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo } from '@/app/actions/video-actions';
+import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo, getComments, postComment } from '@/app/actions/video-actions';
 
 // Mock Data for "Founder Updates" (Restored)
 const MOCK_UPDATES = [
@@ -38,8 +38,16 @@ export default function FounderMeeting() {
     const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
 
     // Home Tab State
+    // Home Tab State
     const [activeUpdate, setActiveUpdate] = useState(MOCK_UPDATES[0]);
-    const [commentText, setCommentText] = useState("");
+    // Comments State
+    const [comments, setComments] = useState<any[]>([]);
+    const [newComment, setNewComment] = useState("");
+    const [isLoadingComments, setIsLoadingComments] = useState(false);
+    const [isPostingComment, setIsPostingComment] = useState(false);
+    const [commentPage, setCommentPage] = useState(0);
+    const [hasMoreComments, setHasMoreComments] = useState(true);
+    const COMMENTS_PER_PAGE = 10;
 
     // Suggestions Tab State
     const [columns, setColumns] = useState<{ [key in StatusColumn]: any[] }>({
@@ -58,6 +66,62 @@ export default function FounderMeeting() {
             loadAllVideos();
         }
     }, [activeTab]);
+
+    // Load Comments when Active Update Changes
+    useEffect(() => {
+        if (activeTab === 'home') {
+            loadInitialComments();
+        }
+    }, [activeUpdate.videoId, activeTab]);
+
+    const loadInitialComments = async () => {
+        setIsLoadingComments(true);
+        const initialLimit = 2;
+        const data = await getComments(activeUpdate.videoId, initialLimit, 0);
+        setComments(data || []);
+        setCommentPage(1);
+        setHasMoreComments((data?.length || 0) === initialLimit);
+        setIsLoadingComments(false);
+    };
+
+    const handleLoadMoreComments = async () => {
+        setIsLoadingComments(true);
+        const offset = 2 + (commentPage - 1) * COMMENTS_PER_PAGE;
+        const data = await getComments(activeUpdate.videoId, COMMENTS_PER_PAGE, offset);
+
+        if (data && data.length > 0) {
+            setComments(prev => [...prev, ...data]);
+            setCommentPage(prev => prev + 1);
+            if (data.length < COMMENTS_PER_PAGE) setHasMoreComments(false);
+        } else {
+            setHasMoreComments(false);
+        }
+        setIsLoadingComments(false);
+    };
+
+    const handlePostComment = async () => {
+        if (!newComment.trim()) return;
+        setIsPostingComment(true);
+
+        const optimisticComment = {
+            id: `temp-${Date.now()}`,
+            user_name: 'You',
+            text: newComment,
+            created_at: new Date().toISOString()
+        };
+        setComments(prev => [optimisticComment, ...prev]);
+        setNewComment("");
+
+        const result = await postComment(activeUpdate.videoId, optimisticComment.text);
+
+        if (result.success && result.comment) {
+            setComments(prev => prev.map(c => c.id === optimisticComment.id ? result.comment : c));
+        } else {
+            setComments(prev => prev.filter(c => c.id !== optimisticComment.id));
+            alert(`Failed to post comment: ${result.message}`);
+        }
+        setIsPostingComment(false);
+    };
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -180,7 +244,19 @@ export default function FounderMeeting() {
                                     {video.title || video.id}
                                 </h4>
                                 <div className="flex items-center gap-2 overflow-hidden">
-                                    <span className="text-[10px] text-gray-500 truncate">{video.channel_id || "Unknown Channel"}</span>
+                                    {video.channel_url ? (
+                                        <a
+                                            href={video.channel_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline truncate"
+                                        >
+                                            {video.channel_title || video.channel_id || "Unknown Channel"}
+                                        </a>
+                                    ) : (
+                                        <span className="text-[10px] text-gray-500 truncate">{video.channel_title || video.channel_id || "Unknown Channel"}</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -288,23 +364,81 @@ export default function FounderMeeting() {
                                             <MessageSquare className="w-5 h-5 text-red-500" />
                                             Your feedback is ALL that matters
                                         </h3>
-                                        <span className="text-sm text-gray-500">{activeUpdate.comments} comments</span>
                                     </div>
+
+                                    {/* 1. Add Comment Input (Top) */}
                                     <div className="flex gap-4">
-                                        <div className="w-10 h-10 rounded-full bg-gray-800 border border-white/10 flex-shrink-0" />
-                                        <div className="flex-1 relative">
-                                            <textarea
-                                                value={commentText}
-                                                onChange={(e) => setCommentText(e.target.value)}
-                                                placeholder="Share your thoughts directly with the team..."
-                                                className="w-full bg-[#111] border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-500/50 min-h-[100px] resize-none placeholder:text-gray-600"
-                                            />
-                                            <div className="absolute bottom-3 right-3">
-                                                <button className="p-2 rounded-full bg-white/10 hover:bg-red-600 text-white transition-colors">
-                                                    <Send className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                        <div className="w-10 h-10 rounded-full bg-gray-800 border border-white/10 flex-shrink-0 flex items-center justify-center">
+                                            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                                         </div>
+                                        <div className="flex-1 relative">
+                                            <input
+                                                type="text"
+                                                value={newComment}
+                                                onChange={(e) => setNewComment(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && !isPostingComment) handlePostComment();
+                                                }}
+                                                placeholder="Share your thoughts directly with the team..."
+                                                className="w-full bg-[#111] border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-500/50 pr-12 placeholder:text-gray-600"
+                                            />
+                                            <button
+                                                onClick={handlePostComment}
+                                                disabled={!newComment.trim() || isPostingComment}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 hover:bg-red-600 text-white transition-colors disabled:opacity-30 disabled:hover:bg-white/10"
+                                            >
+                                                {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Comments List */}
+                                    <div className="space-y-4 pl-14">
+                                        {comments.map((comment) => (
+                                            <div key={comment.id} className="flex gap-3 group">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-xs font-bold text-gray-400 border border-white/5 flex-shrink-0">
+                                                    {(comment.user_name || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-baseline gap-2 mb-1">
+                                                        <span className={`text-sm font-semibold ${comment.user_name === 'You' ? 'text-red-400' : 'text-gray-200'}`}>
+                                                            {comment.user_name || 'Community Member'}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-600">
+                                                            {new Date(comment.created_at).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-400 leading-relaxed font-light">
+                                                        {comment.text}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Empty State */}
+                                        {comments.length === 0 && !isLoadingComments && (
+                                            <div className="text-center py-4">
+                                                <p className="text-xs text-gray-600 italic">No comments yet. Be the first to share your thoughts.</p>
+                                            </div>
+                                        )}
+
+                                        {/* Load More Button */}
+                                        {hasMoreComments && (
+                                            <button
+                                                onClick={handleLoadMoreComments}
+                                                disabled={isLoadingComments}
+                                                className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                                            >
+                                                {isLoadingComments ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <span>Show more comments</span>
+                                                        <ChevronDown className="w-3 h-3" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
