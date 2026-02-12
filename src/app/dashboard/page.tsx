@@ -110,16 +110,12 @@ const RELEVANCY_OPTIONS = [
     "Evergreen"
 ];
 
-function filterByRelevancy(videos: any[], filter: string) {
-    if (filter === "Evergreen") return videos;
-    const now = new Date();
-    const days = filter === "Last 14 days" ? 14 : filter === "Last 28 days" ? 28 : 60;
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return videos.filter(v => {
-        const date = v.publishedAt ? new Date(v.publishedAt) : new Date(0); // If no date, assume old unless fallback logic applies
-        return date >= cutoff;
-    });
+// Convert UI filter labels to API parameter values
+function getTemporalFilterValue(label: string): '14' | '28' | '60' | 'evergreen' {
+    if (label === "Last 14 days") return '14';
+    if (label === "Last 28 days") return '28';
+    if (label === "Last 60 days") return '60';
+    return 'evergreen';
 }
 
 export default function Dashboard() {
@@ -134,73 +130,60 @@ export default function Dashboard() {
 
     // Video Feed State
     const [videos, setVideos] = useState<any[]>(MOCK_VIDEOS);
-    const [filteredVideos, setFilteredVideos] = useState<any[]>(MOCK_VIDEOS);
 
-    React.useEffect(() => {
-        const loadVideos = async () => {
-            // 1. Check for Active Mission (Zero Distraction Rule)
-            const mission = await getMyMission();
+    // Load videos with temporal filter
+    const loadVideos = React.useCallback(async (filterLabel: string) => {
+        // 1. Check for Active Mission (Zero Distraction Rule)
+        const mission = await getMyMission();
 
-            if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
-                console.log("Found Active Mission:", mission.goal);
-                const curated = mission.mission_curations.map((c: any) => ({
-                    id: c.videos.id,
-                    title: c.videos.title,
-                    humanScore: c.videos.human_score || 99,
-                    category: c.videos.category_tag || 'Mission',
-                    channelTitle: c.videos.channel_title || 'Human Expert',
-                    channelUrl: c.videos.channel_url || '',
-                    publishedAt: c.videos.published_at || c.videos.created_at, // Fallback to created_at
-                    takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`]
-                }));
+        if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
+            console.log("Found Active Mission:", mission.goal);
+            const curated = mission.mission_curations.map((c: any) => ({
+                id: c.videos.id,
+                title: c.videos.title,
+                humanScore: c.videos.human_score || 99,
+                category: c.videos.category_tag || 'Mission',
+                channelTitle: c.videos.channel_title || 'Human Expert',
+                channelUrl: c.videos.channel_url || '',
+                publishedAt: c.videos.published_at || c.videos.created_at, // Fallback to created_at
+                takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`]
+            }));
 
-                // STRICT MODE: Only show curated videos
-                setVideos(curated);
-                return;
-            }
+            // STRICT MODE: Only show curated videos (no temporal filter for missions)
+            setVideos(curated);
+            return;
+        }
 
-            // 2. Fallback: Generic Feed
-            const verified = await getVerifiedVideos();
-            if (verified && verified.length > 0) {
-                const formattedVerified = verified.map(v => ({
-                    id: v.id,
-                    title: v.title,
-                    humanScore: v.human_score || 0,
-                    category: v.category_tag || 'Community',
-                    description: v.description || '', // Pass description
-                    channelTitle: v.channel_title || 'Community Creator',
-                    channelUrl: v.channel_url || '',
-                    publishedAt: v.published_at || v.created_at, // Fallback to created_at if published_at missing
-                    takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."]
-                }));
+        // 2. Fallback: Generic Feed with Temporal Filter
+        const temporalFilter = getTemporalFilterValue(filterLabel);
+        const verified = await getVerifiedVideos(temporalFilter);
+        if (verified && verified.length > 0) {
+            const formattedVerified = verified.map(v => ({
+                id: v.id,
+                title: v.title,
+                humanScore: v.human_score || 0,
+                category: v.category_tag || 'Community',
+                description: v.description || '', // Pass description
+                channelTitle: v.channel_title || 'Community Creator',
+                channelUrl: v.channel_url || '',
+                publishedAt: v.published_at || v.created_at, // Fallback to created_at if published_at missing
+                takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."]
+            }));
 
-                const verifiedIds = new Set(formattedVerified.map(v => v.id));
-                const uniqueMocks = MOCK_VIDEOS.filter(mock => !verifiedIds.has(mock.id));
-                setVideos([...formattedVerified, ...uniqueMocks]);
-            } else {
-                setVideos(MOCK_VIDEOS); // Ensure mocks are loaded if no verified videos
-            }
-        };
-        loadVideos();
+            const verifiedIds = new Set(formattedVerified.map(v => v.id));
+            const uniqueMocks = MOCK_VIDEOS.filter(mock => !verifiedIds.has(mock.id));
+            setVideos([...formattedVerified, ...uniqueMocks]);
+        } else {
+            setVideos(MOCK_VIDEOS); // Ensure mocks are loaded if no verified videos
+        }
     }, []);
 
-    // Apply Filters (Tab + Relevancy)
+    // Load videos on mount and when filter changes
     React.useEffect(() => {
-        // First filter by Relevancy
-        let result = filterByRelevancy(videos, relevancy);
+        loadVideos(relevancy);
+    }, [relevancy, loadVideos]);
 
-        // Then filter by Category/Tab (if implementing tab filtering later, currently strictly UI)
-        // For now, tabs are just UI or sorting? User asked for filtering logic for Relevancy.
-        // If tabs should filter by category, I should implement that too.
-        // Assuming tabs SHOULD filter by category:
-        // const categoryMap: Record<string, string> = { money: 'Sales & Marketing', productivity: 'Productivity', coding: 'VibeCoding', mindset: 'Mindset' };
-        // const targetCat = categoryMap[activeTab]; 
-        // if (targetCat) result = result.filter(v => v.category === targetCat || v.category === 'Mission'); // Mission always shows?
 
-        // User didn't explicitly ask to fix TAB filtering, just RELEVANCY.
-        // But let's apply Relevancy.
-        setFilteredVideos(result);
-    }, [videos, relevancy, activeTab]);
 
     const handleSuggest = async () => {
         if (!suggestionUrl) return;
@@ -403,7 +386,7 @@ export default function Dashboard() {
 
                 {/* Video Grid - 3 Columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredVideos.map((video) => (
+                    {videos.map((video) => (
                         <VideoCard
                             key={video.id} // Ensure IDs are unique between mocks and real
                             videoId={video.id}

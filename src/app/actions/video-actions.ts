@@ -13,11 +13,18 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
 
 // Helper: Fetch YouTube video metadata via oEmbed + HTML Scrape
-async function getYouTubeMetadata(videoId: string): Promise<{ title: string; author_name: string; author_url: string; description: string }> {
+async function getYouTubeMetadata(videoId: string): Promise<{
+    title: string;
+    author_name: string;
+    author_url: string;
+    description: string;
+    published_at: string | null;
+}> {
     let title = "Unknown Title";
     let author_name = "Unknown Channel";
     let author_url = "";
     let description = "";
+    let published_at: string | null = null;
 
     try {
         // 1. oEmbed for reliable Title/Author
@@ -30,22 +37,94 @@ async function getYouTubeMetadata(videoId: string): Promise<{ title: string; aut
             author_url = data.author_url || author_url;
         }
 
-        // 2. Scrape Page for Description (oEmbed misses it)
+        // 2. Scrape Page for Description + Publish Date
         const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
             }
         });
         const html = await pageResponse.text();
+
+        // Extract description
         const descriptionMatch = html.match(/<meta\s+name="description"\s+content="([^"]*)"/i);
         if (descriptionMatch && descriptionMatch[1]) {
             description = descriptionMatch[1];
+        }
+
+        // Extract publish date - try multiple patterns
+        let publishDateMatch = html.match(/<meta itemprop="uploadDate" content="([^"]+)">/);
+        if (!publishDateMatch) {
+            publishDateMatch = html.match(/"uploadDate":"([^"]+)"/);
+        }
+        if (!publishDateMatch) {
+            publishDateMatch = html.match(/"publishDate":"([^"]+)"/);
+        }
+        if (publishDateMatch && publishDateMatch[1]) {
+            published_at = publishDateMatch[1];
         }
     } catch (e) {
         console.error("Failed to fetch YouTube metadata:", e);
     }
 
-    return { title, author_name, author_url, description };
+    return { title, author_name, author_url, description, published_at };
+}
+
+// Ensure we can handle partial URLs or handles
+function normalizeChannelUrl(url: string): string {
+    if (url.startsWith('@')) return `https://www.youtube.com/${url}`;
+    if (!url.startsWith('http')) return `https://www.youtube.com/c/${url}`; // Try clean URL pattern if no protocol
+    return url;
+}
+
+export async function getChannelMetadata(channelUrl: string) {
+    try {
+        let normalizedUrl = channelUrl;
+        if (!channelUrl.startsWith('http')) {
+            if (channelUrl.startsWith('@')) {
+                normalizedUrl = `https://www.youtube.com/${channelUrl}`;
+            } else {
+                normalizedUrl = `https://www.youtube.com/c/${channelUrl}`;
+            }
+        }
+
+        const response = await fetch(normalizedUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+
+        if (!response.ok) return { title: "", description: "", success: false };
+
+        const html = await response.text();
+
+        // Extract Title
+        const titleMatch = html.match(/<meta property="og:title" content="([^"]+)">/);
+        const title = titleMatch ? titleMatch[1] : "Unknown Channel";
+
+        // Extract Description
+        const descMatch = html.match(/<meta name="description" content="([^"]+)">/);
+        const description = descMatch ? descMatch[1] : "";
+
+        return { title, description, success: true };
+    } catch (e) {
+        console.error("Failed to fetch channel metadata:", e);
+        return { title: "", description: "", success: false };
+    }
+}
+
+export async function verifyChannelOwnership(channelUrl: string, token: string) {
+    const { title, description, success } = await getChannelMetadata(channelUrl);
+
+    if (!success) {
+        return { success: false, message: "Could not fetch channel details. Please check the URL." };
+    }
+
+    // Check if token exists in description
+    if (description.includes(token)) {
+        return { success: true, message: "Verification successful! Channel claimed.", channelTitle: title };
+    }
+
+    return { success: false, message: `Token not found in channel description. Found title: ${title}` };
 }
 
 export async function suggestVideo(videoUrl: string) {
@@ -99,6 +178,7 @@ export async function suggestVideo(videoUrl: string) {
             description: metadata.description, // Store the description
             channel_title: metadata.author_name,
             channel_url: metadata.author_url,
+            published_at: metadata.published_at, // Store YouTube publish date
             status: 'pending',
             human_score: 50,
             suggestion_count: 1
@@ -176,14 +256,24 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
     return { success: true, message: `Video moved to ${newStatus}` };
 }
 
-export async function getVerifiedVideos() {
+export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen') {
     noStore();
-    const { data, error } = await supabase
+
+    let query = supabase
         .from('videos')
         .select('*')
         .eq('status', 'verified')
-        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null')
-        .order('created_at', { ascending: false });
+        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+
+    // Apply temporal filter if not evergreen
+    if (temporalFilter && temporalFilter !== 'evergreen') {
+        const days = parseInt(temporalFilter);
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        query = query.gte('published_at', cutoffDate.toISOString());
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) return [];
     return data;
