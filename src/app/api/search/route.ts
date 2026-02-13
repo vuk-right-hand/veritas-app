@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         // Fetch all videos with embeddings and calculate similarity manually
         const { data: allVideos, error: fetchError } = await supabase
             .from('videos')
-            .select('id, title, human_score, embedding')
+            .select('id, title, human_score, embedding, summary_points, channel_title, channel_url, published_at, description')
             .not('embedding', 'is', null);
 
         if (fetchError) {
@@ -95,6 +95,11 @@ export async function POST(req: Request) {
                 id: video.id,
                 title: video.title,
                 human_score: video.human_score,
+                summary_points: video.summary_points || [],
+                channel_title: video.channel_title,
+                channel_url: video.channel_url,
+                published_at: video.published_at,
+                description: video.description,
                 similarity
             };
         })

@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { generateEmbedding } from '@/lib/gemini';
 
 // Initialize Supabase Client (Service Role for secure backend ops if needed, or Anon if using RLS)
 // For this action, we should ideally use the authenticated user's client if we had auth.
@@ -51,7 +52,7 @@ export async function saveMission(formData: { goal: string; struggle: string; na
                 goal: formData.goal,
                 obstacle: formData.struggle,
                 preferences: {},
-                status: 'active' // Ensure status is set
+                status: 'active'
             }])
             .select()
             .single();
@@ -63,39 +64,81 @@ export async function saveMission(formData: { goal: string; struggle: string; na
 
         console.log(`✅ Mission Created: ${mission.id}`);
 
-        // 3. Curation Logic (MVP: Random 3 Verified Videos)
-        const { data: videos, error: videoError } = await supabase
-            .from('videos')
-            .select('id')
-            .eq('status', 'verified')
-            .limit(20);
+        // 3. SMART Curation Logic (Using Embeddings)
+        try {
+            // A. Generate Embedding for the Mission
+            const queryText = `Help me ${formData.goal} and overcome ${formData.struggle}`;
+            const embedding = await generateEmbedding(queryText);
 
-        if (videos && videos.length > 0) {
-            // Shuffle and pick 3
-            const selected = videos.sort(() => 0.5 - Math.random()).slice(0, 3);
+            // B. Fetch Videos and Calculate Similarity
+            // Fetch all videos with embeddings (Optimization: call RPC if available, else manual)
+            const { data: allVideos } = await supabase
+                .from('videos')
+                .select('id, title, embedding')
+                .not('embedding', 'is', null);
 
-            if (selected.length > 0) {
-                const curations = selected.map(v => ({
-                    mission_id: mission.id,
-                    video_id: v.id,
-                    curation_reason: `Matches your goal: "${formData.goal}"`
-                }));
+            if (allVideos && allVideos.length > 0) {
+                const scoredVideos = allVideos.map(video => {
+                    let videoEmbedding: number[] = [];
+                    if (typeof video.embedding === 'string') {
+                        try {
+                            videoEmbedding = JSON.parse(video.embedding);
+                        } catch (e) {
+                            return null;
+                        }
+                    } else if (Array.isArray(video.embedding)) {
+                        videoEmbedding = video.embedding;
+                    } else {
+                        return null;
+                    }
 
-                const { error: curationError } = await supabase
-                    .from('mission_curations')
-                    .insert(curations);
+                    if (!videoEmbedding || videoEmbedding.length !== embedding.length) return null;
 
-                if (curationError) {
-                    console.error('⚠️ Failed to save curations:', curationError);
-                } else {
-                    console.log(`✅ Linked ${curations.length} videos to mission.`);
+                    // Cosine Similarity
+                    let dotProduct = 0;
+                    let normA = 0;
+                    let normB = 0;
+                    for (let i = 0; i < embedding.length; i++) {
+                        dotProduct += embedding[i] * videoEmbedding[i];
+                        normA += embedding[i] * embedding[i];
+                        normB += videoEmbedding[i] * videoEmbedding[i];
+                    }
+                    const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+                    return { id: video.id, similarity };
+                })
+                    .filter((v): v is { id: string, similarity: number } => v !== null)
+                    .sort((a, b) => b.similarity - a.similarity)
+                    .slice(0, 5); // Top 5
+
+                // Select Top 3
+                const selected = scoredVideos.slice(0, 3);
+
+                if (selected.length > 0) {
+                    const curations = selected.map(v => ({
+                        mission_id: mission.id,
+                        video_id: v.id,
+                        curation_reason: `AI Match (${(v.similarity * 100).toFixed(0)}% relevance) for Goal: "${formData.goal}"`
+                    }));
+
+                    const { error: curationError } = await supabase
+                        .from('mission_curations')
+                        .insert(curations);
+
+                    if (curationError) {
+                        console.error('⚠️ Failed to save curations:', curationError);
+                    } else {
+                        console.log(`✅ Linked ${curations.length} smart-curated videos.`);
+                    }
                 }
             }
+
+        } catch (curationErr) {
+            console.error("Smart Curation Failed, falling back:", curationErr);
+            // Fallback logic could be here (random selection) but proceeding for now
         }
 
+
         // 4. Set Session Cookie
-        // Stores mission_id so Dashboard can fetch it.
-        // In a real app, we'd store a session token, but this works for the "no-login" feel.
         cookieStore.set('veritas_user', mission.id, {
             path: '/',
             httpOnly: true,

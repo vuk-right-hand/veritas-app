@@ -1,0 +1,95 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main anatomical heart outline -->
+  <path d="M 50 10 L 45 5 L 40 8 L 38 12 L 35 8 L 30 5 L 25 8 L 22 15 L 20 25 L 18 35 L 20 45 L 25 55 L 35 70 L 45 85 L 50 92 L 55 85 L 65 70 L 75 55 L 80 45 L 82 35 L 80 25 L 78 15 L 75 8 L 70 5 L 65 8 L 62 12 L 60 8 L 55 5 Z" 
+        stroke="#EF4444" stroke-width="1.5" fill="none" filter="url(#glow)"/>
+  
+  <!-- Dense triangulation - Left ventricle area -->
+  <path d="M 50 92 L 45 85 L 40 78" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 92 L 50 80 L 45 85" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 80 L 55 85 L 50 92" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 55 85 L 60 78 L 50 92" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <!-- Middle section - extensive faceting -->
+  <path d="M 35 70 L 50 80 L 45 85" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 35 70 L 40 78 L 50 80" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 65 70 L 50 80 L 55 85" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 65 70 L 60 78 L 50 80" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 25 55 L 35 70 L 30 62" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 25 55 L 30 62 L 28 58" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 75 55 L 65 70 L 70 62" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 75 55 L 70 62 L 72 58" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 35 70 L 50 60 L 50 80" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 65 70 L 50 60 L 50 80" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 25 55 L 50 60 L 35 70" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 75 55 L 50 60 L 65 70" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <!-- Upper chambers and vessels -->
+  <path d="M 20 45 L 25 55 L 30 48" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 20 45 L 30 48 L 25 42" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 45 L 75 55 L 70 48" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 45 L 70 48 L 75 42" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 20 45 L 50 40 L 50 60" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 45 L 50 40 L 50 60" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 25 55 L 50 40 L 50 60" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 75 55 L 50 40 L 50 60" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 18 35 L 20 45 L 25 38" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 18 35 L 25 38 L 22 32" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 82 35 L 80 45 L 75 38" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 82 35 L 75 38 L 78 32" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 20 25 L 18 35 L 25 30" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 20 25 L 25 30 L 28 25" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 25 L 82 35 L 75 30" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 25 L 75 30 L 72 25" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 18 35 L 50 40 L 20 45" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 82 35 L 50 40 L 80 45" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 20 25 L 50 30 L 18 35" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 25 L 50 30 L 82 35" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 30 L 50 40 L 40 35" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 30 L 50 40 L 60 35" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <!-- Aortic arch and vessels at top -->
+  <path d="M 22 15 L 20 25 L 28 20" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 22 15 L 28 20 L 30 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 78 15 L 80 25 L 72 20" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 78 15 L 72 20 L 70 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 30 5 L 25 8 L 22 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 30 5 L 35 8 L 38 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 70 5 L 75 8 L 78 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 70 5 L 65 8 L 62 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 45 5 L 40 8 L 38 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 45 5 L 50 10 L 55 5" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 55 5 L 60 8 L 62 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <path d="M 38 12 L 50 20 L 50 30" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 62 12 L 50 20 L 50 30" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 35 8 L 50 20 L 38 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 65 8 L 50 20 L 62 12" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 10 L 50 20 L 45 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 50 10 L 50 20 L 55 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  
+  <!-- Additional internal facets for density -->
+  <path d="M 30 15 L 50 20 L 35 8" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 70 15 L 50 20 L 65 8" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 22 15 L 50 30 L 30 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 78 15 L 50 30 L 70 15" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 20 25 L 50 30 L 28 20" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+  <path d="M 80 25 L 50 30 L 72 20" stroke="#EF4444" stroke-width="1" filter="url(#glow)"/>
+</svg>

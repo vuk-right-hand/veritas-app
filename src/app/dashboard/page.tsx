@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, DollarSign, Zap, LayoutGrid, Brain, CheckCircle2, ChevronDown } from 'lucide-react';
+import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
+import AuthChoiceModal from '@/components/AuthChoiceModal';
 import { suggestVideo, getVerifiedVideos, getMyMission } from '@/app/actions/video-actions';
+
 
 // Mock Data for V1
 const MOCK_VIDEOS = [
@@ -97,31 +99,23 @@ const MOCK_VIDEOS = [
 ];
 
 const TABS = [
-    { id: 'money', label: 'Make Money', icon: DollarSign },
-    { id: 'productivity', label: 'Productivity', icon: Zap },
-    { id: 'coding', label: 'VibeCoding', icon: LayoutGrid },
-    { id: 'mindset', label: 'Mindset', icon: Brain },
-];
-
-const RELEVANCY_OPTIONS = [
-    "Last 14 days",
-    "Last 28 days",
-    "Last 60 days",
-    "Evergreen"
+    { id: 'Last 14 days', label: 'Last 14 days', icon: Zap },
+    { id: 'Last 28 days', label: 'Last 28 days', icon: Clock },
+    { id: 'Last 69 days', label: 'Last 69 days', icon: Flame },
+    { id: 'Evergreen', label: 'Evergreen', icon: Infinity },
 ];
 
 // Convert UI filter labels to API parameter values
 function getTemporalFilterValue(label: string): '14' | '28' | '60' | 'evergreen' {
     if (label === "Last 14 days") return '14';
     if (label === "Last 28 days") return '28';
-    if (label === "Last 60 days") return '60';
+    if (label === "Last 69 days") return '60'; // Handled as 60 for now
     return 'evergreen';
 }
 
 export default function Dashboard() {
-    const [activeTab, setActiveTab] = useState('money');
-    const [relevancy, setRelevancy] = useState('Evergreen');
-    const [isRelevancyOpen, setIsRelevancyOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('Evergreen');
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     // Suggestion State
     const [suggestionUrl, setSuggestionUrl] = useState("");
@@ -180,10 +174,30 @@ export default function Dashboard() {
 
     // Load videos on mount and when filter changes
     React.useEffect(() => {
-        loadVideos(relevancy);
-    }, [relevancy, loadVideos]);
+        loadVideos(activeTab);
+    }, [activeTab, loadVideos]);
 
 
+
+    const handleSearchResults = (results: any[]) => {
+        // Map API search results to VideoCard props
+        const mapped = results.map(r => ({
+            id: r.id,
+            title: r.title,
+            humanScore: r.human_score,
+            takeaways: r.summary_points || [],
+            channelTitle: r.channel_title,
+            channelUrl: r.channel_url,
+            publishedAt: r.published_at,
+            description: r.description
+        }));
+        setVideos(mapped);
+    };
+
+    const handleClearSearch = () => {
+        // Reset to current feed based on active tab/filter
+        loadVideos(activeTab);
+    };
 
     const handleSuggest = async () => {
         if (!suggestionUrl) return;
@@ -211,11 +225,12 @@ export default function Dashboard() {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-red-500/30 font-sans">
+            <AuthChoiceModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
             {/* Navbar */}
             <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/80 backdrop-blur-xl">
                 <div className="max-w-[1600px] mx-auto px-8 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-red-600 to-red-900 shadow-[0_0_15px_rgba(220,38,38,0.5)]" />
+                        <img src="/veritas-heart.svg" alt="Veritas Logo" className="w-11 h-11 object-contain animate-heartbeat fill-red-600" />
                         <span className="font-bold text-xl tracking-tight">Veritas</span>
                     </div>
 
@@ -225,14 +240,17 @@ export default function Dashboard() {
                             Meeting with the founder...
                         </Link>
 
+
                         {/* Creator Dashboard Link (Mocked functionality) */}
                         <div className="hidden md:block">
-                            <Link href="/creator-dashboard">
-                                <button className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2 hover:bg-white/5 rounded-lg">
-                                    Claim Channel / Dashboard
-                                </button>
-                            </Link>
+                            <button
+                                onClick={() => setShowAuthModal(true)}
+                                className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2 hover:bg-white/5 rounded-lg"
+                            >
+                                Claim Channel / Dashboard
+                            </button>
                         </div>
+
 
                         {/* Profile / Stats Area */}
                         <div className="flex items-center gap-4 pl-6 border-l border-white/10">
@@ -264,7 +282,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* The Brain (Search) */}
-                <ProblemSolver />
+                <ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} />
 
                 {/* Filters - Centered below Search */}
                 <div className="mt-8 mb-16 flex justify-center w-full">
@@ -277,12 +295,13 @@ export default function Dashboard() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`
-                                        px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border
+                                        pl-3 pr-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border flex items-center gap-2
                                         ${activeTab === tab.id
                                             ? 'bg-red-950/30 text-red-200 border-red-900/50 shadow-[0_0_10px_rgba(220,38,38,0.2)]'
                                             : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5'}
                                     `}
                                 >
+                                    <tab.icon className={`w-3 h-3 ${activeTab === tab.id ? 'text-red-400' : 'opacity-70'}`} />
                                     {tab.label}
                                 </button>
                             ))}
@@ -341,46 +360,8 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Right: Relevancy Dropdown */}
-                    <div className="flex justify-center lg:justify-end">
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsRelevancyOpen(!isRelevancyOpen)}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:border-white/20 transition-all min-w-[140px] justify-between"
-                            >
-                                <span className="opacity-50">Filter:</span>
-                                <span className="text-gray-200">{relevancy}</span>
-                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isRelevancyOpen ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            <AnimatePresence>
-                                {isRelevancyOpen && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 10 }}
-                                        className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 p-1"
-                                    >
-                                        {RELEVANCY_OPTIONS.map((option) => (
-                                            <button
-                                                key={option}
-                                                onClick={() => {
-                                                    setRelevancy(option);
-                                                    setIsRelevancyOpen(false);
-                                                }}
-                                                className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${relevancy === option
-                                                    ? 'bg-red-900/20 text-red-200'
-                                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                                                    }`}
-                                            >
-                                                {option}
-                                            </button>
-                                        ))}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    </div>
+                    {/* Right: Spacer (Dropdown Removed) */}
+                    <div className="hidden lg:block"></div>
                 </div>
 
 

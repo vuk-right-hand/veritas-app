@@ -5,9 +5,8 @@ import { Search, Sparkles, ArrowRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VideoCard from './VideoCard';
 
-export default function ProblemSolver() {
+export default function ProblemSolver({ onSearchResults, onClear }: { onSearchResults: (results: any[]) => void, onClear: () => void }) {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
 
@@ -20,11 +19,13 @@ export default function ProblemSolver() {
         try {
             const res = await fetch('/api/search', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query }),
             });
             const data = await res.json();
             if (data.success) {
-                setResults(data.matches || []);
+                // Pass results up to parent (Dashboard)
+                onSearchResults(data.matches || []);
             }
         } catch (err) {
             console.error("Search failed", err);
@@ -35,12 +36,12 @@ export default function ProblemSolver() {
 
     const clearSearch = () => {
         setQuery('');
-        setResults([]);
         setHasSearched(false);
+        onClear(); // Reset parent to default feed
     };
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-16">
+        <div className="w-full max-w-4xl mx-auto mb-8">
             <div className="relative z-20">
                 {/* Input Container */}
                 <form onSubmit={handleSearch} className="relative group">
@@ -78,48 +79,7 @@ export default function ProblemSolver() {
                     </div>
                 </form>
             </div>
-
-            {/* Results Area */}
-            <AnimatePresence>
-                {hasSearched && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="mt-8 space-y-6"
-                    >
-                        <div className="flex items-center justify-between text-sm text-gray-400">
-                            <span>Analysis for: <span className="text-white">"{query}"</span></span>
-                            <span>{results.length} Matches Found</span>
-                        </div>
-
-                        {results.length === 0 && !loading ? (
-                            <div className="text-center py-20 text-gray-500 bg-white/5 rounded-xl border border-dashed border-white/10">
-                                No direct cures found in the library strictly matching that. <br /> Try being more specific or scan more videos.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {results.map((video, idx) => (
-                                    <motion.div
-                                        key={video.id}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.1 }}
-                                    >
-                                        <VideoCard
-                                            videoId={video.id} // Note: This might need to accommodate full YT URL if VideoCard requires it, or logic update
-                                            title={video.title}
-                                            humanScore={video.human_score}
-                                            takeaways={[]} // Search result might not return full takeaways unless we select them.
-                                            onQuizStart={() => { }}
-                                        />
-                                    </motion.div>
-                                ))}
-                            </div>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* No internal results rendering anymore */}
         </div>
     );
 }
