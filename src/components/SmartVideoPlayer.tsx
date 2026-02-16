@@ -43,17 +43,17 @@ export default React.forwardRef<SmartVideoPlayerRef, SmartVideoPlayerProps>(func
     const [apiReady, setApiReady] = useState(false);
 
     React.useImperativeHandle(ref, () => ({
-        playVideo: () => playerInstanceRef.current?.playVideo(),
-        pauseVideo: () => playerInstanceRef.current?.pauseVideo(),
-        seekTo: (seconds: number, allowSeekAhead: boolean = true) => playerInstanceRef.current?.seekTo(seconds, allowSeekAhead),
-        setVolume: (volume: number) => playerInstanceRef.current?.setVolume(volume),
-        setPlaybackRate: (rate: number) => playerInstanceRef.current?.setPlaybackRate(rate),
-        getDuration: () => playerInstanceRef.current?.getDuration() || 0,
-        getCurrentTime: () => playerInstanceRef.current?.getCurrentTime() || 0,
-        getPlayerState: () => playerInstanceRef.current?.getPlayerState() || -1,
-        mute: () => playerInstanceRef.current?.mute(),
-        unMute: () => playerInstanceRef.current?.unMute(),
-        isMuted: () => playerInstanceRef.current?.isMuted() || false,
+        playVideo: () => playerInstanceRef.current?.playVideo?.(),
+        pauseVideo: () => playerInstanceRef.current?.pauseVideo?.(),
+        seekTo: (seconds: number, allowSeekAhead: boolean = true) => playerInstanceRef.current?.seekTo?.(seconds, allowSeekAhead),
+        setVolume: (volume: number) => playerInstanceRef.current?.setVolume?.(volume),
+        setPlaybackRate: (rate: number) => playerInstanceRef.current?.setPlaybackRate?.(rate),
+        getDuration: () => playerInstanceRef.current?.getDuration?.() || 0,
+        getCurrentTime: () => playerInstanceRef.current?.getCurrentTime?.() || 0,
+        getPlayerState: () => playerInstanceRef.current?.getPlayerState?.() || -1,
+        mute: () => playerInstanceRef.current?.mute?.(),
+        unMute: () => playerInstanceRef.current?.unMute?.(),
+        isMuted: () => playerInstanceRef.current?.isMuted?.() || false,
     }));
 
     useEffect(() => {

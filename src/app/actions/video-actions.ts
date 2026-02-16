@@ -208,6 +208,39 @@ export async function suggestVideo(videoUrl: string) {
     return { success: true, message: "Video submitted for verification!" };
 }
 
+export async function recordVideoView(videoId: string, metadata: any = {}) {
+    // Fire and forget - don't await in critical path if possible, or await but suppress errors
+    try {
+        await supabase
+            .from('analytics_events')
+            .insert({
+                event_type: 'video_view',
+                target_id: videoId,
+                metadata
+            });
+
+        // Increment global counter
+        await supabase.rpc('increment_video_view', { video_id_param: videoId });
+
+    } catch (e) {
+        console.error("Failed to record view:", e);
+    }
+}
+
+export async function recordSearch(term: string) {
+    try {
+        await supabase
+            .from('analytics_events')
+            .insert({
+                event_type: 'user_search',
+                target_id: term.trim().toLowerCase(), // Normalize search term
+                metadata: { timestamp: new Date().toISOString() }
+            });
+    } catch (e) {
+        console.error("Failed to record search:", e);
+    }
+}
+
 export async function getPendingVideos() {
     noStore(); // Force dynamic fetch
     const { data, error } = await supabase
@@ -391,4 +424,19 @@ export async function postComment(videoId: string, text: string, userName = 'Com
     }
 
     return { success: true, comment: data };
+}
+
+export async function updateVideoDescription(videoId: string, description: string) {
+    try {
+        const { error } = await supabase
+            .from('videos')
+            .update({ custom_description: description })
+            .eq('id', videoId);
+
+        if (error) throw error;
+        revalidatePath('/creator-dashboard');
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
 }

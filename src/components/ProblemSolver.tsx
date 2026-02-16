@@ -4,28 +4,46 @@ import React, { useState } from 'react';
 import { Search, Sparkles, ArrowRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VideoCard from './VideoCard';
+import { recordSearch } from '@/app/actions/video-actions';
 
-export default function ProblemSolver({ onSearchResults, onClear }: { onSearchResults: (results: any[]) => void, onClear: () => void }) {
+export default function ProblemSolver({ onSearchResults, onClear, activeFilter }: {
+    onSearchResults: (results: any[], searchQuery: string) => void,
+    onClear: () => void,
+    activeFilter?: string
+}) {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+
+    // Convert filter label to API value
+    const getTemporalFilterValue = (label?: string): string | undefined => {
+        if (!label) return undefined;
+        if (label === "Last 14 days") return '14';
+        if (label === "Last 28 days") return '28';
+        if (label === "Last 69 days") return '60';
+        return 'evergreen';
+    };
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
 
+        // Log the search
+        recordSearch(query);
+
         setLoading(true);
         setHasSearched(true);
         try {
+            const temporalFilter = getTemporalFilterValue(activeFilter);
             const res = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query }),
+                body: JSON.stringify({ query, temporalFilter }),
             });
             const data = await res.json();
             if (data.success) {
-                // Pass results up to parent (Dashboard)
-                onSearchResults(data.matches || []);
+                // Pass results AND query up to parent (Dashboard)
+                onSearchResults(data.matches || [], query);
             }
         } catch (err) {
             console.error("Search failed", err);

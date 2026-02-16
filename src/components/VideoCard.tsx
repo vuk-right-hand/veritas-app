@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown } from 'lucide-react';
+import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink } from 'lucide-react';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
-import { getComments, postComment } from '@/app/actions/video-actions';
+import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
 
 interface VideoCardProps {
     videoId: string;
@@ -12,18 +12,21 @@ interface VideoCardProps {
     humanScore: number;
     takeaways: string[];
     description?: string;
+    customDescription?: string; // Per-video override
     channelTitle?: string;
     channelUrl?: string;
     publishedAt?: string;
+    customLinks?: { title: string; url: string; }[];
     onQuizStart: () => void;
 }
 
-
-
-export default function VideoCard({ videoId, title, humanScore, takeaways, description, channelTitle, channelUrl, publishedAt, onQuizStart }: VideoCardProps) {
+export default function VideoCard({ videoId, title, humanScore, takeaways, description, customDescription, channelTitle, channelUrl, publishedAt, customLinks, onQuizStart }: VideoCardProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+
+    // Use custom description if available, otherwise use regular description
+    const displayDescription = customDescription || description || '';
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -34,6 +37,27 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+
+    // Volume Hover Timeout Logic
+    const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleVolumeEnter = () => {
+        if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+        setShowVolumeSlider(true);
+    };
+
+    const handleVolumeLeave = () => {
+        volumeTimeoutRef.current = setTimeout(() => {
+            setShowVolumeSlider(false);
+        }, 300); // 300ms grace period
+    };
+
+    const decodeText = (html: string) => {
+        if (typeof document === 'undefined') return html; // Server-side safety
+        const txt = document.createElement('textarea');
+        txt.innerHTML = html;
+        return txt.value;
+    };
 
     // Comments State
     const [comments, setComments] = useState<any[]>([]);
@@ -114,6 +138,15 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
     // Load Initial Comments
     useEffect(() => {
         if (isOpen) {
+            // Record view with context
+            let source_context = 'direct';
+            if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                const filter = params.get('filter');
+                if (filter) source_context = `filter:${filter}`;
+            }
+            recordVideoView(videoId, { source_context, timestamp: new Date().toISOString() });
+
             loadInitialComments();
         }
     }, [isOpen]);
@@ -329,7 +362,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
             {/* Expanded State (The Glass Modal) */}
             <AnimatePresence>
                 {
-                    isOpen && (
+                    isOpen && (<>
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
 
                             {/* Backdrop with Blur */}
@@ -370,257 +403,200 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                     {/* Grid Layout for strict alignment */}
                                     <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 ${isFullscreen ? 'h-full w-full flex flex-col md:grid' : ''}`}>
 
-                                        {/* LEFT: Video Player (Browser Fullscreen API handles fullscreen) */}
-                                        <div
-                                            ref={videoContainerRef}
-                                            className="col-span-3 relative group bg-black shadow-2xl flex flex-col justify-center overflow-hidden transition-all duration-300 w-full rounded-2xl border border-white/10 aspect-video"
-                                            onDoubleClick={(e) => {
-                                                e.preventDefault();
-                                                handleFullscreen();
-                                            }}
-                                        >
-                                            <div className="relative w-full h-full">
-                                                <SmartVideoPlayer
-                                                    ref={playerRef}
-                                                    videoId={videoId}
-                                                    title={title}
-                                                    autoplay={true}
-                                                    controls={false}
-                                                    className="w-full h-full object-cover"
-                                                    onEnded={() => {
-                                                        console.log("Main Feed Video Ended");
-                                                        setIsPlaying(false);
-                                                    }}
-                                                    onPlay={() => setIsPlaying(true)}
-                                                    onPause={() => setIsPlaying(false)}
-                                                />
+                                        <div className="col-span-3 flex flex-col gap-6">
+                                            {/* LEFT: Video Player (Browser Fullscreen API handles fullscreen) */}
+                                            <div
+                                                ref={videoContainerRef}
+                                                className="relative group bg-black shadow-2xl flex flex-col justify-center overflow-hidden transition-all duration-300 w-full rounded-2xl border border-white/10 aspect-video"
+                                                onDoubleClick={(e) => {
+                                                    e.preventDefault();
+                                                    handleFullscreen();
+                                                }}
+                                            >
+                                                <div className="relative w-full h-full">
+                                                    <SmartVideoPlayer
+                                                        ref={playerRef}
+                                                        videoId={videoId}
+                                                        title={title}
+                                                        autoplay={true}
+                                                        controls={false}
+                                                        className="w-full h-full object-cover"
+                                                        onEnded={() => {
+                                                            console.log("Main Feed Video Ended");
+                                                            setIsPlaying(false);
+                                                        }}
+                                                        onPlay={() => setIsPlaying(true)}
+                                                        onPause={() => setIsPlaying(false)}
+                                                    />
 
-                                                {/* Transparent Double-Click Capture Layer */}
-                                                <div
-                                                    className="absolute inset-0 z-10"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        // Use timeout to avoid conflict with double-click
-                                                        const clickTimer = setTimeout(() => {
-                                                            togglePlay();
-                                                        }, 200);
-                                                        (e.currentTarget as any).clickTimer = clickTimer;
-                                                    }}
-                                                    onDoubleClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        if ((e.currentTarget as any).clickTimer) {
-                                                            clearTimeout((e.currentTarget as any).clickTimer);
-                                                        }
-                                                        handleFullscreen();
-                                                    }}
-                                                />
+                                                    {/* Transparent Double-Click Capture Layer */}
+                                                    <div
+                                                        className="absolute inset-0 z-10"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            // Use timeout to avoid conflict with double-click
+                                                            const clickTimer = setTimeout(() => {
+                                                                togglePlay();
+                                                            }, 200);
+                                                            (e.currentTarget as any).clickTimer = clickTimer;
+                                                        }}
+                                                        onDoubleClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            if ((e.currentTarget as any).clickTimer) {
+                                                                clearTimeout((e.currentTarget as any).clickTimer);
+                                                            }
+                                                            handleFullscreen();
+                                                        }}
+                                                    />
 
-                                                {/* Custom Controls Overlay */}
-                                                <div
-                                                    className="absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                                                >
+                                                    {/* Custom Controls Overlay */}
+                                                    <div
+                                                        className="absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                                    >
 
-                                                    {/* Bottom Controls Container */}
-                                                    <div className="w-full flex flex-col gap-2 pb-6 px-6 pointer-events-auto z-20">
+                                                        {/* Bottom Controls Container */}
+                                                        <div className="w-full flex flex-col gap-2 pb-6 px-6 pointer-events-auto z-20">
 
-                                                        {/* Progress Bar - Above Buttons */}
-                                                        <div className="group/progress relative w-full h-4 flex items-center cursor-pointer touch-none">
-                                                            {/* Background Track */}
-                                                            <div className="absolute left-0 right-0 h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm group-hover/progress:h-1.5 transition-all">
-                                                                {/* Buffered/Red Progress */}
+                                                            {/* Progress Bar - Above Buttons */}
+                                                            <div className="group/progress relative w-full h-4 flex items-center cursor-pointer touch-none">
+                                                                {/* Background Track */}
+                                                                <div className="absolute left-0 right-0 h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm group-hover/progress:h-1.5 transition-all">
+                                                                    {/* Buffered/Red Progress */}
+                                                                    <div
+                                                                        className="absolute left-0 top-0 bottom-0 bg-red-600"
+                                                                        style={{ width: `${progress}%` }}
+                                                                    />
+                                                                </div>
+
+                                                                {/* Interactive Input (Invisible but handles drag) */}
+                                                                <input
+                                                                    type="range"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    step="0.01"
+                                                                    value={progress}
+                                                                    onChange={handleSeek}
+                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-40"
+                                                                />
+
+                                                                {/* Visible Thumb (Follows Progress) */}
                                                                 <div
-                                                                    className="absolute left-0 top-0 bottom-0 bg-red-600"
-                                                                    style={{ width: `${progress}%` }}
+                                                                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] border-2 border-white scale-0 group-hover/progress:scale-100 transition-transform duration-200 ease-out pointer-events-none z-50 origin-center"
+                                                                    style={{ left: `${progress}%` }}
                                                                 />
                                                             </div>
 
-                                                            {/* Interactive Input (Invisible but handles drag) */}
-                                                            <input
-                                                                type="range"
-                                                                min="0"
-                                                                max="100"
-                                                                step="0.01"
-                                                                value={progress}
-                                                                onChange={handleSeek}
-                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-40"
-                                                            />
+                                                            {/* Buttons Row */}
+                                                            <div className="flex items-center justify-between">
 
-                                                            {/* Visible Thumb (Follows Progress) */}
-                                                            <div
-                                                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] border-2 border-white scale-0 group-hover/progress:scale-100 transition-transform duration-200 ease-out pointer-events-none z-50 origin-center"
-                                                                style={{ left: `${progress}%` }}
-                                                            />
-                                                        </div>
+                                                                {/* Left Side: Play | Volume | Time Pill */}
+                                                                <div className="flex items-center gap-4">
 
-                                                        {/* Buttons Row */}
-                                                        <div className="flex items-center justify-between">
-
-                                                            {/* Left Side: Play | Volume | Time Pill */}
-                                                            <div className="flex items-center gap-4">
-
-                                                                {/* Play Button - Circle */}
-                                                                <button
-                                                                    onClick={togglePlay}
-                                                                    className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
-                                                                >
-                                                                    {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white ml-0.5" />}
-                                                                </button>
-
-                                                                {/* Volume Button - Circle */}
-                                                                <div
-                                                                    className="relative flex items-center"
-                                                                    onMouseEnter={() => setShowVolumeSlider(true)}
-                                                                    onMouseLeave={() => setShowVolumeSlider(false)}
-                                                                >
+                                                                    {/* Play Button - Circle */}
                                                                     <button
-                                                                        onClick={toggleMute}
+                                                                        onClick={togglePlay}
                                                                         className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
                                                                     >
-                                                                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+                                                                        {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white ml-0.5" />}
                                                                     </button>
 
-                                                                    {/* Vertical Slider Popover */}
-                                                                    <AnimatePresence>
-                                                                        {showVolumeSlider && (
-                                                                            <div className="absolute bottom-full left-0 mb-2 p-2 bg-black/90 border border-white/10 rounded-full backdrop-blur-md flex flex-col items-center shadow-xl">
-                                                                                <input
-                                                                                    type="range"
-                                                                                    min="0"
-                                                                                    max="100"
-                                                                                    value={isMuted ? 0 : volume}
-                                                                                    onChange={handleVolumeChange}
-                                                                                    className="h-24 w-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white writing-mode-vertical"
-                                                                                    style={{ writingMode: 'vertical-lr', direction: 'rtl' } as any}
-                                                                                />
-                                                                            </div>
-                                                                        )}
-                                                                    </AnimatePresence>
+                                                                    {/* Volume Button - Circle */}
+                                                                    <div
+                                                                        className="relative flex items-center"
+                                                                        onMouseEnter={handleVolumeEnter}
+                                                                        onMouseLeave={handleVolumeLeave}
+                                                                    >
+                                                                        <button
+                                                                            onClick={toggleMute}
+                                                                            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
+                                                                        >
+                                                                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+                                                                        </button>
+
+                                                                        {/* Vertical Slider Popover */}
+                                                                        <AnimatePresence>
+                                                                            {showVolumeSlider && (
+                                                                                <div
+                                                                                    className="absolute bottom-full left-0 mb-2 p-2 bg-black/90 border border-white/10 rounded-full backdrop-blur-md flex flex-col items-center shadow-xl"
+                                                                                >
+                                                                                    <input
+                                                                                        type="range"
+                                                                                        min="0"
+                                                                                        max="100"
+                                                                                        value={isMuted ? 0 : volume}
+                                                                                        onChange={handleVolumeChange}
+                                                                                        className="h-24 w-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white writing-mode-vertical"
+                                                                                        style={{ writingMode: 'vertical-lr', direction: 'rtl' } as any}
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                        </AnimatePresence>
+                                                                    </div>
+
+                                                                    {/* Time Pill: 0:05 / 9:50 */}
+                                                                    <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-medium text-white font-mono flex items-center gap-1 shadow-lg">
+                                                                        <span className="text-white/90">{formatTime(currentTime)}</span>
+                                                                        <span className="text-white/40">/</span>
+                                                                        <span className="text-white/60">{formatTime(duration)}</span>
+                                                                    </div>
                                                                 </div>
 
-                                                                {/* Time Pill: 0:05 / 9:50 */}
-                                                                <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-medium text-white font-mono flex items-center gap-1 shadow-lg">
-                                                                    <span className="text-white/90">{formatTime(currentTime)}</span>
-                                                                    <span className="text-white/40">/</span>
-                                                                    <span className="text-white/60">{formatTime(duration)}</span>
+                                                                {/* Right Side: Speed | Fullscreen */}
+                                                                <div className="flex items-center gap-3">
+                                                                    <button
+                                                                        onClick={toggleSpeed}
+                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-lg ${playbackRate === 1.5
+                                                                            ? 'bg-red-600 border-red-500 text-white'
+                                                                            : 'bg-white/20 border-white/10 text-white hover:bg-white/30'
+                                                                            }`}
+                                                                    >
+                                                                        1.5x
+                                                                    </button>
+
+                                                                    <button
+                                                                        onClick={handleFullscreen}
+                                                                        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
+                                                                    >
+                                                                        {isFullscreen ? <X className="w-5 h-5 text-white" /> : <Maximize2 className="w-5 h-5 text-white" />}
+                                                                    </button>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Right Side: Speed | Fullscreen */}
-                                                            <div className="flex items-center gap-3">
-                                                                <button
-                                                                    onClick={toggleSpeed}
-                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-lg ${playbackRate === 1.5
-                                                                        ? 'bg-red-600 border-red-500 text-white'
-                                                                        : 'bg-white/20 border-white/10 text-white hover:bg-white/30'
-                                                                        }`}
-                                                                >
-                                                                    1.5x
-                                                                </button>
-
-                                                                <button
-                                                                    onClick={handleFullscreen}
-                                                                    className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
-                                                                >
-                                                                    {isFullscreen ? <X className="w-5 h-5 text-white" /> : <Maximize2 className="w-5 h-5 text-white" />}
-                                                                </button>
-                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* RIGHT: Quiz Box (Takes 1 col, Matches Height) */}
-                                        {!isFullscreen && (
-                                            <div className="col-span-1 h-full w-full flex">
-                                                <div
-                                                    className="w-full flex-1 p-6 rounded-2xl bg-white/5 border border-white/5 relative overflow-hidden group/quiz cursor-pointer hover:border-red-500/40 hover:bg-white/10 transition-all duration-300 flex flex-col justify-between"
-                                                    onClick={onQuizStart}
-                                                >
-                                                    <div className="absolute top-4 right-4 opacity-30">
-                                                        <Brain className="w-10 h-10 text-gray-500" />
-                                                    </div>
-
-                                                    <div className="mt-6">
-                                                        <div className="text-[10px] font-mono text-gray-400 tracking-wider mb-2 uppercase">Active Recall</div>
-                                                        <h3 className="text-xl font-bold text-white mb-2 leading-tight">
-                                                            What did <br /> you learn?
-                                                        </h3>
-                                                        <p className="text-xs text-gray-400 font-light leading-relaxed">
-                                                            Tap to start a quick 3-question assessment to verify your knowledge.
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 text-red-400 text-xs font-bold group-hover/quiz:translate-x-1 transition-transform mt-4">
-                                                        <Brain className="w-3 h-3" />
-                                                        <span>Start Quiz</span>
-                                                    </div>
-
-                                                    {/* Abstract Decor */}
-                                                    <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-red-600/10 rounded-full blur-3xl group-hover/quiz:bg-red-600/20 transition-colors" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* --- BOTTOM ROW: INSIGHTS & ACTIONS --- */}
-                                    {!isFullscreen && (
-                                        <div className="flex flex-col gap-8 w-full md:w-3/4">
-
-                                            {/* Info & Links Bar */}
-                                            <div className="flex flex-col gap-4">
-                                                <div className="flex items-start justify-between">
-                                                    <div>
-                                                        <h2 className="text-2xl font-bold text-white leading-tight mb-2">{title}</h2>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 border border-white/10 ${humanScore > 90 ? 'text-green-400' : 'text-yellow-400'}`}>
-                                                                {humanScore}% HUMAN
-                                                            </div>
-                                                            <span className="text-xs text-gray-500">•</span>
-                                                            <span className="text-xs text-gray-500">•</span>
-
-                                                            {channelUrl ? (
-                                                                <a
-                                                                    href={channelUrl}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline uppercase tracking-wide font-bold"
-                                                                >
-                                                                    {channelTitle || 'Unknown Channel'}
-                                                                </a>
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400 uppercase tracking-wide font-bold">{channelTitle || 'Unknown Channel'}</span>
-                                                            )}
-
-                                                            {publishedAt && (
-                                                                <>
-                                                                    <span className="text-xs text-gray-500">•</span>
-                                                                    <span className="text-xs text-gray-500">{new Date(publishedAt).toLocaleDateString()}</span>
-                                                                </>
-                                                            )}
-                                                            <span className="text-xs text-gray-500">•</span>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); setIsDescriptionOpen(!isDescriptionOpen); }}
-                                                                className="text-xs text-gray-400 hover:text-white transition-colors font-medium">
-                                                                {isDescriptionOpen ? "Less..." : "More..."}
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                            {/* Description & Links (Moved OUT of Video Container) */}
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-2xl font-bold text-white leading-tight">{title}</h3>
                                                 </div>
 
-                                                {/* Collapsible Description & Links */}
-                                                <AnimatePresence>
-                                                    {isDescriptionOpen && (
-                                                        <motion.div
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: "auto", opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
-                                                            className="overflow-hidden"
-                                                        >
-                                                            <p className="text-sm text-gray-400 leading-relaxed max-w-2xl whitespace-pre-wrap">
-                                                                {description ? (
-                                                                    description.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
+                                                <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-2">
+                                                    {channelUrl ? (
+                                                        <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="hover:text-red-400 transition-colors uppercase tracking-wider">
+                                                            {channelTitle || 'Unknown Channel'}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="uppercase tracking-wider">{channelTitle || 'Unknown Channel'}</span>
+                                                    )}
+                                                    {publishedAt && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>{new Date(publishedAt).toLocaleDateString()}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Description with inline More/Less */}
+                                                <div className="text-sm text-gray-300 leading-relaxed">
+                                                    {displayDescription ? (
+                                                        <>
+                                                            <span>
+                                                                {isDescriptionOpen
+                                                                    ? displayDescription.split('\n').map((part, i) => {
                                                                         if (part.match(/(https?:\/\/[^\s]+)/g)) {
                                                                             return (
                                                                                 <a
@@ -635,20 +611,51 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                                                                 </a>
                                                                             );
                                                                         }
-                                                                        return part;
+                                                                        return decodeText(part);
                                                                     })
-                                                                ) : (
-                                                                    "In this video, we break down the fundamental principles of acquisition. The 'Rule of 100' states that you must commit to 100 primary actions simply to get your first result. It is not about skill, it is about volume."
-                                                                )}
-                                                            </p>
-                                                            <div className="mt-4 flex flex-col gap-2">
-                                                                <a href="#" className="text-sm text-blue-400 hover:underline flex items-center gap-2">
-                                                                    <span>→</span> Check out the full course
-                                                                </a>
-                                                                <a href="#" className="text-sm text-blue-400 hover:underline flex items-center gap-2">
-                                                                    <span>→</span> Follow on Twitter
-                                                                </a>
-                                                            </div>
+                                                                    : decodeText(displayDescription.split('\n')[0].substring(0, 100) + (displayDescription.length > 100 ? '...' : ''))
+                                                                }
+                                                            </span>
+                                                            {' '}
+                                                            <button
+                                                                onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+                                                                className="text-gray-400 hover:text-white inline-flex items-center gap-1 transition-colors text-sm font-medium"
+                                                            >
+                                                                {isDescriptionOpen ? "Less" : "More"}
+                                                                <ChevronDown className={`w-3 h-3 transition-transform ${isDescriptionOpen ? 'rotate-180' : ''}`} />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        "No description available."
+                                                    )}
+                                                </div>
+
+                                                {/* Custom Links - Always visible when description is open */}
+                                                <AnimatePresence>
+                                                    {isDescriptionOpen && (customLinks && customLinks.length > 0) && (
+                                                        <motion.div
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: "auto", opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            className="space-y-3 mt-4"
+                                                        >
+                                                            {customLinks.map((link, i) => (
+                                                                <div key={i} className="space-y-1">
+                                                                    <div className="text-sm font-semibold text-white flex items-center gap-2">
+                                                                        <ExternalLink className="w-3.5 h-3.5 text-red-500" />
+                                                                        {link.title}
+                                                                    </div>
+                                                                    <a
+                                                                        href={link.url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all block"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        {link.url}
+                                                                    </a>
+                                                                </div>
+                                                            ))}
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>
@@ -738,15 +745,43 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        </div > {/* End col-span-3 Wrapper */}
 
-                                </div>
-                            </motion.div>
-                        </div>
-                    )
-                }
-            </AnimatePresence >
+                                        {/* RIGHT: Quiz Box */}
+                                        {!isFullscreen && (
+                                            <div className="col-span-1">
+                                                <div className="w-full bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/5 flex flex-col gap-4 relative overflow-hidden group sticky top-0">
+                                                    {/* Background Pattern */}
+                                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
+
+                                                    <div className="relative z-10 flex flex-col items-center justify-center text-center h-full gap-4">
+                                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-red-900 shadow-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-500">
+                                                            <Brain className="w-8 h-8 text-white" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-white mb-1">Verify Knowledge</h3>
+                                                            <p className="text-xs text-gray-400 max-w-[150px] mx-auto">Take a quick quiz to earn Human Score points.</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onQuizStart();
+                                                            }}
+                                                            className="px-6 py-2.5 bg-white text-black text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors shadow-lg shadow-white/10"
+                                                        >
+                                                            Start Quiz
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                    </div> {/* End Grid */}
+                                </div> {/* End Scrollable */}
+                            </motion.div> {/* End Card */}
+                        </div> {/* End Modal Wrapper */}
+                    </>)}
+            </AnimatePresence>
         </>
     );
 }

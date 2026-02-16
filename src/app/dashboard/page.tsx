@@ -124,6 +124,7 @@ export default function Dashboard() {
 
     // Video Feed State
     const [videos, setVideos] = useState<any[]>(MOCK_VIDEOS);
+    const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
 
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {
@@ -158,6 +159,8 @@ export default function Dashboard() {
                 humanScore: v.human_score || 0,
                 category: v.category_tag || 'Community',
                 description: v.description || '', // Pass description
+                customDescription: v.custom_description || undefined, // Per-video override
+                customLinks: v.custom_links || undefined, // Per-video links
                 channelTitle: v.channel_title || 'Community Creator',
                 channelUrl: v.channel_url || '',
                 publishedAt: v.published_at || v.created_at, // Fallback to created_at if published_at missing
@@ -173,13 +176,51 @@ export default function Dashboard() {
     }, []);
 
     // Load videos on mount and when filter changes
+    // If there's an active search, reapply it after loading
     React.useEffect(() => {
-        loadVideos(activeTab);
+        const loadAndReapplySearch = async () => {
+            await loadVideos(activeTab);
+
+            // If there's an active search query, reapply it
+            if (currentSearchQuery) {
+                // Trigger a new search with the current filter
+                const temporalFilter = getTemporalFilterValue(activeTab);
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: currentSearchQuery, temporalFilter })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // Handle API response structure: { success: true, matches: [...] }
+                    const results = data.matches || data || [];
+                    const mapped = results.map((r: any) => ({
+                        id: r.id,
+                        title: r.title,
+                        humanScore: r.human_score,
+                        takeaways: r.summary_points || [],
+                        channelTitle: r.channel_title,
+                        channelUrl: r.channel_url,
+                        publishedAt: r.published_at,
+                        description: r.description,
+                        customDescription: r.custom_description,
+                        customLinks: r.custom_links
+                    }));
+                    setVideos(mapped);
+                }
+            }
+        };
+
+        loadAndReapplySearch();
     }, [activeTab, loadVideos]);
 
 
 
-    const handleSearchResults = (results: any[]) => {
+    const handleSearchResults = (results: any[], searchQuery: string) => {
+        // Track the search query
+        setCurrentSearchQuery(searchQuery);
+
         // Map API search results to VideoCard props
         const mapped = results.map(r => ({
             id: r.id,
@@ -189,12 +230,16 @@ export default function Dashboard() {
             channelTitle: r.channel_title,
             channelUrl: r.channel_url,
             publishedAt: r.published_at,
-            description: r.description
+            description: r.description,
+            customDescription: r.custom_description,
+            customLinks: r.custom_links
         }));
         setVideos(mapped);
     };
 
     const handleClearSearch = () => {
+        // Clear search query
+        setCurrentSearchQuery('');
         // Reset to current feed based on active tab/filter
         loadVideos(activeTab);
     };
@@ -282,7 +327,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* The Brain (Search) */}
-                <ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} />
+                <ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
 
                 {/* Filters - Centered below Search */}
                 <div className="mt-8 mb-16 flex justify-center w-full">
@@ -377,6 +422,8 @@ export default function Dashboard() {
                             channelTitle={video.channelTitle}
                             channelUrl={video.channelUrl}
                             description={video.description}
+                            customDescription={video.customDescription}
+                            customLinks={video.customLinks}
                             publishedAt={video.publishedAt}
                             onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
                         />

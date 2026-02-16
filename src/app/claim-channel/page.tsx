@@ -9,6 +9,7 @@ import { ArrowLeft, CheckCircle2, Youtube, Zap, AlertCircle, Copy } from 'lucide
 // Original was in src/app/creator-dashboard/page.tsx, now in src/app/claim-channel/page.tsx
 // Paths to actions should remain ../actions/video-actions which is correct relative to src/app/claim-channel
 import { getChannelMetadata, verifyChannelOwnership } from '../actions/video-actions';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function ClaimChannelPage() {
     const router = useRouter(); // For redirection
@@ -112,6 +113,10 @@ export default function ClaimChannelPage() {
         }
     };
 
+
+
+    // ... (imports)
+
     const handleFinalizeClaim = async () => {
         if (password !== confirmPassword) {
             setError("Passwords do not match.");
@@ -136,11 +141,24 @@ export default function ClaimChannelPage() {
             });
 
             if (result.success) {
+                // Sign In the user immediately so they have a session
+                const { error: signInError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (signInError) {
+                    console.error("Auto-login failed:", signInError);
+                    // Still show success but maybe warn? Or just redirect and let them login?
+                    // We'll proceed to success UI but redirect might fail to show dashboard if middleware protects it.
+                    // But our dashboard page checks for session now.
+                }
+
                 setClaimStatus('success');
-                // Auto-redirect after 5 seconds
+                // Auto-redirect after 3 seconds
                 setTimeout(() => {
                     router.push('/creator-dashboard'); // Redirect to dashboard
-                }, 5000);
+                }, 3000);
             } else {
                 setClaimStatus('error');
                 setError(result.message);

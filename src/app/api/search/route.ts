@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(req: Request) {
     try {
-        const { query } = await req.json();
+        const { query, temporalFilter } = await req.json();
 
         if (!query) {
             return NextResponse.json({ error: 'Query is required' }, { status: 400 });
@@ -48,10 +48,20 @@ export async function POST(req: Request) {
 
         // 4. Search Database - Bypassing RPC due to type issues, using direct SQL
         // Fetch all videos with embeddings and calculate similarity manually
-        const { data: allVideos, error: fetchError } = await supabase
+        let supabaseQuery = supabase
             .from('videos')
             .select('id, title, human_score, embedding, summary_points, channel_title, channel_url, published_at, description')
             .not('embedding', 'is', null);
+
+        // Apply temporal filter if provided and not evergreen
+        if (temporalFilter && temporalFilter !== 'evergreen') {
+            const days = parseInt(temporalFilter);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            supabaseQuery = supabaseQuery.gte('published_at', cutoffDate.toISOString());
+        }
+
+        const { data: allVideos, error: fetchError } = await supabaseQuery;
 
         if (fetchError) {
             console.error("Supabase Fetch Error:", fetchError);
