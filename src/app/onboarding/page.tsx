@@ -94,8 +94,8 @@ export default function Onboarding() {
     return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
             {/* Background Ambience - Red/Dark Theme */}
-            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-red-950/20 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute top-[-20%] left-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-900/10 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-950/20 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
 
             <div className="w-full max-w-lg relative z-10">
                 <motion.div
@@ -106,13 +106,13 @@ export default function Onboarding() {
                     <div className="inline-block p-4 rounded-3xl bg-white/5 border border-white/5 mb-6 backdrop-blur-xl shadow-2xl">
                         <img src="/veritas-heart.svg" alt="Veritas" className="w-12 h-12 object-contain animate-heartbeat fill-red-600" />
                     </div>
-                    <h1 className="text-4xl font-bold mb-2 tracking-tight text-white">Customize Your Feed</h1>
-                    <p className="text-gray-400 text-lg">Let's curate the perfect content diet for you.</p>
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2 tracking-tight text-white">Customize Your Feed</h1>
+                    <p className="text-gray-400 text-base md:text-lg">Let's curate the perfect content diet for you.</p>
                 </motion.div>
 
                 {/* Card */}
                 <motion.div
-                    className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-3xl p-8 shadow-2xl relative overflow-hidden"
+                    className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-2xl relative overflow-hidden"
                     initial={{ height: 'auto' }}
                     animate={{ height: 'auto' }}
                 >

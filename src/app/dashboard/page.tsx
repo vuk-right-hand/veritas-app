@@ -1,102 +1,21 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
 import AuthChoiceModal from '@/components/AuthChoiceModal';
+import BottomNav from '@/components/BottomNav';
+import InstallPrompt from '@/components/InstallPrompt';
 import { suggestVideo, getVerifiedVideos, getMyMission } from '@/app/actions/video-actions';
+import { getCreatorsByChannelUrls } from '@/app/actions/creator-actions';
 
 
 // Mock Data for V1
-const MOCK_VIDEOS = [
-    {
-        id: "hJKe5P9y6V4",
-        title: "How I Started A $100M Company (In 2024)",
-        humanScore: 98,
-        category: "Sales & Marketing",
-        channelTitle: "Alex Hormozi",
-        channelUrl: "https://www.youtube.com/@AlexHormozi",
-        publishedAt: "2024-01-15T12:00:00Z",
-        takeaways: [
-            "The 'Rule of 100' for initial outreach volume",
-            "Why you should sell the implementation, not the information",
-            "How to structure your first offer for maximum conversion"
-        ]
-    },
-    {
-        id: "pL5223_Cq1s",
-        title: "The Ultimate Guide To Deep Work",
-        humanScore: 92,
-        category: "Productivity",
-        channelTitle: "Cal Newport",
-        channelUrl: "https://www.youtube.com/@CalNewportMedia",
-        publishedAt: "2023-11-20T14:30:00Z",
-        takeaways: [
-            "Difference between 'Deep Work' and 'Shallow Work'",
-            "The bimodal scheduling strategy for busy professionals",
-            "Why social media is fragmented your attention span"
-        ]
-    },
-    {
-        id: "zN8Z_R2ZC0c",
-        title: "Vibe Coding: The Future of Software",
-        humanScore: 88,
-        category: "VibeCoding",
-        channelTitle: "Andrej Karpathy",
-        channelUrl: "https://www.youtube.com/@AndrejKarpathy",
-        publishedAt: "2024-02-01T09:00:00Z",
-        takeaways: [
-            "How LLMs are changing the coding paradigm",
-            "Why syntax memorization is becoming obsolete",
-            "Focusing on system design over implementation details"
-        ]
-    },
-    {
-        id: "BSX8VjX3l00",
-        title: "Mental Models for Founders",
-        humanScore: 95,
-        category: "Mindset",
-        channelTitle: "Naval Ravikant",
-        channelUrl: "https://www.youtube.com/@naval",
-        publishedAt: "2023-12-10T16:45:00Z",
-        takeaways: [
-            "Inversion: Solving problems backwards",
-            "Principal-Agent problem in hiring",
-            "Why specific knowledge cannot be taught"
-        ]
-    },
-    {
-        id: "LhC59n8VvTc",
-        title: "Testing Gemini 1.5 Pro vs GPT-4",
-        humanScore: 85,
-        category: "Tech",
-        channelTitle: "Matthew Berman",
-        channelUrl: "https://www.youtube.com/@MatthewBerman",
-        publishedAt: "2024-02-10T10:15:00Z",
-        takeaways: [
-            "Context window comparison (1M vs 128k)",
-            "Coding performance benchmarks",
-            "Cost efficiency analysis for startups"
-        ]
-    },
-    {
-        id: "fN5h1_N4Z4c",
-        title: "Stoicism for Modern Life",
-        humanScore: 99,
-        category: "Mindset",
-        channelTitle: "Ryan Holiday",
-        channelUrl: "https://www.youtube.com/@DailyStoic",
-        publishedAt: "2024-01-05T08:20:00Z",
-        takeaways: [
-            "Control what you can, accept what you can't",
-            "The obstacle is the way",
-            "Memento Mori: Remembering death to live better"
-        ]
-    }
-];
+// MOCK_VIDEOS removed
+
 
 const TABS = [
     { id: 'Last 14 days', label: 'Last 14 days', icon: Zap },
@@ -123,8 +42,27 @@ export default function Dashboard() {
     const [suggestionStatus, setSuggestionStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     // Video Feed State
-    const [videos, setVideos] = useState<any[]>(MOCK_VIDEOS);
+    const [videos, setVideos] = useState<any[]>([]);
     const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
+
+    // Mobile scroll state — tracks if user scrolled past the search bar
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [showMobileSuggest, setShowMobileSuggest] = useState(false);
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const searchSectionRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const threshold = searchSectionRef.current?.offsetTop ?? 200;
+            const scrolledPast = window.scrollY > threshold + 100;
+            setIsScrolled(scrolledPast);
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Track video views for install prompt trigger
+    const [videoViewCount, setVideoViewCount] = useState(0);
 
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {
@@ -153,25 +91,33 @@ export default function Dashboard() {
         const temporalFilter = getTemporalFilterValue(filterLabel);
         const verified = await getVerifiedVideos(temporalFilter);
         if (verified && verified.length > 0) {
-            const formattedVerified = verified.map(v => ({
-                id: v.id,
-                title: v.title,
-                humanScore: v.human_score || 0,
-                category: v.category_tag || 'Community',
-                description: v.description || '', // Pass description
-                customDescription: v.custom_description || undefined, // Per-video override
-                customLinks: v.custom_links || undefined, // Per-video links
-                channelTitle: v.channel_title || 'Community Creator',
-                channelUrl: v.channel_url || '',
-                publishedAt: v.published_at || v.created_at, // Fallback to created_at if published_at missing
-                takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."]
-            }));
+            // Fetch channel-level data (descriptions + links) from creators table
+            const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
+            const creatorMap = await getCreatorsByChannelUrls(channelUrls);
 
-            const verifiedIds = new Set(formattedVerified.map(v => v.id));
-            const uniqueMocks = MOCK_VIDEOS.filter(mock => !verifiedIds.has(mock.id));
-            setVideos([...formattedVerified, ...uniqueMocks]);
+            const formattedVerified = verified.map(v => {
+                const creator = creatorMap[v.channel_url] || null;
+                return {
+                    id: v.id,
+                    title: v.title,
+                    humanScore: v.human_score || 0,
+                    category: v.category_tag || 'Community',
+                    customDescription: v.custom_description || undefined,
+                    customLinks: v.custom_links || undefined,
+                    channelTitle: v.channel_title || 'Community Creator',
+                    channelUrl: v.channel_url || '',
+                    publishedAt: v.published_at || v.created_at,
+                    takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
+                    // Channel-level data from creators table
+                    channelDescription: creator?.description || undefined,
+                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                    isChannelClaimed: !!creator,
+                };
+            });
+
+            setVideos(formattedVerified);
         } else {
-            setVideos(MOCK_VIDEOS); // Ensure mocks are loaded if no verified videos
+            setVideos([]);
         }
     }, []);
 
@@ -195,18 +141,26 @@ export default function Dashboard() {
                     const data = await response.json();
                     // Handle API response structure: { success: true, matches: [...] }
                     const results = data.matches || data || [];
-                    const mapped = results.map((r: any) => ({
-                        id: r.id,
-                        title: r.title,
-                        humanScore: r.human_score,
-                        takeaways: r.summary_points || [],
-                        channelTitle: r.channel_title,
-                        channelUrl: r.channel_url,
-                        publishedAt: r.published_at,
-                        description: r.description,
-                        customDescription: r.custom_description,
-                        customLinks: r.custom_links
-                    }));
+                    // Fetch channel data for search results
+                    const searchChannelUrls = results.map((r: any) => r.channel_url).filter(Boolean);
+                    const searchCreatorMap = await getCreatorsByChannelUrls(searchChannelUrls);
+                    const mapped = results.map((r: any) => {
+                        const creator = searchCreatorMap[r.channel_url] || null;
+                        return {
+                            id: r.id,
+                            title: r.title,
+                            humanScore: r.human_score,
+                            takeaways: r.summary_points || [],
+                            channelTitle: r.channel_title,
+                            channelUrl: r.channel_url,
+                            publishedAt: r.published_at,
+                            customDescription: r.custom_description,
+                            customLinks: r.custom_links,
+                            channelDescription: creator?.description || undefined,
+                            channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                            isChannelClaimed: !!creator,
+                        };
+                    });
                     setVideos(mapped);
                 }
             }
@@ -217,23 +171,31 @@ export default function Dashboard() {
 
 
 
-    const handleSearchResults = (results: any[], searchQuery: string) => {
+    const handleSearchResults = async (results: any[], searchQuery: string) => {
         // Track the search query
         setCurrentSearchQuery(searchQuery);
 
         // Map API search results to VideoCard props
-        const mapped = results.map(r => ({
-            id: r.id,
-            title: r.title,
-            humanScore: r.human_score,
-            takeaways: r.summary_points || [],
-            channelTitle: r.channel_title,
-            channelUrl: r.channel_url,
-            publishedAt: r.published_at,
-            description: r.description,
-            customDescription: r.custom_description,
-            customLinks: r.custom_links
-        }));
+        // Fetch channel data for search results
+        const searchChannelUrls = results.map(r => r.channel_url).filter(Boolean);
+        const searchCreatorMap = await getCreatorsByChannelUrls(searchChannelUrls);
+        const mapped = results.map(r => {
+            const creator = searchCreatorMap[r.channel_url] || null;
+            return {
+                id: r.id,
+                title: r.title,
+                humanScore: r.human_score,
+                takeaways: r.summary_points || [],
+                channelTitle: r.channel_title,
+                channelUrl: r.channel_url,
+                publishedAt: r.published_at,
+                customDescription: r.custom_description,
+                customLinks: r.custom_links,
+                channelDescription: creator?.description || undefined,
+                channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                isChannelClaimed: !!creator,
+            };
+        });
         setVideos(mapped);
     };
 
@@ -271,23 +233,25 @@ export default function Dashboard() {
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-red-500/30 font-sans">
             <AuthChoiceModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-            {/* Navbar */}
+            <InstallPrompt videoViewCount={videoViewCount} />
+
+            {/* ========== NAVBAR ========== */}
             <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/80 backdrop-blur-xl">
-                <div className="max-w-[1600px] mx-auto px-8 h-20 flex items-center justify-between">
+                {/* Desktop Navbar (unchanged) */}
+                <div className="hidden md:flex max-w-[1600px] mx-auto px-8 h-20 items-center justify-between">
                     <div className="flex items-center gap-2">
                         <img src="/veritas-heart.svg" alt="Veritas Logo" className="w-11 h-11 object-contain animate-heartbeat fill-red-600" />
                         <span className="font-bold text-xl tracking-tight">Veritas</span>
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <Link href="/founder-meeting" className="hidden md:flex items-center gap-2 text-xs text-gray-400 font-medium px-4 py-2 bg-white/5 rounded-full border border-white/5 hover:bg-red-900/20 hover:text-red-300 hover:border-red-500/20 transition-all group">
+                        <Link href="/founder-meeting" className="flex items-center gap-2 text-xs text-gray-400 font-medium px-4 py-2 bg-white/5 rounded-full border border-white/5 hover:bg-red-900/20 hover:text-red-300 hover:border-red-500/20 transition-all group">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                             Meeting with the founder...
                         </Link>
 
-
-                        {/* Creator Dashboard Link (Mocked functionality) */}
-                        <div className="hidden md:block">
+                        {/* Creator Dashboard Link */}
+                        <div>
                             <button
                                 onClick={() => setShowAuthModal(true)}
                                 className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2 hover:bg-white/5 rounded-lg"
@@ -295,7 +259,6 @@ export default function Dashboard() {
                                 Claim Channel / Dashboard
                             </button>
                         </div>
-
 
                         {/* Profile / Stats Area */}
                         <div className="flex items-center gap-4 pl-6 border-l border-white/10">
@@ -311,17 +274,156 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+
+                {/* Mobile Navbar */}
+                <div className="flex md:hidden items-center justify-between px-4 h-14">
+                    {/* Left: Logo + Name */}
+                    <div className="flex items-center gap-2">
+                        <img src="/veritas-heart.svg" alt="Veritas" className="w-8 h-8 object-contain animate-heartbeat" />
+                        <span className="font-bold text-lg tracking-tight">Veritas</span>
+                    </div>
+
+                    {/* Center: Glowing Suggest Bar (visible when scrolled) */}
+                    <AnimatePresence>
+                        {isScrolled && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                onClick={() => setShowMobileSuggest(true)}
+                                className="absolute left-1/2 -translate-x-1/2 px-5 py-1.5 bg-red-600/20 border border-red-500/40 rounded-full text-[11px] font-bold text-red-300 shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 transition-transform"
+                            >
+                                <Zap className="w-3 h-3 inline mr-1" />
+                                Suggest
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Right: Compact icons (visible when scrolled) */}
+                    <div className="flex items-center gap-2">
+                        <AnimatePresence>
+                            {isScrolled && (
+                                <>
+                                    <motion.button
+                                        initial={{ opacity: 0, x: 10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                        className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:bg-white/10"
+                                    >
+                                        <Search className="w-4 h-4 text-gray-400" />
+                                    </motion.button>
+                                    <motion.button
+                                        initial={{ opacity: 0, x: 10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        transition={{ delay: 0.05 }}
+                                        onClick={() => setShowMobileFilters(!showMobileFilters)}
+                                        className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:bg-white/10"
+                                    >
+                                        <Clock className="w-4 h-4 text-gray-400" />
+                                    </motion.button>
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+
+                {/* Mobile Filters Dropdown (when clock icon tapped) */}
+                <AnimatePresence>
+                    {showMobileFilters && isScrolled && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="md:hidden overflow-hidden border-t border-white/5 bg-black/90"
+                        >
+                            <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto no-scrollbar">
+                                {TABS.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => { setActiveTab(tab.id); setShowMobileFilters(false); }}
+                                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all border flex items-center gap-1.5 ${activeTab === tab.id
+                                            ? 'bg-red-950/30 text-red-200 border-red-900/50'
+                                            : 'bg-transparent text-gray-500 border-transparent active:bg-white/5'}`}
+                                    >
+                                        <tab.icon className={`w-3 h-3 ${activeTab === tab.id ? 'text-red-400' : 'opacity-70'}`} />
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </nav>
 
+            {/* Mobile Suggest Full-Screen Overlay */}
+            <AnimatePresence>
+                {showMobileSuggest && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center px-6 md:hidden"
+                    >
+                        <button
+                            onClick={() => setShowMobileSuggest(false)}
+                            className="absolute top-4 right-4 p-2 rounded-full bg-white/5 text-gray-400 active:bg-white/10"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <Zap className="w-12 h-12 text-red-500 mb-4" />
+                        <h2 className="text-xl font-bold text-white mb-2 text-center">Suggest a Creator</h2>
+                        <p className="text-sm text-gray-400 mb-8 text-center max-w-xs">
+                            Give us your favorite human creator/video so we can promote them.
+                        </p>
+
+                        <div className="w-full max-w-sm relative">
+                            <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl" />
+                            <input
+                                type="text"
+                                value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
+                                onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
+                                placeholder="Paste video or channel link..."
+                                disabled={suggestionStatus === 'success'}
+                                className={`w-full border-2 rounded-full py-4 px-6 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
+                                    ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
+                                    : 'bg-[#1a1a1a] border-red-600/60 text-white placeholder:text-red-300/50 focus:border-red-500'}`}
+                                autoFocus
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20">
+                                <button
+                                    onClick={() => { handleSuggest(); }}
+                                    disabled={isSuggesting || suggestionStatus === 'success'}
+                                    className={`p-2 rounded-full transition-all ${suggestionStatus === 'success'
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-red-600 text-white active:bg-red-500'}`}
+                                >
+                                    {isSuggesting ? (
+                                        <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
+                                    ) : suggestionStatus === 'success' ? (
+                                        <CheckCircle2 className="w-4 h-4" />
+                                    ) : (
+                                        <Zap className="w-4 h-4 fill-current" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Main Content */}
-            <main className="pt-32 pb-20 px-8 max-w-[1600px] mx-auto">
+            <main className="pt-20 md:pt-32 pb-24 md:pb-20 px-4 md:px-8 max-w-[1600px] mx-auto pb-safe">
 
                 {/* Header Section */}
-                <div className="mb-8 text-center">
-                    <h1 className="text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50 mb-6 tracking-tight">
+                <div ref={searchSectionRef} className="mb-6 md:mb-8 text-center">
+                    <h1 className="text-3xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50 mb-4 md:mb-6 tracking-tight">
                         Solve Your Problem.
                     </h1>
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                    <p className="text-base md:text-xl text-gray-400 max-w-2xl mx-auto">
                         Don't browse. <span className="text-red-500 font-medium">Search for the cure.</span>
                     </p>
                 </div>
@@ -330,9 +432,9 @@ export default function Dashboard() {
                 <ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
 
                 {/* Filters - Centered below Search */}
-                <div className="mt-8 mb-16 flex justify-center w-full">
-                    <div className="flex items-center gap-2 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5">
-                        <span className="pl-3 pr-2 text-xs font-semibold uppercase tracking-wider opacity-60">Filter by:</span>
+                <div className="mt-6 md:mt-8 mb-10 md:mb-16 flex justify-center w-full">
+                    <div className="flex items-center gap-1 md:gap-2 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5 overflow-x-auto no-scrollbar max-w-full">
+                        <span className="hidden md:inline pl-3 pr-2 text-xs font-semibold uppercase tracking-wider opacity-60">Filter by:</span>
                         {/* Tabs */}
                         <div className="flex items-center gap-1">
                             {TABS.map((tab) => (
@@ -340,7 +442,7 @@ export default function Dashboard() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`
-                                        pl-3 pr-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border flex items-center gap-2
+                                        whitespace-nowrap pl-2.5 md:pl-3 pr-3 md:pr-4 py-1.5 rounded-full text-[11px] md:text-xs font-medium transition-all duration-300 border flex items-center gap-1.5 md:gap-2
                                         ${activeTab === tab.id
                                             ? 'bg-red-950/30 text-red-200 border-red-900/50 shadow-[0_0_10px_rgba(220,38,38,0.2)]'
                                             : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5'}
@@ -355,8 +457,8 @@ export default function Dashboard() {
                 </div>
 
 
-                {/* Controls Row: Spacer | Suggestion | Relevancy */}
-                <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6 items-end">
+                {/* Controls Row: Spacer | Suggestion | Relevancy — DESKTOP ONLY */}
+                <div className="hidden md:grid mb-12 grid-cols-1 lg:grid-cols-3 gap-6 items-end">
 
                     {/* Left: Spacer (Empty for balance) */}
                     <div className="hidden lg:block"></div>
@@ -409,28 +511,68 @@ export default function Dashboard() {
                     <div className="hidden lg:block"></div>
                 </div>
 
+                {/* Mobile Suggest Bar (inline, non-scrolled state) — shows nicely below filters */}
+                <div className="md:hidden mb-8">
+                    <div className="w-full relative">
+                        <div className="absolute inset-0 bg-red-600/20 rounded-full blur-lg" />
+                        <input
+                            type="text"
+                            suppressHydrationWarning
+                            value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
+                            onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
+                            placeholder="Suggest a creator/video..."
+                            disabled={suggestionStatus === 'success'}
+                            className={`w-full border rounded-full py-3 px-5 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
+                                ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
+                                : 'bg-[#1a1a1a] border-red-600/40 text-white placeholder:text-red-300/40 focus:border-red-500'}`}
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
+                            <button
+                                onClick={handleSuggest}
+                                disabled={isSuggesting || suggestionStatus === 'success'}
+                                className={`p-2 rounded-full transition-all ${suggestionStatus === 'success' ? 'bg-green-500 text-white' : 'bg-red-600 text-white active:bg-red-500'}`}
+                            >
+                                {isSuggesting ? (
+                                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
+                                ) : suggestionStatus === 'success' ? (
+                                    <CheckCircle2 className="w-4 h-4" />
+                                ) : (
+                                    <Zap className="w-4 h-4 fill-current" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
 
                 {/* Video Grid - 3 Columns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
                     {videos.map((video) => (
                         <VideoCard
-                            key={video.id} // Ensure IDs are unique between mocks and real
+                            key={video.id}
                             videoId={video.id}
                             title={video.title}
                             humanScore={video.humanScore}
                             takeaways={video.takeaways}
                             channelTitle={video.channelTitle}
                             channelUrl={video.channelUrl}
-                            description={video.description}
                             customDescription={video.customDescription}
                             customLinks={video.customLinks}
+                            channelDescription={video.channelDescription}
+                            channelLinks={video.channelLinks}
+                            isChannelClaimed={video.isChannelClaimed}
                             publishedAt={video.publishedAt}
                             onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
+                            onVideoView={() => setVideoViewCount(c => c + 1)}
                         />
                     ))}
                 </div>
 
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <BottomNav />
         </div>
     );
 }

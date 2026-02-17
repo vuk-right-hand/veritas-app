@@ -66,6 +66,7 @@ export default function CreatorDashboardClient({
     const [isManageLinksOpen, setIsManageLinksOpen] = useState(false);
     const [isSuggestOpen, setIsSuggestOpen] = useState(false);
     const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+    const [showConfirmation, setShowConfirmation] = useState(false);
 
     // State for Link Management
     const [profileLinks, setProfileLinks] = useState<LinkType[]>(creator.links || []);
@@ -83,28 +84,23 @@ export default function CreatorDashboardClient({
 
     // Handlers
     const handleSaveProfileLinks = async () => {
+        // Show confirmation modal before saving
+        setShowConfirmation(true);
+    };
+
+    const handleConfirmSave = async () => {
         setSavingLinks(true);
-        const res = await updateCreatorLinks(creator.id, profileLinks); // using creator.id might be wrong if action expects userId. 
-        // Wait, action expects userId. Does creator.id == user_id? 
-        // In getCreatorStats I returned creator object from DB. 
-        // It likely has 'user_id' if I selected it. I selected 'id, channel_url...'.
-        // I should probably pass the user_id or fix the action to allow updating by creator_id if authorized.
-        // Let's assume for now I need to fix the Server Component to pass user_id or handle it.
-        // Actually, updateCreatorLinks takes userId. 
-        // The creator object passed here might not have user_id if I didn't select it.
-        // I will update the SELECT in server component.
+        setShowConfirmation(false);
 
-        // For now, let's assume `creator.id` is the PK of creators table. 
-        // `updateCreatorLinks` takes `userId` (auth id).
-        // I should probably pass `userId` as a prop or update action to use creatorId. 
-        // Let's update `updateCreatorLinks` to be smarter or query by creator_id. 
-        // Actually, better: The action `updateCreatorLinks` currently takes `userId`, let's check `creator-actions.ts`.
-        // Yes: `updateCreatorLinks(userId: string, ...)`
-        // I will pass `userId` from the Server Component into this Client Component as a separate prop or inside creator object.
+        const res = await updateCreatorLinks(creator.id, profileLinks, channelDescription);
 
-        // ... (handling save)
-        setSavingLinks(false);
-        setIsManageLinksOpen(false);
+        if (res.success) {
+            // Refresh the page to show updated data
+            window.location.reload();
+        } else {
+            alert('Failed to save links: ' + res.error);
+            setSavingLinks(false);
+        }
     };
 
     // ... (More implementation details in the actual file write)
@@ -134,11 +130,13 @@ export default function CreatorDashboardClient({
                             {creator.channel_name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-3 mb-1">
                                 <h1 className="text-3xl font-bold text-white">{creator.channel_name}</h1>
-                                {stats.humanScoreAvg > 90 && (
-                                    <CheckCircle2 className="w-5 h-5 text-blue-400 fill-blue-400/10" />
-                                )}
+                                <img
+                                    src="/veritas-heart.svg"
+                                    alt="Verification Status"
+                                    className={`w-8 h-8 object-contain ${videos.some(v => v.status === 'verified') ? 'fill-red-600 drop-shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'opacity-20 grayscale'}`}
+                                />
                             </div>
                             <div className="flex items-center gap-4 text-sm text-gray-400">
                                 <span>Views: {stats.totalViews}</span>
@@ -151,7 +149,12 @@ export default function CreatorDashboardClient({
                     </div>
                     <div className="flex gap-3">
                         <button
-                            onClick={() => setIsManageLinksOpen(true)}
+                            onClick={() => {
+                                // Reset state to current creator values when opening modal
+                                setProfileLinks(creator.links || []);
+                                setChannelDescription(creator.description || '');
+                                setIsManageLinksOpen(true);
+                            }}
                             className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-medium"
                         >
                             Manage Links
@@ -166,88 +169,76 @@ export default function CreatorDashboardClient({
                 </div>
 
 
-                {/* Verified Badge Card - Red Glow When Active */}
-                <div className={`relative overflow-hidden rounded-xl transition-all duration-500 mb-12 ${videos.some(v => v.status === 'verified')
-                        ? 'bg-gradient-to-br from-red-950/40 via-black to-black border border-red-900/50 shadow-[0_0_30px_rgba(153,27,27,0.3)]'
-                        : 'bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5'
-                    }`}>
+                {/* Verified Badge Card - Always Dark/Grey "Coming Up" State */}
+                <div className="relative overflow-hidden rounded-xl transition-all duration-500 mb-12 bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5">
+
+                    {/* Coming Up Label */}
+                    <div className="absolute top-4 left-0 w-full flex justify-center z-20">
+                        <span className="text-gray-500/50 text-xs font-medium tracking-[0.2em] uppercase">Coming up...</span>
+                    </div>
+
                     <div className="backdrop-blur-xl p-8 flex items-center justify-between gap-8">
                         <div className="flex items-center gap-8 relative z-10">
-                            <div className={`w-24 h-24 rounded-full flex items-center justify-center border border-white/5 ${videos.some(v => v.status === 'verified') ? 'bg-red-900/10 shadow-[0_0_50px_rgba(220,38,38,0.2)]' : 'bg-black/40'}`}>
+                            <div className="w-24 h-24 rounded-full flex items-center justify-center border border-white/5 bg-black/40">
                                 <img
                                     src="/veritas-heart.svg"
                                     alt="Heart Logo"
-                                    className={`w-14 h-14 object-contain ${videos.some(v => v.status === 'verified') ? 'fill-red-500 animate-heartbeat drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'opacity-20 grayscale'}`}
+                                    className="w-14 h-14 object-contain opacity-20 grayscale"
                                 />
                             </div>
                             <div>
                                 <h3 className="text-2xl font-serif tracking-wide text-white flex items-center gap-3">
                                     Verified Human Badge
-                                    {videos.some(v => v.status === 'verified') && (
-                                        <span className="px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] uppercase tracking-[0.2em] font-medium backdrop-blur-md">
-                                            Exclusive
-                                        </span>
-                                    )}
                                 </h3>
                                 <p className="text-gray-400 text-sm max-w-xl mt-3 leading-relaxed font-light">
-                                    {videos.some(v => v.status === 'verified')
-                                        ? "Welcome to the inner circle. Use the official Human Heart badge to signal your authenticity across the digital landscape."
-                                        : 'Show the world that you are a "Verified Human Creator". Submit a video for review and receive the "Human Heart" to display across your social media.'
-                                    }
+                                    Show the world that you are a "Verified Human Creator". Submit a video for review and receive the "Human Heart" to display across your social media.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="relative z-10 flex-shrink-0 px-8 pb-8">
-                        {videos.some(v => v.status === 'verified') ? (
-                            <a
-                                href="/veritas-verified-badge.svg"
-                                download="veritas-verified-badge.svg"
-                                className="flex items-center gap-3 px-8 py-4 rounded-lg bg-gradient-to-r from-red-900/80 to-red-800/80 hover:from-red-800 hover:to-red-700 text-white text-sm font-medium tracking-widest uppercase transition-all shadow-[0_0_30px_rgba(153,27,27,0.3)] border border-red-500/20 backdrop-blur-sm"
-                            >
-                                <img src="/veritas-verified-badge.svg" className="w-4 h-4" />
-                                Download Badge
-                            </a>
-                        ) : (
-                            <div className="flex flex-col items-center gap-2 opacity-50">
-                                <button disabled className="flex items-center gap-3 px-8 py-4 rounded-lg bg-white/[0.02] border border-white/[0.05] text-gray-500 text-sm font-medium tracking-widest uppercase cursor-not-allowed">
-                                    <span className="w-4 h-4 flex items-center justify-center">🔒</span>
-                                    Locked Access
-                                </button>
-                                <span className="text-[10px] text-gray-600 tracking-wider">REQUIRES APPROVED VIDEO</span>
-                            </div>
-                        )}
-                    </div>
+
                 </div>
 
                 {/* Advanced Insights Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
                     {/* Traffic Alert */}
-                    <div className="p-6 rounded-2xl bg-[#111] border border-white/5 relative overflow-hidden h-full flex flex-col">
+                    <div className="rounded-xl bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5 relative overflow-hidden h-full flex flex-col pt-12 p-6">
+
+                        {/* Coming Up Label */}
+                        <div className="absolute top-4 left-0 w-full flex justify-center z-20">
+                            <span className="text-gray-500/50 text-xs font-medium tracking-[0.2em] uppercase">Coming up...</span>
+                        </div>
+
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                                <BarChart3 className="w-5 h-5" />
+                            <div className="p-2 rounded-lg bg-white/5 text-gray-500">
+                                <BarChart3 className="w-5 h-5 opacity-50" />
                             </div>
                             <h3 className="text-lg font-bold text-white">Traffic Sources</h3>
                         </div>
 
                         <p className="text-sm text-gray-400 leading-relaxed">
-                            Coming up... You'll be able to see if viewers are filtering content by "last 14 days" for example so you can make sure to have at least one new video every 2 weeks.
+                            You'll be able to see if viewers are filtering content by "last 14 days" for example so you can make sure to have at least one new video every 2 weeks.
                         </p>
                     </div>
 
                     {/* Opportunity Engine */}
-                    <div className="p-6 rounded-2xl bg-[#111] border border-white/5 relative overflow-hidden h-full flex flex-col">
+                    <div className="rounded-xl bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5 relative overflow-hidden h-full flex flex-col pt-12 p-6">
+
+                        {/* Coming Up Label */}
+                        <div className="absolute top-4 left-0 w-full flex justify-center z-20">
+                            <span className="text-gray-500/50 text-xs font-medium tracking-[0.2em] uppercase">Coming up...</span>
+                        </div>
+
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-400">
-                                <Search className="w-5 h-5" />
+                            <div className="p-2 rounded-lg bg-white/5 text-gray-500">
+                                <Search className="w-5 h-5 opacity-50" />
                             </div>
                             <h3 className="text-lg font-bold text-white">Content Gaps</h3>
                         </div>
 
                         <p className="text-sm text-gray-400 leading-relaxed">
-                            Coming up... You'll get a report of the most searched terms across the platform inside your niche. Plus the biggest supply & demand mismatch so you can fill the gap and guarantee views.
+                            You'll get a report of the most searched terms across the platform inside your niche. Plus the biggest supply & demand mismatch so you can fill the gap and guarantee views.
                         </p>
                     </div>
                 </div>
@@ -349,9 +340,13 @@ export default function CreatorDashboardClient({
                             <LinkEditor links={profileLinks} onChange={setProfileLinks} />
                             <div className="flex justify-end gap-3 mt-6">
                                 <button onClick={() => setIsManageLinksOpen(false)} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Cancel</button>
-                                <button onClick={() => {
-                                    handleSaveProfileLinksWrapper(creator.id, profileLinks, channelDescription, setSavingLinks, setIsManageLinksOpen);
-                                }} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold">{savingLinks ? 'Saving...' : 'Save Changes'}</button>
+                                <button
+                                    onClick={handleSaveProfileLinks}
+                                    disabled={savingLinks}
+                                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {savingLinks ? 'Saving...' : 'Save Changes'}
+                                </button>
                             </div>
                         </motion.div>
                     </div>
@@ -440,6 +435,40 @@ export default function CreatorDashboardClient({
                 )}
             </AnimatePresence>
 
+            {/* Confirmation Modal */}
+            <AnimatePresence>
+                {showConfirmation && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-md bg-[#111] border border-red-500/30 rounded-2xl p-6 shadow-[0_0_50px_rgba(220,38,38,0.3)]"
+                        >
+                            <h2 className="text-xl font-bold mb-4 text-white">Update All Videos?</h2>
+                            <p className="text-gray-300 mb-6 leading-relaxed">
+                                This will update the description inside all of your videos on Veritas. Your channel links will be added to every video you've submitted.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setShowConfirmation(false)}
+                                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmSave}
+                                    disabled={savingLinks}
+                                    className="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {savingLinks ? 'Updating...' : 'Confirm'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 }
@@ -488,12 +517,7 @@ function LinkEditor({ links, onChange }: { links: LinkType[], onChange: (l: Link
     );
 }
 
-async function handleSaveProfileLinksWrapper(userId: string, links: LinkType[], description: string, setSaving: any, setOpen: any) {
-    setSaving(true);
-    await updateCreatorLinks(userId, links, description);
-    setSaving(false);
-    setOpen(false);
-}
+
 
 async function submitSuggestion(url: string, setStatus: any, setMsg: any) {
     setStatus('loading');

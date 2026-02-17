@@ -150,22 +150,78 @@ export async function getCreatorStats(userId: string) {
     }
 }
 
-export async function updateCreatorLinks(userId: string, links: any[], description?: string) {
+// Fetch channel-level data (description + links) for all creators matching given channel URLs
+// Used on the feed to display channel-level content separately from video-specific content
+export async function getCreatorsByChannelUrls(channelUrls: string[]) {
+    noStore();
     try {
+        if (!channelUrls || channelUrls.length === 0) return {};
+
+        // Deduplicate and filter empty
+        const uniqueUrls = [...new Set(channelUrls.filter(u => u))];
+        if (uniqueUrls.length === 0) return {};
+
+        const { data: creators, error } = await supabaseAdmin
+            .from('creators')
+            .select('channel_url, description, links')
+            .in('channel_url', uniqueUrls);
+
+        if (error) {
+            console.error('Error fetching creators for feed:', error);
+            return {};
+        }
+
+        // Return as a map: channelUrl -> { description, links }
+        const creatorMap: Record<string, { description: string; links: any[] }> = {};
+        creators?.forEach((c: any) => {
+            creatorMap[c.channel_url] = {
+                description: c.description || '',
+                links: c.links || []
+            };
+        });
+
+        return creatorMap;
+    } catch (e: any) {
+        console.error('getCreatorsByChannelUrls error:', e);
+        return {};
+    }
+}
+
+export async function updateCreatorLinks(creatorId: string, links: any[], description?: string) {
+    try {
+        // First, get the creator to find their channel_url and user_id
+        const { data: creator, error: creatorError } = await supabaseAdmin
+            .from('creators')
+            .select('id, user_id, channel_url')
+            .eq('id', creatorId)
+            .single();
+
+        if (creatorError || !creator) {
+            throw new Error('Creator not found');
+        }
+
+        // Update the creator's links and description
         const updateData: any = { links };
         if (description !== undefined) {
             updateData.description = description;
         }
 
-        const { error } = await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
             .from('creators')
             .update(updateData)
-            .eq('user_id', userId);
+            .eq('id', creatorId);
 
-        if (error) throw error;
+        if (updateError) throw updateError;
+
+        // Channel links and description stay ONLY on the creators table.
+        // They are fetched at display time by joining videos with creators via channel_url.
+        // We do NOT propagate to the videos table (that would overwrite video-specific data).
+
         revalidatePath('/creator-dashboard');
+        revalidatePath('/dashboard');
         return { success: true };
     } catch (e: any) {
+        console.error('updateCreatorLinks error:', e);
         return { success: false, error: e.message };
     }
 }

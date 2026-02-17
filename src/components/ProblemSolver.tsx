@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { Search, Sparkles, ArrowRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import VideoCard from './VideoCard';
 import { recordSearch } from '@/app/actions/video-actions';
 
 export default function ProblemSolver({ onSearchResults, onClear, activeFilter }: {
@@ -69,14 +68,14 @@ export default function ProblemSolver({ onSearchResults, onClear, activeFilter }
                     `} />
 
                     <div className="relative flex items-center bg-[#0F0F0F] border border-white/10 rounded-xl overflow-hidden shadow-2xl transition-all duration-300 focus-within:ring-2 focus-within:ring-red-500/50">
-                        <div className="pl-6 text-gray-400">
+                        <div className="pl-4 md:pl-6 text-gray-400">
                             {loading ? <Sparkles className="w-6 h-6 animate-pulse text-red-500" /> : <Search className="w-6 h-6" />}
                         </div>
                         <input
                             type="text"
                             suppressHydrationWarning
-                            className="w-full bg-transparent text-white p-6 text-lg placeholder:text-gray-500 focus:outline-none"
-                            placeholder="Describe your current struggle (e.g., 'I'm lazy but I want to make $10k')..."
+                            className="w-full bg-transparent text-white p-4 md:p-6 text-base md:text-lg placeholder:text-gray-500 focus:outline-none"
+                            placeholder="Describe your struggle..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                         />

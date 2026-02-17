@@ -11,22 +11,41 @@ interface VideoCardProps {
     title: string;
     humanScore: number;
     takeaways: string[];
-    description?: string;
-    customDescription?: string; // Per-video override
+    customDescription?: string; // Video-specific description (from creator dashboard per-video edit)
     channelTitle?: string;
     channelUrl?: string;
     publishedAt?: string;
-    customLinks?: { title: string; url: string; }[];
+    customLinks?: { title: string; url: string; }[]; // Video-specific links
+    channelDescription?: string; // Channel-level description (from "Manage Links" modal)
+    channelLinks?: { title: string; url: string; }[]; // Channel-level links (from "Manage Links" modal)
+    isChannelClaimed?: boolean; // Whether the creator has claimed this channel
     onQuizStart: () => void;
+    onVideoView?: () => void;
 }
 
-export default function VideoCard({ videoId, title, humanScore, takeaways, description, customDescription, channelTitle, channelUrl, publishedAt, customLinks, onQuizStart }: VideoCardProps) {
+export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView }: VideoCardProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
 
-    // Use custom description if available, otherwise use regular description
-    const displayDescription = customDescription || description || '';
+    // === DISPLAY PRIORITY LOGIC ===
+    // First line: video description (priority) OR channel description (fallback)
+    // On expand, show in order:
+    //   1. Full first-line description (if it was truncated)
+    //   2. Video-specific links
+    //   3. Channel description (if video desc was shown first)
+    //   4. Channel links
+    //   5. If nothing at all & channel not claimed: prompt to claim
+
+    const firstLineText = customDescription || channelDescription || '';
+    const hasVideoDesc = !!customDescription;
+    const hasChannelDesc = !!channelDescription;
+    const hasVideoLinks = customLinks && customLinks.length > 0;
+    const hasChannelLinks = channelLinks && channelLinks.length > 0;
+    const hasAnything = hasVideoDesc || hasChannelDesc || hasVideoLinks || hasChannelLinks;
+    const hasExpandableContent = hasVideoLinks || hasChannelLinks ||
+        (hasVideoDesc && hasChannelDesc) || // Both descs = show channel desc on expand
+        firstLineText.length > 100; // Long text truncated
 
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -282,7 +301,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
             {/* Card State (Collapsed) */}
             <motion.div
                 layoutId={`card-${videoId}`}
-                onClick={() => setIsOpen(true)}
+                onClick={() => { setIsOpen(true); onVideoView?.(); }}
                 className="group relative bg-[#0F0F0F] rounded-2xl overflow-hidden cursor-pointer border border-white/5 hover:border-red-500/30 transition-colors duration-500"
                 whileHover={{ y: -5 }}
             >
@@ -307,7 +326,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                 </div>
 
                 {/* Content Layer (Feed View) */}
-                <div className="p-5">
+                <div className="p-4 md:p-5">
                     {/* Score Label above Headline */}
                     <div className="flex items-center justify-between mb-2">
                         <span className={`text-[10px] font-bold tracking-wider uppercase ${humanScore > 90 ? 'text-green-500' : 'text-yellow-500'}`}>
@@ -315,7 +334,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                         </span>
                     </div>
 
-                    <h3 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight mb-4 group-hover:text-red-400 transition-colors">
+                    <h3 className="text-base md:text-lg font-bold text-gray-100 line-clamp-2 leading-tight mb-3 md:mb-4 group-hover:text-red-400 transition-colors">
                         {title}
                     </h3>
 
@@ -363,7 +382,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
             <AnimatePresence>
                 {
                     isOpen && (<>
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-8">
 
                             {/* Backdrop with Blur */}
                             <motion.div
@@ -381,7 +400,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                 relative flex flex-col overflow-hidden shadow-[0_0_150px_rgba(0,0,0,0.8)]
                                 ${isFullscreen
                                         ? 'fixed inset-0 z-[200] w-screen h-screen rounded-none bg-black'
-                                        : 'w-full max-w-6xl rounded-[32px] bg-[#1a1a1a]/60 backdrop-blur-3xl border border-white/10 max-h-[95vh]'
+                                        : 'w-full max-w-6xl rounded-none md:rounded-[32px] bg-[#1a1a1a]/60 backdrop-blur-3xl border-0 md:border md:border-white/10 h-[100dvh] md:h-auto md:max-h-[95vh]'
                                     }
                             `}
                                 onClick={(e) => e.stopPropagation()}
@@ -397,7 +416,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                 )}
 
                                 {/* MAIN SCROLLABLE CONTENT */}
-                                <div className={`flex flex-col gap-6 ${isFullscreen ? 'h-full' : 'p-8 overflow-y-auto no-scrollbar'}`}>
+                                <div className={`flex flex-col gap-4 md:gap-6 ${isFullscreen ? 'h-full' : 'p-4 md:p-8 overflow-y-auto no-scrollbar'}`}>
 
                                     {/* --- TOP ROW: Video + Quiz --- */}
                                     {/* Grid Layout for strict alignment */}
@@ -590,72 +609,112 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, descr
                                                     )}
                                                 </div>
 
-                                                {/* Description with inline More/Less */}
+                                                {/* Description & Links - Priority Display */}
                                                 <div className="text-sm text-gray-300 leading-relaxed">
-                                                    {displayDescription ? (
+                                                    {/* First line: video desc OR channel desc (truncated) */}
+                                                    {firstLineText ? (
                                                         <>
                                                             <span>
                                                                 {isDescriptionOpen
-                                                                    ? displayDescription.split('\n').map((part, i) => {
-                                                                        if (part.match(/(https?:\/\/[^\s]+)/g)) {
-                                                                            return (
-                                                                                <a
-                                                                                    key={i}
-                                                                                    href={part}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="text-blue-400 hover:text-blue-300 hover:underline break-all"
-                                                                                    onClick={(e) => e.stopPropagation()}
-                                                                                >
-                                                                                    {part}
-                                                                                </a>
-                                                                            );
-                                                                        }
-                                                                        return decodeText(part);
-                                                                    })
-                                                                    : decodeText(displayDescription.split('\n')[0].substring(0, 100) + (displayDescription.length > 100 ? '...' : ''))
+                                                                    ? decodeText(firstLineText)
+                                                                    : decodeText(firstLineText.substring(0, 100) + (firstLineText.length > 100 ? '...' : ''))
                                                                 }
                                                             </span>
                                                             {' '}
-                                                            <button
-                                                                onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
-                                                                className="text-gray-400 hover:text-white inline-flex items-center gap-1 transition-colors text-sm font-medium"
-                                                            >
-                                                                {isDescriptionOpen ? "Less" : "More"}
-                                                                <ChevronDown className={`w-3 h-3 transition-transform ${isDescriptionOpen ? 'rotate-180' : ''}`} />
-                                                            </button>
                                                         </>
-                                                    ) : (
-                                                        "No description available."
+                                                    ) : null}
+                                                    {/* More/Less button */}
+                                                    {(hasExpandableContent || !hasAnything) && (
+                                                        <button
+                                                            onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+                                                            className="text-red-400 hover:text-red-300 inline-flex items-center gap-1 transition-colors text-sm font-medium"
+                                                        >
+                                                            {isDescriptionOpen ? "Less" : "More"}
+                                                            <ChevronDown className={`w-3 h-3 transition-transform ${isDescriptionOpen ? 'rotate-180' : ''}`} />
+                                                        </button>
                                                     )}
                                                 </div>
 
-                                                {/* Custom Links - Always visible when description is open */}
+                                                {/* Expanded Content */}
                                                 <AnimatePresence>
-                                                    {isDescriptionOpen && (customLinks && customLinks.length > 0) && (
+                                                    {isDescriptionOpen && (
                                                         <motion.div
                                                             initial={{ height: 0, opacity: 0 }}
                                                             animate={{ height: "auto", opacity: 1 }}
                                                             exit={{ height: 0, opacity: 0 }}
-                                                            className="space-y-3 mt-4"
+                                                            className="space-y-4 mt-3"
                                                         >
-                                                            {customLinks.map((link, i) => (
-                                                                <div key={i} className="space-y-1">
-                                                                    <div className="text-sm font-semibold text-white flex items-center gap-2">
-                                                                        <ExternalLink className="w-3.5 h-3.5 text-red-500" />
-                                                                        {link.title}
-                                                                    </div>
-                                                                    <a
-                                                                        href={link.url}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all block"
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                    >
-                                                                        {link.url}
-                                                                    </a>
+                                                            {/* 1. Video-specific links */}
+                                                            {hasVideoLinks && (
+                                                                <div className="space-y-2">
+                                                                    {customLinks!.map((link, i) => (
+                                                                        <div key={`vl-${i}`} className="space-y-1">
+                                                                            <div className="text-sm font-semibold text-white flex items-center gap-2">
+                                                                                <ExternalLink className="w-3.5 h-3.5 text-red-500" />
+                                                                                {link.title}
+                                                                            </div>
+                                                                            <a
+                                                                                href={link.url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all block pl-6"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            >
+                                                                                {link.url}
+                                                                            </a>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            )}
+
+                                                            {/* 2. Channel description (only shown on expand if video desc was the first line) */}
+                                                            {hasVideoDesc && hasChannelDesc && (
+                                                                <div className="text-sm text-gray-400 leading-relaxed whitespace-pre-wrap border-t border-white/5 pt-3">
+                                                                    <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold block mb-1">About this channel</span>
+                                                                    {decodeText(channelDescription!)}
+                                                                </div>
+                                                            )}
+
+                                                            {/* 3. Channel links */}
+                                                            {hasChannelLinks && (
+                                                                <div className="space-y-2 border-t border-white/5 pt-3">
+                                                                    {channelLinks!.map((link, i) => (
+                                                                        <div key={`cl-${i}`} className="space-y-1">
+                                                                            <div className="text-sm font-semibold text-white flex items-center gap-2">
+                                                                                <ExternalLink className="w-3.5 h-3.5 text-red-500" />
+                                                                                {link.title}
+                                                                            </div>
+                                                                            <a
+                                                                                href={link.url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-xs text-blue-400 hover:text-blue-300 hover:underline break-all block pl-6"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            >
+                                                                                {link.url}
+                                                                            </a>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            {/* 4. Unclaimed channel prompt */}
+                                                            {!hasAnything && !isChannelClaimed && (
+                                                                <div className="text-sm text-gray-500 italic">
+                                                                    This creator hasn&apos;t claimed their channel yet. Help us by prompting them to join Veritas!
+                                                                    {channelUrl && (
+                                                                        <a
+                                                                            href={channelUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-red-400 hover:text-red-300 hover:underline ml-1"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
+                                                                            Visit their YouTube channel →
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>

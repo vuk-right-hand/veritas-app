@@ -8,7 +8,7 @@ export default function Home() {
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
 
       {/* Background Gradient - Dark Red */}
-      <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-red-900/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-20%] right-[-10%] w-[400px] md:w-[800px] h-[400px] md:h-[800px] bg-red-900/20 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
 
       <div className="z-10 max-w-4xl flex flex-col items-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/30 border border-red-900/50 text-xs font-medium text-red-400 mb-8 backdrop-blur-md">
@@ -16,11 +16,11 @@ export default function Home() {
           Veritas Alpha
         </div>
 
-        <h1 className="text-6xl md:text-8xl font-bold tracking-tighter mb-8 bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
+        <h1 className="text-4xl sm:text-6xl md:text-8xl font-bold tracking-tighter mb-6 md:mb-8 bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
           Your Attention Is <br /> <span className="text-red-600">Your Dignity.</span>
         </h1>
 
-        <p className="text-xl md:text-2xl text-gray-400 mb-12 leading-relaxed max-w-2xl font-light">
+        <p className="text-lg sm:text-xl md:text-2xl text-gray-400 mb-8 md:mb-12 leading-relaxed max-w-2xl font-light px-2">
           No AI. No entertainment. No faceless BS. <br />
           <span className="text-gray-200">Real undiscovered experts from the YouTube ocean.</span>
         </p>

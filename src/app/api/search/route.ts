@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         // Fetch all videos with embeddings and calculate similarity manually
         let supabaseQuery = supabase
             .from('videos')
-            .select('id, title, human_score, embedding, summary_points, channel_title, channel_url, published_at, description')
+            .select('id, title, human_score, embedding, summary_points, channel_title, channel_url, published_at, custom_description, custom_links')
             .not('embedding', 'is', null);
 
         // Apply temporal filter if provided and not evergreen
@@ -109,7 +109,8 @@ export async function POST(req: Request) {
                 channel_title: video.channel_title,
                 channel_url: video.channel_url,
                 published_at: video.published_at,
-                description: video.description,
+                custom_description: video.custom_description,
+                custom_links: video.custom_links,
                 similarity
             };
         })

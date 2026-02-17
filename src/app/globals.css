@@ -158,3 +158,60 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ==============================
+   PWA & Mobile Utilities
+   ============================== */
+
+/* Safe area insets for notched devices (iPhone X+) */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --bottom-nav-height: 4.5rem; /* 72px */
+}
+
+/* Hide scrollbars but keep scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Horizontal scroll container for filter chips on mobile */
+.scroll-snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-x > * {
+  scroll-snap-align: start;
+}
+
+/* Prevent pull-to-refresh in standalone mode */
+@media (display-mode: standalone) {
+  html {
+    overscroll-behavior: none;
+  }
+  body {
+    /* Bottom padding for bottom nav in standalone */
+    padding-bottom: calc(var(--bottom-nav-height) + var(--sab));
+  }
+}
+
+/* Smooth touch interactions */
+@media (hover: none) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Bottom nav safe area helper */
+.pb-safe {
+  padding-bottom: calc(var(--bottom-nav-height) + var(--sab));
+}
+.bottom-safe {
+  bottom: var(--sab);
+}
