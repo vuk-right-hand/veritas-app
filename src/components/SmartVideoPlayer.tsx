@@ -42,6 +42,17 @@ export default React.forwardRef<SmartVideoPlayerRef, SmartVideoPlayerProps>(func
     const playerInstanceRef = useRef<any>(null);
     const [apiReady, setApiReady] = useState(false);
 
+    // Use refs for callbacks so the YouTube player always calls the LATEST version
+    // (avoids stale closure bug where player captures old callbacks at creation time)
+    const onEndedRef = useRef(onEnded);
+    const onPlayRef = useRef(onPlay);
+    const onPauseRef = useRef(onPause);
+
+    // Keep refs in sync with latest props on every render
+    useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
+    useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
+    useEffect(() => { onPauseRef.current = onPause; }, [onPause]);
+
     React.useImperativeHandle(ref, () => ({
         playVideo: () => playerInstanceRef.current?.playVideo?.(),
         pauseVideo: () => playerInstanceRef.current?.pauseVideo?.(),
@@ -80,7 +91,7 @@ export default React.forwardRef<SmartVideoPlayerRef, SmartVideoPlayerProps>(func
                 playerInstanceRef.current.destroy();
             }
 
-            // 2. Create the player
+            // 2. Create the player — callbacks go through refs so they're always fresh
             playerInstanceRef.current = new window.YT.Player(playerRef.current, {
                 videoId: videoId,
                 playerVars: {
@@ -91,26 +102,24 @@ export default React.forwardRef<SmartVideoPlayerRef, SmartVideoPlayerProps>(func
                     'controls': controls ? 1 : 0,
                 },
                 events: {
-                    'onStateChange': onPlayerStateChange
+                    'onStateChange': (event: any) => {
+                        // YT.PlayerState: ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3
+                        const state = event.data;
+                        if (state === 0) {
+                            console.log("🎬 Video Ended");
+                            onEndedRef.current?.();
+                        } else if (state === 1) {
+                            console.log("▶️ Video Playing");
+                            onPlayRef.current?.();
+                        } else if (state === 2) {
+                            console.log("⏸️ Video Paused");
+                            onPauseRef.current?.();
+                        }
+                    }
                 }
             });
         }
     }, [apiReady, videoId]);
-
-    const onPlayerStateChange = (event: any) => {
-        // YT.PlayerState.PLAYING = 1, PAUSED = 2, ENDED = 0, BUFFERING = 3
-        const state = event.data;
-        if (state === 0) {
-            console.log("Video Ended - Triggering Callback");
-            if (onEnded) onEnded();
-        } else if (state === 1) {
-            // Playing
-            if (onPlay) onPlay();
-        } else if (state === 2) {
-            // Paused
-            if (onPause) onPause();
-        }
-    };
 
     return (
         <div className={`relative w-full h-full bg-black ${className}`}>

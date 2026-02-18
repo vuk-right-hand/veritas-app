@@ -64,6 +64,10 @@ export default function Dashboard() {
     // Track video views for install prompt trigger
     const [videoViewCount, setVideoViewCount] = useState(0);
 
+    // User Profile State
+    const [userName, setUserName] = useState<string>('');
+    const [avatarUrl, setAvatarUrl] = useState<string>('');
+
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {
         // 1. Check for Active Mission (Zero Distraction Rule)
@@ -84,6 +88,12 @@ export default function Dashboard() {
 
             // STRICT MODE: Only show curated videos (no temporal filter for missions)
             setVideos(curated);
+            if (mission.userDetails?.name) {
+                setUserName(mission.userDetails.name);
+            }
+            if (mission.userDetails?.avatar_url) {
+                setAvatarUrl(mission.userDetails.avatar_url);
+            }
             return;
         }
 
@@ -263,14 +273,18 @@ export default function Dashboard() {
                         {/* Profile / Stats Area */}
                         <div className="flex items-center gap-4 pl-6 border-l border-white/10">
                             <div className="flex flex-col items-end mr-2">
-                                <span className="text-sm font-semibold text-white">The Builder</span>
-                                <Link href="/onboarding" className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
+                                <span className="text-sm font-semibold text-white">{userName || 'The Builder'}</span>
+                                <Link href="/profile" className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
                                     Update Goals
                                 </Link>
                             </div>
-                            <button className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group">
-                                <User className="w-5 h-5 text-gray-400 group-hover:text-white" />
-                            </button>
+                            <Link href="/profile" className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group overflow-hidden">
+                                {avatarUrl ? (
+                                    <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                    <User className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                                )}
+                            </Link>
                         </div>
                     </div>
                 </div>
@@ -355,84 +369,86 @@ export default function Dashboard() {
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </nav>
+            </nav >
 
             {/* Mobile Suggest Full-Screen Overlay */}
             <AnimatePresence>
-                {showMobileSuggest && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center px-6 md:hidden"
-                    >
-                        <button
-                            onClick={() => setShowMobileSuggest(false)}
-                            className="absolute top-4 right-4 p-2 rounded-full bg-white/5 text-gray-400 active:bg-white/10"
+                {
+                    showMobileSuggest && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center px-6 md:hidden"
                         >
-                            <X className="w-5 h-5" />
-                        </button>
+                            <button
+                                onClick={() => setShowMobileSuggest(false)}
+                                className="absolute top-4 right-4 p-2 rounded-full bg-white/5 text-gray-400 active:bg-white/10"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
 
-                        <Zap className="w-12 h-12 text-red-500 mb-4" />
-                        <h2 className="text-xl font-bold text-white mb-2 text-center">Suggest a Creator</h2>
-                        <p className="text-sm text-gray-400 mb-8 text-center max-w-xs">
-                            Give us your favorite human creator/video so we can promote them.
-                        </p>
+                            <Zap className="w-12 h-12 text-red-500 mb-4" />
+                            <h2 className="text-xl font-bold text-white mb-2 text-center">Suggest a Creator</h2>
+                            <p className="text-sm text-gray-400 mb-8 text-center max-w-xs">
+                                Give us your favorite human creator/video so we can promote them.
+                            </p>
 
-                        <div className="w-full max-w-sm relative">
-                            <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl" />
-                            <input
-                                type="text"
-                                value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
-                                onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
-                                placeholder="Paste video or channel link..."
-                                disabled={suggestionStatus === 'success'}
-                                className={`w-full border-2 rounded-full py-4 px-6 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
-                                    ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
-                                    : 'bg-[#1a1a1a] border-red-600/60 text-white placeholder:text-red-300/50 focus:border-red-500'}`}
-                                autoFocus
-                            />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20">
-                                <button
-                                    onClick={() => { handleSuggest(); }}
-                                    disabled={isSuggesting || suggestionStatus === 'success'}
-                                    className={`p-2 rounded-full transition-all ${suggestionStatus === 'success'
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-red-600 text-white active:bg-red-500'}`}
-                                >
-                                    {isSuggesting ? (
-                                        <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
-                                    ) : suggestionStatus === 'success' ? (
-                                        <CheckCircle2 className="w-4 h-4" />
-                                    ) : (
-                                        <Zap className="w-4 h-4 fill-current" />
-                                    )}
-                                </button>
+                            <div className="w-full max-w-sm relative">
+                                <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl" />
+                                <input
+                                    type="text"
+                                    value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
+                                    onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
+                                    placeholder="Paste video or channel link..."
+                                    disabled={suggestionStatus === 'success'}
+                                    className={`w-full border-2 rounded-full py-4 px-6 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
+                                        ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
+                                        : 'bg-[#1a1a1a] border-red-600/60 text-white placeholder:text-red-300/50 focus:border-red-500'}`}
+                                    autoFocus
+                                />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20">
+                                    <button
+                                        onClick={() => { handleSuggest(); }}
+                                        disabled={isSuggesting || suggestionStatus === 'success'}
+                                        className={`p-2 rounded-full transition-all ${suggestionStatus === 'success'
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-red-600 text-white active:bg-red-500'}`}
+                                    >
+                                        {isSuggesting ? (
+                                            <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
+                                        ) : suggestionStatus === 'success' ? (
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        ) : (
+                                            <Zap className="w-4 h-4 fill-current" />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </motion.div>
+                    )
+                }
+            </AnimatePresence >
 
             {/* Main Content */}
-            <main className="pt-20 md:pt-32 pb-24 md:pb-20 px-4 md:px-8 max-w-[1600px] mx-auto pb-safe">
+            < main className="pt-20 md:pt-32 pb-24 md:pb-20 px-4 md:px-8 max-w-[1600px] mx-auto pb-safe" >
 
                 {/* Header Section */}
-                <div ref={searchSectionRef} className="mb-6 md:mb-8 text-center">
+                < div ref={searchSectionRef} className="mb-6 md:mb-8 text-center" >
                     <h1 className="text-3xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50 mb-4 md:mb-6 tracking-tight">
                         Solve Your Problem.
                     </h1>
                     <p className="text-base md:text-xl text-gray-400 max-w-2xl mx-auto">
                         Don't browse. <span className="text-red-500 font-medium">Search for the cure.</span>
                     </p>
-                </div>
+                </div >
 
                 {/* The Brain (Search) */}
-                <ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
+                < ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
 
                 {/* Filters - Centered below Search */}
-                <div className="mt-6 md:mt-8 mb-10 md:mb-16 flex justify-center w-full">
+                < div className="mt-6 md:mt-8 mb-10 md:mb-16 flex justify-center w-full" >
                     <div className="flex items-center gap-1 md:gap-2 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5 overflow-x-auto no-scrollbar max-w-full">
                         <span className="hidden md:inline pl-3 pr-2 text-xs font-semibold uppercase tracking-wider opacity-60">Filter by:</span>
                         {/* Tabs */}
@@ -454,17 +470,17 @@ export default function Dashboard() {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div >
 
 
                 {/* Controls Row: Spacer | Suggestion | Relevancy — DESKTOP ONLY */}
-                <div className="hidden md:grid mb-12 grid-cols-1 lg:grid-cols-3 gap-6 items-end">
+                < div className="hidden md:grid mb-12 grid-cols-1 lg:grid-cols-3 gap-6 items-end" >
 
                     {/* Left: Spacer (Empty for balance) */}
-                    <div className="hidden lg:block"></div>
+                    < div className="hidden lg:block" ></div >
 
                     {/* Center: Suggestion Bar - Demands Attention */}
-                    <div className="w-full max-w-lg mx-auto flex flex-col items-center">
+                    < div className="w-full max-w-lg mx-auto flex flex-col items-center" >
                         <span className="text-[10px] text-red-500 uppercase tracking-widest mb-2 font-bold animate-pulse">Let's promote the good ones</span>
                         <div className="w-full relative group">
                             {/* Pulsating Glow Background */}
@@ -505,14 +521,14 @@ export default function Dashboard() {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div >
 
                     {/* Right: Spacer (Dropdown Removed) */}
-                    <div className="hidden lg:block"></div>
-                </div>
+                    < div className="hidden lg:block" ></div >
+                </div >
 
                 {/* Mobile Suggest Bar (inline, non-scrolled state) — shows nicely below filters */}
-                <div className="md:hidden mb-8">
+                < div className="md:hidden mb-8" >
                     <div className="w-full relative">
                         <div className="absolute inset-0 bg-red-600/20 rounded-full blur-lg" />
                         <input
@@ -543,36 +559,38 @@ export default function Dashboard() {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div >
 
 
                 {/* Video Grid - 3 Columns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
-                    {videos.map((video) => (
-                        <VideoCard
-                            key={video.id}
-                            videoId={video.id}
-                            title={video.title}
-                            humanScore={video.humanScore}
-                            takeaways={video.takeaways}
-                            channelTitle={video.channelTitle}
-                            channelUrl={video.channelUrl}
-                            customDescription={video.customDescription}
-                            customLinks={video.customLinks}
-                            channelDescription={video.channelDescription}
-                            channelLinks={video.channelLinks}
-                            isChannelClaimed={video.isChannelClaimed}
-                            publishedAt={video.publishedAt}
-                            onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
-                            onVideoView={() => setVideoViewCount(c => c + 1)}
-                        />
-                    ))}
-                </div>
+                < div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8" >
+                    {
+                        videos.map((video) => (
+                            <VideoCard
+                                key={video.id}
+                                videoId={video.id}
+                                title={video.title}
+                                humanScore={video.humanScore}
+                                takeaways={video.takeaways}
+                                channelTitle={video.channelTitle}
+                                channelUrl={video.channelUrl}
+                                customDescription={video.customDescription}
+                                customLinks={video.customLinks}
+                                channelDescription={video.channelDescription}
+                                channelLinks={video.channelLinks}
+                                isChannelClaimed={video.isChannelClaimed}
+                                publishedAt={video.publishedAt}
+                                onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
+                                onVideoView={() => setVideoViewCount(c => c + 1)}
+                            />
+                        ))
+                    }
+                </div >
 
-            </main>
+            </main >
 
             {/* Mobile Bottom Navigation */}
-            <BottomNav />
-        </div>
+            < BottomNav />
+        </div >
     );
 }

@@ -178,7 +178,7 @@ export default function Onboarding() {
                             key="step2"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-blue-500">02.</span> What are you currently struggling with?
+                                <span className="text-red-500">02.</span> What are you currently struggling with?
                             </h2>
                             <div className="space-y-3">
                                 {STRUGGLES.map((item) => {
@@ -189,12 +189,12 @@ export default function Onboarding() {
                                             key={item}
                                             onClick={() => handleStruggleSelect(item)}
                                             className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${isSelected
-                                                ? "bg-blue-900/20 border-blue-500/50"
-                                                : "bg-[#1a1a1a] border-white/5 hover:bg-[#202020] hover:border-blue-500/30"
+                                                ? "bg-red-900/20 border-red-500/50"
+                                                : "bg-[#1a1a1a] border-white/5 hover:bg-[#202020] hover:border-red-500/30"
                                                 }`}
                                         >
                                             <span className={`font-medium ${isOther ? 'text-red-500' : 'text-gray-200'} group-hover:text-white`}>{item}</span>
-                                            <Zap className="w-4 h-4 text-white/0 group-hover:text-blue-500 transition-all opacity-0 group-hover:opacity-100" />
+                                            <Zap className="w-4 h-4 text-white/0 group-hover:text-red-500 transition-all opacity-0 group-hover:opacity-100" />
                                         </button>
                                     );
                                 })}
@@ -205,12 +205,12 @@ export default function Onboarding() {
                                             type="text"
                                             placeholder="Type your specific obstacle..."
                                             autoFocus
-                                            className="w-full bg-transparent border-b border-blue-500 p-2 focus:outline-none text-white mt-2 placeholder:text-gray-600"
+                                            className="w-full bg-transparent border-b border-red-500 p-2 focus:outline-none text-white mt-2 placeholder:text-gray-600"
                                             value={customStruggle}
                                             onChange={(e) => setCustomStruggle(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && handleNext()}
                                         />
-                                        <button onClick={handleNext} className="mt-2 text-xs text-blue-500 font-bold uppercase tracking-wider hover:text-blue-400">
+                                        <button onClick={handleNext} className="mt-2 text-xs text-red-500 font-bold uppercase tracking-wider hover:text-red-400">
                                             Confirm
                                         </button>
                                     </motion.div>
@@ -228,7 +228,9 @@ export default function Onboarding() {
                             exit={{ opacity: 0, x: -20 }}
                             key="step3"
                         >
-                            {/* No Headline here as requested */}
+                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                                <span className="text-red-500">03.</span> Claim your Veritas profile:
+                            </h2>
                             <div className="mt-4 space-y-4">
                                 <div>
                                     <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Name</label>

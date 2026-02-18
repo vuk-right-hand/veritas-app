@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { generateEmbedding } from '@/lib/gemini';
+import { curateFeedForMission } from './curation-actions';
 
 // Initialize Supabase Client (Service Role for secure backend ops if needed, or Anon if using RLS)
 // For this action, we should ideally use the authenticated user's client if we had auth.
@@ -51,6 +52,8 @@ export async function saveMission(formData: { goal: string; struggle: string; na
                 user_id: userId,
                 goal: formData.goal,
                 obstacle: formData.struggle,
+                name: formData.name,       // Capture Name
+                email: formData.email,     // Capture Email
                 preferences: {},
                 status: 'active'
             }])
@@ -64,77 +67,10 @@ export async function saveMission(formData: { goal: string; struggle: string; na
 
         console.log(`✅ Mission Created: ${mission.id}`);
 
-        // 3. SMART Curation Logic (Using Embeddings)
-        try {
-            // A. Generate Embedding for the Mission
-            const queryText = `Help me ${formData.goal} and overcome ${formData.struggle}`;
-            const embedding = await generateEmbedding(queryText);
-
-            // B. Fetch Videos and Calculate Similarity
-            // Fetch all videos with embeddings (Optimization: call RPC if available, else manual)
-            const { data: allVideos } = await supabase
-                .from('videos')
-                .select('id, title, embedding')
-                .not('embedding', 'is', null);
-
-            if (allVideos && allVideos.length > 0) {
-                const scoredVideos = allVideos.map(video => {
-                    let videoEmbedding: number[] = [];
-                    if (typeof video.embedding === 'string') {
-                        try {
-                            videoEmbedding = JSON.parse(video.embedding);
-                        } catch (e) {
-                            return null;
-                        }
-                    } else if (Array.isArray(video.embedding)) {
-                        videoEmbedding = video.embedding;
-                    } else {
-                        return null;
-                    }
-
-                    if (!videoEmbedding || videoEmbedding.length !== embedding.length) return null;
-
-                    // Cosine Similarity
-                    let dotProduct = 0;
-                    let normA = 0;
-                    let normB = 0;
-                    for (let i = 0; i < embedding.length; i++) {
-                        dotProduct += embedding[i] * videoEmbedding[i];
-                        normA += embedding[i] * embedding[i];
-                        normB += videoEmbedding[i] * videoEmbedding[i];
-                    }
-                    const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-                    return { id: video.id, similarity };
-                })
-                    .filter((v): v is { id: string, similarity: number } => v !== null)
-                    .sort((a, b) => b.similarity - a.similarity)
-                    .slice(0, 5); // Top 5
-
-                // Select Top 3
-                const selected = scoredVideos.slice(0, 3);
-
-                if (selected.length > 0) {
-                    const curations = selected.map(v => ({
-                        mission_id: mission.id,
-                        video_id: v.id,
-                        curation_reason: `AI Match (${(v.similarity * 100).toFixed(0)}% relevance) for Goal: "${formData.goal}"`
-                    }));
-
-                    const { error: curationError } = await supabase
-                        .from('mission_curations')
-                        .insert(curations);
-
-                    if (curationError) {
-                        console.error('⚠️ Failed to save curations:', curationError);
-                    } else {
-                        console.log(`✅ Linked ${curations.length} smart-curated videos.`);
-                    }
-                }
-            }
-
-        } catch (curationErr) {
-            console.error("Smart Curation Failed, falling back:", curationErr);
-            // Fallback logic could be here (random selection) but proceeding for now
+        // 3. SMART Curation Logic (Using Shared Action)
+        const curationResult = await curateFeedForMission(mission.id, formData.goal, formData.struggle);
+        if (!curationResult.success) {
+            console.warn("⚠️ Initial curation warning:", curationResult.message);
         }
 
 

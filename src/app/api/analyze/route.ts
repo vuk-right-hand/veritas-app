@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { aiModel, generateEmbedding } from '@/lib/gemini';
 import { fetchVideoMeta, saveVideoAnalysis } from '@/lib/video-service';
+
+// Service role client for writing video_tags (bypasses RLS)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
     try {
@@ -61,6 +67,20 @@ export async function POST(req: Request) {
 
         Goal 3: Determine the "Vibe" category (e.g., Productivity, Mindset, Sales, Coding).
 
+        Goal 4: Extract exactly 3 "Content DNA" tags for interest-based scoring.
+        - Each tag is a lowercase_slug (e.g., cold_approach, dating, business_mindset, morning_routine).
+        - Keep tags broad enough to be reusable across videos, but specific enough to be meaningful.
+        - Assign weights: the primary/dominant topic = 10, secondary = 8, tertiary = 5.
+        - For each tag, estimate what percentage range of the video discusses that topic.
+          Use segment_start_pct (0-100) and segment_end_pct (0-100).
+          These can overlap if topics are interwoven.
+        - Example: A video about cold emailing that also covers outreach mindset and tech setup:
+          [
+            {"tag": "cold_emails", "weight": 10, "segment_start_pct": 0, "segment_end_pct": 45},
+            {"tag": "outreach_mindset", "weight": 8, "segment_start_pct": 30, "segment_end_pct": 75},
+            {"tag": "tech_setup", "weight": 5, "segment_start_pct": 65, "segment_end_pct": 100}
+          ]
+
         Transcript:
         "${truncatedTranscript}" 
         
@@ -69,7 +89,12 @@ export async function POST(req: Request) {
             "humanScore": number,
             "humanScoreReason": "short sentence explaining why",
             "takeaways": ["lesson 1", "lesson 2", "lesson 3"],
-            "category": "string"
+            "category": "string",
+            "content_tags": [
+                {"tag": "slug", "weight": 10, "segment_start_pct": 0, "segment_end_pct": 50},
+                {"tag": "slug", "weight": 8,  "segment_start_pct": 30, "segment_end_pct": 70},
+                {"tag": "slug", "weight": 5,  "segment_start_pct": 60, "segment_end_pct": 100}
+            ]
         }
         `;
 
@@ -93,6 +118,28 @@ export async function POST(req: Request) {
 
         // 4. Save to Database (The Library)
         await saveVideoAnalysis(meta, analysis, embeddingVector);
+
+        // 5. Save Content DNA tags to video_tags table
+        if (analysis.content_tags && Array.isArray(analysis.content_tags)) {
+            console.log(`💡 Saving ${analysis.content_tags.length} Content DNA tags for ${meta.youtube_id}`);
+
+            for (const tagData of analysis.content_tags) {
+                const { error: tagError } = await supabaseAdmin
+                    .from('video_tags')
+                    .upsert({
+                        video_id: meta.youtube_id,
+                        tag: tagData.tag.toLowerCase().replace(/\s+/g, '_'),
+                        weight: Math.min(10, Math.max(1, tagData.weight)),
+                        segment_start_pct: Math.min(100, Math.max(0, tagData.segment_start_pct)),
+                        segment_end_pct: Math.min(100, Math.max(0, tagData.segment_end_pct)),
+                    }, { onConflict: 'video_id,tag' });
+
+                if (tagError) {
+                    console.error(`⚠️ Failed to save tag "${tagData.tag}":`, tagError);
+                }
+            }
+            console.log(`✅ Content DNA saved for ${meta.youtube_id}`);
+        }
 
         return NextResponse.json({
             success: true,

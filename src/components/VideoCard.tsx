@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink } from 'lucide-react';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
@@ -56,6 +56,45 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+
+    // Watch Progress Tracking (Interest Scoring)
+    const lastReportedTimeRef = useRef<number>(0); // Prevent duplicate reports for same position
+    const watchReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    /**
+     * Send watch progress to the scoring API.
+     * Only sends if the user has watched further than the last report.
+     */
+    const sendWatchProgress = useCallback(async (currTime?: number, dur?: number) => {
+        const ct = currTime ?? playerRef.current?.getCurrentTime() ?? currentTime;
+        const d = dur ?? playerRef.current?.getDuration() ?? duration;
+
+        console.log(`[WatchProgress] Triggered — ct:${ct.toFixed(1)}s dur:${d.toFixed(1)}s lastReported:${lastReportedTimeRef.current.toFixed(1)}s`);
+
+        if (!videoId || d <= 0 || ct <= 0) {
+            console.log('[WatchProgress] Skipped — missing videoId or zero time/duration');
+            return;
+        }
+        if (ct <= lastReportedTimeRef.current + 5) {
+            console.log(`[WatchProgress] Skipped — not enough progress (need >${(lastReportedTimeRef.current + 5).toFixed(1)}s)`);
+            return;
+        }
+
+        lastReportedTimeRef.current = ct;
+        console.log(`[WatchProgress] Sending — video:${videoId} ct:${ct.toFixed(1)}s dur:${d.toFixed(1)}s (${((ct / d) * 100).toFixed(1)}%)`);
+
+        try {
+            const res = await fetch('/api/watch-progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoId, currentTime: ct, duration: d }),
+            });
+            const data = await res.json();
+            console.log('[WatchProgress] Response:', data);
+        } catch (err) {
+            console.error('[WatchProgress] Error:', err);
+        }
+    }, [videoId, currentTime, duration]);
 
     // Volume Hover Timeout Logic
     const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -153,6 +192,30 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         }
         return () => clearInterval(interval);
     }, [isOpen, isPlaying]);
+
+    // Periodic watch progress reporter (every 30s while playing)
+    useEffect(() => {
+        if (isOpen && isPlaying) {
+            watchReportIntervalRef.current = setInterval(() => {
+                sendWatchProgress();
+            }, 30000); // Every 30 seconds
+        }
+        return () => {
+            if (watchReportIntervalRef.current) {
+                clearInterval(watchReportIntervalRef.current);
+                watchReportIntervalRef.current = null;
+            }
+        };
+    }, [isOpen, isPlaying, sendWatchProgress]);
+
+    // Report watch progress when modal closes
+    useEffect(() => {
+        if (!isOpen && lastReportedTimeRef.current > 0) {
+            // Modal just closed — send final report
+            sendWatchProgress();
+            lastReportedTimeRef.current = 0; // Reset for next session
+        }
+    }, [isOpen, sendWatchProgress]);
 
     // Load Initial Comments
     useEffect(() => {
@@ -443,9 +506,13 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         onEnded={() => {
                                                             console.log("Main Feed Video Ended");
                                                             setIsPlaying(false);
+                                                            sendWatchProgress(); // Score on video completion
                                                         }}
                                                         onPlay={() => setIsPlaying(true)}
-                                                        onPause={() => setIsPlaying(false)}
+                                                        onPause={() => {
+                                                            setIsPlaying(false);
+                                                            sendWatchProgress(); // Score on pause
+                                                        }}
                                                     />
 
                                                     {/* Transparent Double-Click Capture Layer */}

@@ -379,7 +379,21 @@ export async function getUserMission(missionId: string) {
         console.error("Error fetching mission:", error);
         return null;
     }
-    return mission;
+
+    // Fetch User Details (only if we have service capability)
+    let userDetails = { name: '', email: '', avatar_url: '' };
+    if (mission.user_id && supabaseServiceKey) {
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(mission.user_id);
+        if (userData && userData.user) {
+            userDetails = {
+                name: userData.user.user_metadata?.full_name || '',
+                email: userData.user.email || '',
+                avatar_url: userData.user.user_metadata?.avatar_url || ''
+            };
+        }
+    }
+
+    return { ...mission, userDetails };
 }
 
 export async function getMyMission() {
@@ -437,6 +451,25 @@ export async function updateVideoDescription(videoId: string, description: strin
         revalidatePath('/creator-dashboard');
         return { success: true };
     } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function logWatchTime(videoId: string, seconds: number) {
+    try {
+        const { error } = await supabase.rpc('track_creator_watch_time', {
+            p_video_id: videoId,
+            p_seconds: seconds
+        });
+
+        if (error) {
+            console.error('Error logging watch time:', error);
+            return { success: false, error: error.message };
+        }
+
+        return { success: true };
+    } catch (e: any) {
+        console.error('Exception logging watch time:', e);
         return { success: false, error: e.message };
     }
 }
