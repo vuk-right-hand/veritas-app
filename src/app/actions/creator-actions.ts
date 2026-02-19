@@ -21,7 +21,7 @@ export async function getCreatorStats(userId: string) {
         // 1. Get Creator Profile to find channel_url/id
         const { data: creator, error: creatorError } = await supabaseAdmin
             .from('creators')
-            .select('id, channel_url, links, description, channel_name, human_score')
+            .select('id, channel_url, links, description, channel_name, human_score, avatar_url')
             .eq('user_id', userId)
             .single();
 
@@ -294,5 +294,21 @@ export async function getOpportunityGaps() {
     } catch (e: any) {
         console.error("getOpportunityGaps Error:", e);
         return [];
+    }
+}
+
+export async function updateCreatorAvatar(creatorId: string, avatarUrl: string) {
+    try {
+        const { error } = await supabaseAdmin
+            .from('creators')
+            .update({ avatar_url: avatarUrl })
+            .eq('id', creatorId);
+
+        if (error) throw error;
+        revalidatePath('/creator-dashboard');
+        return { success: true };
+    } catch (e: any) {
+        console.error('updateCreatorAvatar error:', e);
+        return { success: false, error: e.message };
     }
 }

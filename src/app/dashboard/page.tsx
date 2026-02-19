@@ -73,9 +73,28 @@ export default function Dashboard() {
         // 1. Check for Active Mission (Zero Distraction Rule)
         const mission = await getMyMission();
 
+        let finalVideos: any[] = [];
+        const temporalFilter = getTemporalFilterValue(filterLabel);
+
         if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
             console.log("Found Active Mission:", mission.goal);
-            const curated = mission.mission_curations.map((c: any) => ({
+
+            // Filter Mission Videos by Time
+            let curations = mission.mission_curations;
+
+            if (temporalFilter !== 'evergreen') {
+                const days = parseInt(temporalFilter);
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+
+                curations = curations.filter((c: any) => {
+                    const dateStr = c.videos.published_at || c.videos.created_at;
+                    if (!dateStr) return false;
+                    return new Date(dateStr) >= cutoff;
+                });
+            }
+
+            const curated = curations.map((c: any) => ({
                 id: c.videos.id,
                 title: c.videos.title,
                 humanScore: c.videos.human_score || 99,
@@ -83,52 +102,62 @@ export default function Dashboard() {
                 channelTitle: c.videos.channel_title || 'Human Expert',
                 channelUrl: c.videos.channel_url || '',
                 publishedAt: c.videos.published_at || c.videos.created_at, // Fallback to created_at
-                takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`]
+                takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`],
+                // Add a flag to distinguish curated videos
+                isCurated: true
             }));
 
-            // STRICT MODE: Only show curated videos (no temporal filter for missions)
-            setVideos(curated);
+            finalVideos = curated;
+
             if (mission.userDetails?.name) {
                 setUserName(mission.userDetails.name);
             }
             if (mission.userDetails?.avatar_url) {
                 setAvatarUrl(mission.userDetails.avatar_url);
             }
-            return;
         }
 
-        // 2. Fallback: Generic Feed with Temporal Filter
-        const temporalFilter = getTemporalFilterValue(filterLabel);
-        const verified = await getVerifiedVideos(temporalFilter);
-        if (verified && verified.length > 0) {
-            // Fetch channel-level data (descriptions + links) from creators table
-            const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
-            const creatorMap = await getCreatorsByChannelUrls(channelUrls);
+        // 2. Smart Fallback: If filtered/curated list is small (< 10), fill with generic verified videos
+        // This ensures "Approved" videos appear even if not yet curated for this specific mission
+        if (finalVideos.length < 10) {
+            const temporalFilter = getTemporalFilterValue(filterLabel);
+            const verified = await getVerifiedVideos(temporalFilter);
 
-            const formattedVerified = verified.map(v => {
-                const creator = creatorMap[v.channel_url] || null;
-                return {
-                    id: v.id,
-                    title: v.title,
-                    humanScore: v.human_score || 0,
-                    category: v.category_tag || 'Community',
-                    customDescription: v.custom_description || undefined,
-                    customLinks: v.custom_links || undefined,
-                    channelTitle: v.channel_title || 'Community Creator',
-                    channelUrl: v.channel_url || '',
-                    publishedAt: v.published_at || v.created_at,
-                    takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
-                    // Channel-level data from creators table
-                    channelDescription: creator?.description || undefined,
-                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
-                    isChannelClaimed: !!creator,
-                };
-            });
+            if (verified && verified.length > 0) {
+                // Fetch channel-level data (descriptions + links) from creators table
+                const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
+                const creatorMap = await getCreatorsByChannelUrls(channelUrls);
 
-            setVideos(formattedVerified);
-        } else {
-            setVideos([]);
+                const formattedVerified = verified.map(v => {
+                    const creator = creatorMap[v.channel_url] || null;
+                    return {
+                        id: v.id,
+                        title: v.title,
+                        humanScore: v.human_score || 0,
+                        category: v.category_tag || 'Community',
+                        customDescription: v.custom_description || undefined,
+                        customLinks: v.custom_links || undefined,
+                        channelTitle: v.channel_title || 'Community Creator',
+                        channelUrl: v.channel_url || '',
+                        publishedAt: v.published_at || v.created_at,
+                        takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
+                        // Channel-level data from creators table
+                        channelDescription: creator?.description || undefined,
+                        channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                        isChannelClaimed: !!creator,
+                        isCurated: false
+                    };
+                });
+
+                // Dedup: Filter out videos already in finalVideos
+                const existingIds = new Set(finalVideos.map((v: any) => v.id));
+                const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
+
+                finalVideos = [...finalVideos, ...toAdd];
+            }
         }
+
+        setVideos(finalVideos);
     }, []);
 
     // Load videos on mount and when filter changes
