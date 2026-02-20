@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Target, Zap, Save, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Target, Zap, Save, CheckCircle2, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getMyMission } from '../actions/video-actions';
-import { updateProfile, updateProfileAvatar } from '../actions/profile-actions';
+import { updateProfile, updateProfileAvatar, updateUserPassword } from '../actions/profile-actions';
 import { supabase } from '@/lib/supabaseClient';
 
 const GOALS = [
@@ -37,6 +37,8 @@ export default function Profile() {
         struggle: STRUGGLES[0]
     });
 
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -199,6 +201,29 @@ export default function Profile() {
         setError('');
         setSuccessMessage('');
 
+        if (password || confirmPassword) {
+            if (password !== confirmPassword) {
+                setError("Passwords do not match.");
+                setSaving(false);
+                return;
+            }
+            if (password.length < 6) {
+                setError("Password must be at least 6 characters.");
+                setSaving(false);
+                return;
+            }
+
+            const pwdResult = await updateUserPassword(password);
+            if (!pwdResult.success) {
+                setError(pwdResult.message || "Failed to update password.");
+                setSaving(false);
+                return;
+            }
+
+            setPassword('');
+            setConfirmPassword('');
+        }
+
         const finalGoal = formData.goal === 'Other...' ? customGoal : formData.goal;
         const finalStruggle = formData.struggle === 'Other...' ? customStruggle : formData.struggle;
 
@@ -301,6 +326,34 @@ export default function Profile() {
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
                                     placeholder="Enter your email"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Account Security */}
+                        <div className="pt-6 border-t border-white/5 space-y-4">
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
+                                <Lock className="w-4 h-4 text-gray-400" />
+                                Account Security
+                            </h3>
+                            <div>
+                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password (Optional)</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                    placeholder="Leave blank to keep current password"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                    placeholder="Re-type your new password"
                                 />
                             </div>
                         </div>

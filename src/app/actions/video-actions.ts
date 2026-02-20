@@ -105,22 +105,111 @@ export async function getChannelMetadata(channelUrl: string) {
         const descMatch = html.match(/<meta name="description" content="([^"]+)">/);
         const description = descMatch ? descMatch[1] : "";
 
-        return { title, description, success: true };
+        return { title, description, rawHtml: html, success: true };
     } catch (e) {
         console.error("Failed to fetch channel metadata:", e);
-        return { title: "", description: "", success: false };
+        return { title: "", description: "", rawHtml: "", success: false };
     }
 }
 
-export async function verifyChannelOwnership(channelUrl: string, token: string) {
-    const { title, description, success } = await getChannelMetadata(channelUrl);
+export async function generateVerificationToken(email: string, channelUrl: string) {
+    noStore(); // avoid caching
+    const randomString = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const token = `VERITAS-${randomString}`;
+
+    // Set expiration 15 minutes from now
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+    // Limit spammers: Check how many pending requests for this email in last hour
+    const { count } = await supabase
+        .from('verification_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('email', email)
+        .eq('verified', false)
+        .gt('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+
+    if (count !== null && count > 10) {
+        return { success: false, message: "Too many verification requests. Please try again later.", token: "" };
+    }
+
+    const { error } = await supabase
+        .from('verification_requests')
+        .insert({
+            email,
+            channel_url: channelUrl,
+            token,
+            expires_at: expiresAt.toISOString(),
+            verified: false,
+            attempts: 0
+        });
+
+    if (error) {
+        console.error("Token Generation Error:", error);
+        return { success: false, message: "Failed to generate token server-side.", token: "" };
+    }
+
+    return { success: true, token };
+}
+
+export async function verifyChannelOwnership(email: string, channelUrl: string, token: string) {
+    noStore();
+
+    // 1. Find the active Verification Request
+    const { data: request, error: fetchError } = await supabase
+        .from('verification_requests')
+        .select('*')
+        .eq('email', email)
+        .eq('channel_url', Math.max(0, channelUrl.length) ? channelUrl : '')
+        .eq('verified', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (fetchError || !request) {
+        return { success: false, message: "No active verification session found. Please generate a token." };
+    }
+
+    if (new Date(request.expires_at) < new Date()) {
+        return { success: false, message: "Verification token has expired. Please generate a new one." };
+    }
+
+    if (request.attempts >= 10) {
+        return { success: false, message: "Too many failed attempts. Please restart the process." };
+    }
+
+    // Check if the provided token matches the requested token
+    if (request.token !== token) {
+        // Increment attempts (Rate Limiting check)
+        await supabase
+            .from('verification_requests')
+            .update({ attempts: request.attempts + 1 })
+            .eq('id', request.id);
+
+        return { success: false, message: "Invalid token." };
+    }
+
+    // If token matches, we increment attempts anyway to prevent spamming youtube after guessing right token before placing it
+    await supabase
+        .from('verification_requests')
+        .update({ attempts: request.attempts + 1 })
+        .eq('id', request.id);
+
+    // 2. Fetch Channel Metadata (YouTube)
+    const { title, description, rawHtml, success } = await getChannelMetadata(channelUrl);
 
     if (!success) {
         return { success: false, message: "Could not fetch channel details. Please check the URL." };
     }
 
-    // Check if token exists in description
-    if (description.includes(token)) {
+    // 3. Verify Token in Description (or anywhere in the raw HTML payload for robustness)
+    if (description.includes(token) || (rawHtml && rawHtml.includes(token))) {
+        // Mark as verified in DB
+        await supabase
+            .from('verification_requests')
+            .update({ verified: true })
+            .eq('id', request.id);
+
         return { success: true, message: "Verification successful! Channel claimed.", channelTitle: title };
     }
 
@@ -289,7 +378,7 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
     return { success: true, message: `Video moved to ${newStatus}` };
 }
 
-export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen') {
+export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen', limit: number = 12, offset: number = 0) {
     noStore();
 
     let query = supabase
@@ -306,7 +395,9 @@ export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'e
         query = query.gte('published_at', cutoffDate.toISOString());
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
     if (error) return [];
     return data;

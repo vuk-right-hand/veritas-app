@@ -1,7 +1,9 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 
 // Initialize Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -26,6 +28,21 @@ export async function finalizeChannelClaim(
     console.log(`[Authorization] Attempting to claim channel ${channelInfo.title} for ${email}`);
 
     try {
+        // --- NEW SECURITY CHECK ---
+        const { data: request, error: verifyFetchError } = await supabaseAdmin
+            .from('verification_requests')
+            .select('verified')
+            .eq('email', email)
+            .eq('channel_url', channelInfo.url)
+            .eq('token', channelInfo.token)
+            .single();
+
+        if (verifyFetchError || !request?.verified) {
+            console.error("[Authorization] Security Violation: Channel ownership not verified.");
+            return { success: false, message: "Security Violation: Channel ownership not verified." };
+        }
+        // --- END SECURITY CHECK ---
+
         let userId = "";
 
         // 1. Check if user exists or create new one
@@ -103,5 +120,84 @@ export async function finalizeChannelClaim(
     } catch (error: any) {
         console.error("[Authorization] Error:", error);
         return { success: false, message: error.message || "An unexpected error occurred." };
+    }
+}
+
+export async function viewerLogin(email: string, password: string) {
+    const cookieStore = await cookies();
+
+    // Use anon key for sign in to verify credentials securely
+    const supabaseAnon = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    try {
+        const { data, error } = await supabaseAnon.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error || !data.user) {
+            return { success: false, message: "Invalid email or password." };
+        }
+
+        // Find existing mission to sync feed
+        const { data: mission, error: missionError } = await supabaseAdmin
+            .from('user_missions')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .single();
+
+        if (missionError || !mission) {
+            return { success: false, message: "No profile found for this user." };
+        }
+
+        // Set cookie to establish session
+        cookieStore.set('veritas_user', mission.id, {
+            path: '/',
+            httpOnly: true,
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, message: e.message || "An unexpected error occurred." };
+    }
+}
+
+export async function creatorLogin(email: string, password: string) {
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+                    } catch {
+                        // Ignored in Server Action
+                    }
+                },
+            },
+        }
+    );
+
+    try {
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            return { success: false, message: error.message };
+        }
+
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, message: e.message || "An unexpected error occurred." };
     }
 }

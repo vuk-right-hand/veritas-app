@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Youtube, LogIn, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient'; // Adjusted path
+import { creatorLogin } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
 
 interface AuthChoiceModalProps {
@@ -40,13 +40,10 @@ export default function AuthChoiceModal({ isOpen, onClose }: AuthChoiceModalProp
         setError("");
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
+            const result = await creatorLogin(email, password);
 
-            if (error) {
-                setError(error.message);
+            if (!result.success) {
+                setError(result.message || "Invalid credentials.");
                 setIsLoading(false);
             } else {
                 // Success
@@ -74,15 +71,15 @@ export default function AuthChoiceModal({ isOpen, onClose }: AuthChoiceModalProp
 
                     {/* Modal Content */}
                     <motion.div
-                        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                        initial={{ scale: 0.95, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-md bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                        exit={{ scale: 0.95, opacity: 0, y: 50 }}
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[101] w-full max-w-md bg-[#111] border border-white/10 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-y-auto max-h-[85vh] pb-safe"
                     >
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+                            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10 bg-black/50 p-1.5 rounded-full"
                         >
                             <X className="w-5 h-5" />
                         </button>

@@ -45,6 +45,12 @@ export default function Dashboard() {
     const [videos, setVideos] = useState<any[]>([]);
     const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
 
+    // Pagination State
+    const [standardVideoOffset, setStandardVideoOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+
     // Mobile scroll state — tracks if user scrolled past the search bar
     const [isScrolled, setIsScrolled] = useState(false);
     const [showMobileSuggest, setShowMobileSuggest] = useState(false);
@@ -70,6 +76,10 @@ export default function Dashboard() {
 
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {
+        // Reset pagination on new load
+        setStandardVideoOffset(0);
+        setHasMore(true);
+
         // 1. Check for Active Mission (Zero Distraction Rule)
         const mission = await getMyMission();
 
@@ -121,7 +131,7 @@ export default function Dashboard() {
         // This ensures "Approved" videos appear even if not yet curated for this specific mission
         if (finalVideos.length < 10) {
             const temporalFilter = getTemporalFilterValue(filterLabel);
-            const verified = await getVerifiedVideos(temporalFilter);
+            const verified = await getVerifiedVideos(temporalFilter, 12, 0);
 
             if (verified && verified.length > 0) {
                 // Fetch channel-level data (descriptions + links) from creators table
@@ -154,11 +164,87 @@ export default function Dashboard() {
                 const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
 
                 finalVideos = [...finalVideos, ...toAdd];
+
+                setStandardVideoOffset(verified.length);
+                if (verified.length < 12) setHasMore(false);
+            } else {
+                setHasMore(false);
             }
+        } else {
+            // Already enough initial videos, next scroll load starts at 0 offset for extra feed
+            setStandardVideoOffset(0);
+            setHasMore(true);
         }
 
         setVideos(finalVideos);
     }, []);
+
+    const loadMoreVideos = React.useCallback(async () => {
+        if (isLoadingMore || !hasMore || currentSearchQuery) return; // Don't paginate during search
+
+        setIsLoadingMore(true);
+        try {
+            const temporalFilter = getTemporalFilterValue(activeTab);
+            const limit = 6;
+            const verified = await getVerifiedVideos(temporalFilter, limit, standardVideoOffset);
+
+            if (verified && verified.length > 0) {
+                const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
+                const creatorMap = await getCreatorsByChannelUrls(channelUrls);
+
+                const formattedVerified = verified.map(v => {
+                    const creator = creatorMap[v.channel_url] || null;
+                    return {
+                        id: v.id,
+                        title: v.title,
+                        humanScore: v.human_score || 0,
+                        category: v.category_tag || 'Community',
+                        customDescription: v.custom_description || undefined,
+                        customLinks: v.custom_links || undefined,
+                        channelTitle: v.channel_title || 'Community Creator',
+                        channelUrl: v.channel_url || '',
+                        publishedAt: v.published_at || v.created_at,
+                        takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
+                        channelDescription: creator?.description || undefined,
+                        channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                        isChannelClaimed: !!creator,
+                        isCurated: false
+                    };
+                });
+
+                setVideos(prev => {
+                    const existingIds = new Set(prev.map(v => v.id));
+                    const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
+                    return [...prev, ...toAdd];
+                });
+
+                setStandardVideoOffset(prev => prev + verified.length);
+                if (verified.length < limit) {
+                    setHasMore(false);
+                }
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error("Error loading more videos:", error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [isLoadingMore, hasMore, currentSearchQuery, activeTab, standardVideoOffset]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoadingMore && !currentSearchQuery) {
+                    loadMoreVideos();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [loadMoreVideos, hasMore, isLoadingMore, currentSearchQuery]);
 
     // Load videos on mount and when filter changes
     // If there's an active search, reapply it after loading
@@ -615,6 +701,18 @@ export default function Dashboard() {
                         ))
                     }
                 </div >
+
+                {/* Infinite Scroll Loader */}
+                {!currentSearchQuery && hasMore && (
+                    <div ref={loadMoreRef} className="w-full flex justify-center py-12 mt-8">
+                        {isLoadingMore && (
+                            <div className="flex flex-col items-center gap-3">
+                                <span className="w-8 h-8 rounded-full border-2 border-red-500/30 border-t-red-500 animate-spin block shadow-[0_0_15px_rgba(220,38,38,0.5)]" />
+                                <span className="text-[10px] text-red-500 uppercase tracking-widest font-bold animate-pulse">Loading more</span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
             </main >
 

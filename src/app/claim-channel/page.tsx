@@ -28,7 +28,7 @@ export default function ClaimChannelPage() {
     // Verification State
     const [verificationToken, setVerificationToken] = useState("");
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(60);
+    const [timeLeft, setTimeLeft] = useState(45);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
 
@@ -61,23 +61,53 @@ export default function ClaimChannelPage() {
     };
 
     // Step 2: Generate Token
-    const generateToken = () => {
-        const randomString = Math.random().toString(36).substring(2, 10).toUpperCase();
-        setVerificationToken(`VERITAS-${randomString}`);
+    const generateToken = async () => {
+        setIsLoading(true);
+        setError("");
+        try {
+            const { generateVerificationToken } = await import('../actions/video-actions');
+            const result = await generateVerificationToken(email, channelUrl);
+            if (result.success && result.token) {
+                setVerificationToken(result.token);
+            } else {
+                setError(result.message || "Failed to generate token.");
+            }
+        } catch (e: any) {
+            setError(e.message || "Failed to generate token.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const copyToken = () => {
+    const copyToken = async () => {
         if (verificationToken) {
-            navigator.clipboard.writeText(verificationToken);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000);
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(verificationToken);
+                } else {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = verificationToken;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-999999px";
+                    textArea.style.top = "-999999px";
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    textArea.remove();
+                }
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            } catch (err) {
+                console.error("Copy failed", err);
+            }
         }
     };
 
     // Step 2: Start Verification Process
     const startVerification = () => {
+        setError(""); // Clear any previous errors on retry
         setIsTimerRunning(true);
-        setTimeLeft(60);
+        setTimeLeft(45);
     };
 
     // Timer Effect
@@ -98,9 +128,10 @@ export default function ClaimChannelPage() {
     const performVerification = async () => {
         setIsVerifying(true);
         try {
-            const result = await verifyChannelOwnership(channelUrl, verificationToken);
+            const result = await verifyChannelOwnership(email, channelUrl, verificationToken);
             if (result.success) {
                 // Instead of jumping to claimed, go to Password Step
+                setError(""); // Ensure error doesn't bleed into next step
                 setStep(3); // 3 = Password Set
             } else {
                 setError("Verification failed. We couldn't find the token in your channel description. Please try again.");
@@ -132,7 +163,7 @@ export default function ClaimChannelPage() {
 
         try {
             // Dynamically import to avoid server action issues in client component if checking types strict
-            const { finalizeChannelClaim } = await import('../actions/auth-actions');
+            const { finalizeChannelClaim, creatorLogin } = await import('../actions/auth-actions');
 
             const result = await finalizeChannelClaim(email, password, {
                 url: channelUrl,
@@ -141,17 +172,11 @@ export default function ClaimChannelPage() {
             });
 
             if (result.success) {
-                // Sign In the user immediately so they have a session
-                const { error: signInError } = await supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
+                // Sign In the user immediately using the Server Action to establish a secure cookie session
+                const loginResult = await creatorLogin(email, password);
 
-                if (signInError) {
-                    console.error("Auto-login failed:", signInError);
-                    // Still show success but maybe warn? Or just redirect and let them login?
-                    // We'll proceed to success UI but redirect might fail to show dashboard if middleware protects it.
-                    // But our dashboard page checks for session now.
+                if (!loginResult.success) {
+                    console.error("Auto-login failed:", loginResult.message);
                 }
 
                 setClaimStatus('success');
@@ -411,14 +436,14 @@ export default function ClaimChannelPage() {
                                                 </div>
                                                 <p className="text-sm text-gray-500">
                                                     Verifying your channel... <br />
-                                                    <span className="text-xs opacity-70">Give it 60 seconds to prevent "race-condition hacks"</span>
+                                                    <span className="text-xs opacity-70">Give it 30 seconds to allow YouTube to update</span>
                                                 </p>
                                                 <div className="mt-4 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
                                                     <motion.div
                                                         className="h-full bg-red-500"
                                                         initial={{ width: "100%" }}
                                                         animate={{ width: "0%" }}
-                                                        transition={{ duration: 60, ease: "linear" }}
+                                                        transition={{ duration: 45, ease: "linear" }}
                                                     />
                                                 </div>
                                             </div>

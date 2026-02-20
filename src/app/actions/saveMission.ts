@@ -18,7 +18,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export async function saveMission(formData: { goal: string; struggle: string; name: string; email: string }) {
+export async function saveMission(formData: { goal: string; struggle: string; name: string; email: string; password?: string }) {
     console.log('🚀 Saving Mission:', formData);
 
     const cookieStore = await cookies();
@@ -26,7 +26,7 @@ export async function saveMission(formData: { goal: string; struggle: string; na
     // 1. Check if user exists or create new one (Simplified Logic for MVP)
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
         email: formData.email,
-        password: 'TemporaryPassword123!', // User would reset this later
+        password: formData.password || 'TemporaryPassword123!',
         email_confirm: true,
         user_metadata: { full_name: formData.name }
     });

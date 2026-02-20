@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Target, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { saveMission } from '../actions/saveMission';
 
 export default function Onboarding() {
@@ -14,7 +15,9 @@ export default function Onboarding() {
         goal: '',
         struggle: '',
         name: '',
-        email: ''
+        email: '',
+        password: '',
+        confirmPassword: ''
     });
 
     const [customGoal, setCustomGoal] = useState('');
@@ -60,8 +63,16 @@ export default function Onboarding() {
             setStep(step + 1);
         } else {
             // Validation
-            if (!formData.name.trim() || !formData.email.trim()) {
-                setError('Please provide both name and email to continue.');
+            if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.confirmPassword) {
+                setError('Please fill in all fields to continue.');
+                return;
+            }
+            if (formData.password !== formData.confirmPassword) {
+                setError('Passwords do not match.');
+                return;
+            }
+            if (formData.password.length < 6) {
+                setError('Password must be at least 6 characters.');
                 return;
             }
 
@@ -103,6 +114,16 @@ export default function Onboarding() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-8 text-center"
                 >
+                    {step < 3 && (
+                        <div className="mb-6">
+                            <p className="text-sm text-gray-400">
+                                Already on Veritas?{' '}
+                                <Link href="/login" className="text-red-400 hover:text-red-300 transition-colors font-medium">
+                                    Login
+                                </Link>
+                            </p>
+                        </div>
+                    )}
                     <div className="inline-block p-4 rounded-3xl bg-white/5 border border-white/5 mb-6 backdrop-blur-xl shadow-2xl">
                         <img src="/veritas-heart.svg" alt="Veritas" className="w-12 h-12 object-contain animate-heartbeat fill-red-600" />
                     </div>
@@ -250,6 +271,26 @@ export default function Onboarding() {
                                         placeholder="your@email.com"
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Password</label>
+                                    <input
+                                        type="password"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="Create a password (min. 6 characters)"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm Password</label>
+                                    <input
+                                        type="password"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="Re-type your password"
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                                         onKeyDown={(e) => e.key === 'Enter' && handleNext()}
                                     />
                                 </div>
@@ -268,6 +309,15 @@ export default function Onboarding() {
                                     {loading ? 'Analyzing...' : 'Build My Feed'} <CheckCircle2 className="w-5 h-5" />
                                 </button>
                                 <button onClick={() => setStep(2)} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+
+                                <div className="text-center mt-4 pt-4 border-t border-white/10">
+                                    <p className="text-sm text-gray-400">
+                                        Already have a profile?{' '}
+                                        <Link href="/login" className="text-red-400 hover:text-red-300 transition-colors font-medium">
+                                            Log In
+                                        </Link>
+                                    </p>
+                                </div>
                             </div>
                         </motion.div>
                     )}

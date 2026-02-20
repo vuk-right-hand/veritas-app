@@ -98,3 +98,35 @@ export async function updateProfileAvatar(avatarUrl: string) {
 
     return { success: true };
 }
+
+export async function updateUserPassword(newPassword: string) {
+    const cookieStore = await cookies();
+    const missionId = cookieStore.get('veritas_user')?.value;
+
+    if (!missionId) {
+        return { success: false, message: "No active session." };
+    }
+
+    // 1. Get User ID
+    const { data: mission } = await supabase
+        .from('user_missions')
+        .select('user_id')
+        .eq('id', missionId)
+        .single();
+
+    if (!mission) return { success: false, message: "Profile not found." };
+
+    // 2. Update Password via Admin
+    const { error } = await supabase.auth.admin.updateUserById(
+        mission.user_id,
+        { password: newPassword }
+    );
+
+    if (error) {
+        console.error("Password Update Error:", error);
+        return { success: false, message: "Failed to update password." };
+    }
+
+    return { success: true };
+}
+

@@ -98,11 +98,10 @@ export async function POST(req: Request) {
         }
         `;
 
-        // Run both AI tasks at the same time for speed
-        const [analysisResult, embeddingVector] = await Promise.all([
-            aiModel.generateContent(prompt),
-            generateEmbedding(truncatedTranscript)
-        ]);
+        // 3. Sequential Processing (Analysis THEN Embedding)
+        console.log("Analyzing with Gemini...");
+
+        const analysisResult = await aiModel.generateContent(prompt);
 
         const responseText = analysisResult.response.text();
 
@@ -116,7 +115,17 @@ export async function POST(req: Request) {
         }
         if (analysis.humanScore > 100) analysis.humanScore = 100;
 
-        // 4. Save to Database (The Library)
+        // 4. GENERATE EMBEDDING (Search Bomb Fix)
+        // Instead of embedding 25k chars of potentially keyword-stuffed raw transcript,
+        // we embed ONLY the AI-verified, highly refined insights and categories.
+        // A hacker stuffing keyword spam won't make it past Gemini's extraction!
+        const tagsString = analysis.content_tags ? analysis.content_tags.map((t: any) => t.tag).join(" ") : "";
+        const cleanContentToEmbed = `Title: ${meta.title} | Category: ${analysis.category} | Key Insights: ${analysis.takeaways.join(", ")} | Topics: ${tagsString}`;
+
+        console.log("Generating embedding for cleaned content:", cleanContentToEmbed);
+        const embeddingVector = await generateEmbedding(cleanContentToEmbed);
+
+        // 5. Save to Database (The Library)
         await saveVideoAnalysis(meta, analysis, embeddingVector);
 
         // 5. Save Content DNA tags to video_tags table

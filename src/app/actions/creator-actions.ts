@@ -18,11 +18,13 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 export async function getCreatorStats(userId: string) {
     noStore();
     try {
-        // 1. Get Creator Profile to find channel_url/id
+        // 1. Get Creator Profile to find channel_url/id (Support multiple channels by getting latest)
         const { data: creator, error: creatorError } = await supabaseAdmin
             .from('creators')
             .select('id, channel_url, links, description, channel_name, human_score, avatar_url')
             .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .single();
 
         if (creatorError || !creator) {
@@ -310,5 +312,41 @@ export async function updateCreatorAvatar(creatorId: string, avatarUrl: string) 
     } catch (e: any) {
         console.error('updateCreatorAvatar error:', e);
         return { success: false, error: e.message };
+    }
+}
+
+export async function checkIsCreator() {
+    noStore();
+    try {
+        const cookieStore = await cookies();
+        const missionId = cookieStore.get('veritas_user')?.value;
+
+        if (!missionId) {
+            return { isCreator: false };
+        }
+
+        // Get User ID from mission
+        const { data: mission } = await supabaseAdmin
+            .from('user_missions')
+            .select('user_id')
+            .eq('id', missionId)
+            .single();
+
+        if (!mission || !mission.user_id) {
+            return { isCreator: false };
+        }
+
+        // Check if creator profile exists
+        const { data: creator } = await supabaseAdmin
+            .from('creators')
+            .select('id')
+            .eq('user_id', mission.user_id)
+            .limit(1)
+            .single();
+
+        return { isCreator: !!creator };
+    } catch (e) {
+        console.error("checkIsCreator error:", e);
+        return { isCreator: false };
     }
 }
