@@ -399,7 +399,16 @@ export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'e
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-    if (error) { console.error('Supabase Query Error:', error); return []; }
+    if (error) {
+        console.error('Supabase Query Error:', error);
+        return [{
+            id: 'error-debug',
+            title: `Error: ${error.message}`,
+            channel_title: 'Backend Debug',
+            status: 'verified',
+            published_at: new Date().toISOString()
+        }];
+    }
     return data;
 }
 
