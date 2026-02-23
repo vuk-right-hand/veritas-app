@@ -34,3 +34,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Development Rules
+> [!IMPORTANT]
+> **PWA & Vercel Optimization**
+> All features and updates strictly must be developed with Progressive Web App (PWA), mobile responsiveness, and Vercel edge/serverless optimization as a primary focus. No code should be merged into `main` unless it is fully mobile-responsive and builds cleanly on Vercel.

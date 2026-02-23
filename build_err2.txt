@@ -1,0 +1,36 @@
+
+> veritas-app@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./src/app/globals.css
+Error evaluating Node.js code
+Error: Cannot find module '@tailwindcss/postcss'
+Require stack:
+- C:\Antigravity\veritas-app\.next\build\chunks\[root-of-the-server]__51225daf._.js
+- C:\Antigravity\veritas-app\.next\build\chunks\[turbopack]_runtime.js
+- C:\Antigravity\veritas-app\.next\build\postcss.js
+    [at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)]
+    [at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)]
+    [at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)]
+    [at Module._load (node:internal/modules/cjs/loader:1227:37)]
+    [at TracingChannel.traceSync (node:diagnostics_channel:328:14)]
+    [at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)]
+    [at Module.require (node:internal/modules/cjs/loader:1504:12)]
+    [at require (node:internal/modules/helpers:152:16)]
+    at turbopack:///[turbopack-node]/transforms/postcss.ts:49:25 [C:\Antigravity\veritas-app\.next\build\chunks\[root-of-the-server]__51225daf._.js:134:33]
+    [at <anonymous>]
+
+Import trace:
+  Client Component Browser:
+    ./src/app/globals.css [Client Component Browser]
+    ./src/app/layout.tsx [Server Component]
+
+
+    at ignore-listed frames
