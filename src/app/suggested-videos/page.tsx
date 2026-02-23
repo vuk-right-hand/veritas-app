@@ -67,7 +67,7 @@ export default function SuggestedVideosPage() {
         if (activeView === 'videos') {
             const [pending, verified, banned, storage] = await Promise.all([
                 getPendingVideos(),
-                getVerifiedVideos(),
+                getVerifiedVideos('evergreen', 1000),
                 getDeniedVideos(),
                 getStorageVideos()
             ]);
