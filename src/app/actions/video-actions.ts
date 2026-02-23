@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
 
 // Use Service Role if available to bypass RLS for insertions
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
@@ -338,7 +338,7 @@ export async function getPendingVideos() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (error) { console.error('Supabase Query Error:', error); return []; }
     return data;
 }
 
@@ -399,7 +399,7 @@ export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'e
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-    if (error) return [];
+    if (error) { console.error('Supabase Query Error:', error); return []; }
     return data;
 }
 
@@ -411,7 +411,7 @@ export async function getDeniedVideos() {
         .eq('status', 'banned')
         .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (error) { console.error('Supabase Query Error:', error); return []; }
     return data;
 }
 
@@ -423,7 +423,7 @@ export async function getStorageVideos() {
         .eq('status', 'storage')
         .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (error) { console.error('Supabase Query Error:', error); return []; }
     return data;
 }
 

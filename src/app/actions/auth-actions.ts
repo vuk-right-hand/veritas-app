@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 
 // Initialize Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
