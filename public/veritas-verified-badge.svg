@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Transparent background, emoji-style badge -->
+  
+  <!-- Anatomical Heart (20% smaller, no animation) -->
+  <g transform="translate(60, 60) scale(0.64)">
+    <!-- Main Heart Shape -->
+    <path d="M 0,-25 
+             C -8,-30 -15,-30 -20,-25 
+             C -25,-20 -25,-12 -20,-5 
+             L 0,20 
+             L 20,-5 
+             C 25,-12 25,-20 20,-25 
+             C 15,-30 8,-30 0,-25 Z" 
+          fill="#DC2626" 
+          stroke="#991B1B" 
+          stroke-width="1.5"
+          opacity="0.95"/>
+    
+    <!-- Left Atrium -->
+    <ellipse cx="-12" cy="-18" rx="6" ry="7" 
+             fill="#B91C1C" 
+             opacity="0.7"/>
+    
+    <!-- Right Atrium -->
+    <ellipse cx="12" cy="-18" rx="6" ry="7" 
+             fill="#B91C1C" 
+             opacity="0.7"/>
+    
+    <!-- Left Ventricle Detail -->
+    <path d="M -10,-10 Q -15,0 -10,10" 
+          stroke="#7F1D1D" 
+          stroke-width="1.5" 
+          fill="none" 
+          opacity="0.6"/>
+    
+    <!-- Right Ventricle Detail -->
+    <path d="M 10,-10 Q 15,0 10,10" 
+          stroke="#7F1D1D" 
+          stroke-width="1.5" 
+          fill="none" 
+          opacity="0.6"/>
+    
+    <!-- Aorta -->
+    <ellipse cx="0" cy="-23" rx="3" ry="4" 
+             fill="#EF4444" 
+             opacity="0.8"/>
+    
+    <!-- Valve Lines -->
+    <line x1="-8" y1="-5" x2="8" y2="-5" 
+          stroke="#450A0A" 
+          stroke-width="1" 
+          opacity="0.4"/>
+    <line x1="-6" y1="2" x2="6" y2="2" 
+          stroke="#450A0A" 
+          stroke-width="1" 
+          opacity="0.4"/>
+    
+    <!-- Subtle Glow Effect -->
+    <ellipse cx="0" cy="-5" rx="18" ry="22" 
+             fill="none" 
+             stroke="#FCA5A5" 
+             stroke-width="0.5" 
+             opacity="0.3"/>
+  </g>
+  
+  <!-- Optional: Subtle "Verified" indicator -->
+  <circle cx="95" cy="25" r="12" fill="#10B981" opacity="0.9"/>
+  <path d="M 90,25 L 93,28 L 100,21" 
+        stroke="white" 
+        stroke-width="2.5" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>

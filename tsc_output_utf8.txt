@@ -1,0 +1,7 @@
+﻿src/app/creator-dashboard/page.tsx(85,9): error TS2353: Object literal may only specify known properties, and 'cookies' does not exist in type 'SupabaseClientOptions<"public">'.
+src/app/creator-dashboard/page.tsx(109,13): error TS2322: Type '{ id: any; title: any; status: any; human_score: any; custom_links: any; published_at: any; }[] | undefined' is not assignable to type 'any[]'.
+  Type 'undefined' is not assignable to type 'any[]'.
+src/app/creator-dashboard/page.tsx(120,17): error TS2322: Type '{ id: any; title: any; status: any; human_score: any; custom_links: any; published_at: any; }[] | undefined' is not assignable to type 'any[]'.
+  Type 'undefined' is not assignable to type 'any[]'.
+src/components/ui/button.tsx(2,40): error TS2307: Cannot find module 'class-variance-authority' or its corresponding type declarations.
+src/components/ui/button.tsx(3,22): error TS2307: Cannot find module 'radix-ui' or its corresponding type declarations.

@@ -97,6 +97,7 @@ export async function saveVideoAnalysis(
             human_score: analysis.humanScore,
             summary_points: analysis.takeaways,
             category_tag: analysis.category,
+            embedding: embedding // SAVE THE VECTOR!
         })
         .eq('id', meta.youtube_id.trim())
         .select()

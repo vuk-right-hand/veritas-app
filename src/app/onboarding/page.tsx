@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Target, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { saveMission } from '../actions/saveMission';
 
 export default function Onboarding() {
@@ -14,16 +15,19 @@ export default function Onboarding() {
         goal: '',
         struggle: '',
         name: '',
-        email: ''
+        email: '',
+        password: '',
+        confirmPassword: ''
     });
 
     const [customGoal, setCustomGoal] = useState('');
     const [customStruggle, setCustomStruggle] = useState('');
 
+    const [error, setError] = useState('');
+
     const GOALS = [
-        "Make Money Online",
-        "Master Video Editing",
-        "Learn to Code",
+        "Make $10,000/m Online",
+        "Master VibeCoding",
         "Build a Personal Brand",
         "Other..."
     ];
@@ -31,7 +35,6 @@ export default function Onboarding() {
     const STRUGGLES = [
         "Procrastination",
         "Lack of Focus",
-        "Overwhelm / Anxiety",
         "Don't Know Where to Start",
         "Other..."
     ];
@@ -39,7 +42,6 @@ export default function Onboarding() {
     const handleGoalSelect = (selected: string) => {
         if (selected === "Other...") {
             setFormData({ ...formData, goal: "Other" });
-            // Don't auto-advance, let them type
         } else {
             setFormData({ ...formData, goal: selected });
             handleNext();
@@ -56,9 +58,24 @@ export default function Onboarding() {
     };
 
     const handleNext = async () => {
+        setError('');
         if (step < 3) {
             setStep(step + 1);
         } else {
+            // Validation
+            if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.confirmPassword) {
+                setError('Please fill in all fields to continue.');
+                return;
+            }
+            if (formData.password !== formData.confirmPassword) {
+                setError('Passwords do not match.');
+                return;
+            }
+            if (formData.password.length < 6) {
+                setError('Password must be at least 6 characters.');
+                return;
+            }
+
             // Final Submit
             setLoading(true);
             const finalData = {
@@ -74,11 +91,11 @@ export default function Onboarding() {
                 if (result.success) {
                     router.push('/dashboard');
                 } else {
-                    alert('Error: ' + result.message);
+                    setError('Error: ' + result.message);
                 }
             } catch (e) {
                 console.error(e);
-                alert('Something went wrong.');
+                setError('Something went wrong. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -86,10 +103,10 @@ export default function Onboarding() {
     };
 
     return (
-        <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 relative overflow-hidden">
-            {/* Background Ambience */}
-            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-[120px] pointer-events-none" />
+        <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
+            {/* Background Ambience - Red/Dark Theme */}
+            <div className="absolute top-[-20%] left-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-900/10 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-950/20 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
 
             <div className="w-full max-w-lg relative z-10">
                 <motion.div
@@ -97,23 +114,31 @@ export default function Onboarding() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-8 text-center"
                 >
-                    <div className="inline-block p-3 rounded-2xl bg-white/5 border border-white/10 mb-6 backdrop-blur-xl shadow-2xl">
-                        <div className="w-12 h-12 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-                            <Target className="w-6 h-6 text-white" />
+                    {step < 3 && (
+                        <div className="mb-6">
+                            <p className="text-sm text-gray-400">
+                                Already on Veritas?{' '}
+                                <Link href="/login" className="text-red-400 hover:text-red-300 transition-colors font-medium">
+                                    Login
+                                </Link>
+                            </p>
                         </div>
+                    )}
+                    <div className="inline-block p-4 rounded-3xl bg-white/5 border border-white/5 mb-6 backdrop-blur-xl shadow-2xl">
+                        <img src="/veritas-heart.svg" alt="Veritas" className="w-12 h-12 object-contain animate-heartbeat fill-red-600" />
                     </div>
-                    <h1 className="text-4xl font-bold mb-2 tracking-tight">Customize Your Feed</h1>
-                    <p className="text-gray-400 text-lg">Let's curate the perfect content diet for you.</p>
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2 tracking-tight text-white">Customize Your Feed</h1>
+                    <p className="text-gray-400 text-base md:text-lg">Let's curate the perfect content diet for you.</p>
                 </motion.div>
 
                 {/* Card */}
                 <motion.div
-                    className="bg-zinc-900/40 border border-white/5 backdrop-blur-md rounded-3xl p-8 shadow-2xl relative overflow-hidden"
+                    className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-2xl relative overflow-hidden"
                     initial={{ height: 'auto' }}
                     animate={{ height: 'auto' }}
                 >
                     {/* Progress Bar */}
-                    <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
+                    <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-red-600 to-red-900 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
 
                     {/* STEP 1: GOAL */}
                     {step === 1 && (
@@ -124,22 +149,26 @@ export default function Onboarding() {
                             key="step1"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-purple-400">01.</span> What is your main goal?
+                                <span className="text-red-500">01.</span> Your main goal in the next 3-6 months?
                             </h2>
                             <div className="space-y-3">
-                                {GOALS.map((goal) => (
-                                    <button
-                                        key={goal}
-                                        onClick={() => handleGoalSelect(goal)}
-                                        className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${formData.goal === goal || (goal === "Other..." && formData.goal === "Other")
-                                                ? "bg-purple-500/20 border-purple-500"
-                                                : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-purple-500/50"
-                                            }`}
-                                    >
-                                        <span className="font-medium text-gray-200 group-hover:text-white">{goal}</span>
-                                        <ArrowRight className="w-4 h-4 text-white/0 group-hover:text-purple-400 transition-all transform -translate-x-2 group-hover:translate-x-0 opacity-0 group-hover:opacity-100" />
-                                    </button>
-                                ))}
+                                {GOALS.map((goal) => {
+                                    const isOther = goal === "Other...";
+                                    const isSelected = formData.goal === goal || (isOther && formData.goal === "Other");
+                                    return (
+                                        <button
+                                            key={goal}
+                                            onClick={() => handleGoalSelect(goal)}
+                                            className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${isSelected
+                                                ? "bg-red-900/20 border-red-500/50"
+                                                : "bg-[#1a1a1a] border-white/5 hover:bg-[#202020] hover:border-red-500/30"
+                                                }`}
+                                        >
+                                            <span className={`font-medium ${isOther ? 'text-red-500' : 'text-gray-200'} group-hover:text-white`}>{goal}</span>
+                                            <ArrowRight className="w-4 h-4 text-white/0 group-hover:text-red-500 transition-all transform -translate-x-2 group-hover:translate-x-0 opacity-0 group-hover:opacity-100" />
+                                        </button>
+                                    );
+                                })}
 
                                 {formData.goal === "Other" && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
@@ -147,12 +176,12 @@ export default function Onboarding() {
                                             type="text"
                                             placeholder="Type your specific goal..."
                                             autoFocus
-                                            className="w-full bg-transparent border-b border-purple-500 p-2 focus:outline-none text-white mt-2"
+                                            className="w-full bg-transparent border-b border-red-500 p-2 focus:outline-none text-white mt-2 placeholder:text-gray-600"
                                             value={customGoal}
                                             onChange={(e) => setCustomGoal(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && handleNext()}
                                         />
-                                        <button onClick={handleNext} className="mt-2 text-xs text-purple-400 font-bold uppercase tracking-wider hover:text-purple-300">
+                                        <button onClick={handleNext} className="mt-2 text-xs text-red-500 font-bold uppercase tracking-wider hover:text-red-400">
                                             Confirm
                                         </button>
                                     </motion.div>
@@ -170,22 +199,26 @@ export default function Onboarding() {
                             key="step2"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-blue-400">02.</span> What is your biggest obstacle?
+                                <span className="text-red-500">02.</span> What are you currently struggling with?
                             </h2>
                             <div className="space-y-3">
-                                {STRUGGLES.map((item) => (
-                                    <button
-                                        key={item}
-                                        onClick={() => handleStruggleSelect(item)}
-                                        className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${formData.struggle === item || (item === "Other..." && formData.struggle === "Other")
-                                                ? "bg-blue-500/20 border-blue-500"
-                                                : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-blue-500/50"
-                                            }`}
-                                    >
-                                        <span className="font-medium text-gray-200 group-hover:text-white">{item}</span>
-                                        <Zap className="w-4 h-4 text-white/0 group-hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100" />
-                                    </button>
-                                ))}
+                                {STRUGGLES.map((item) => {
+                                    const isOther = item === "Other...";
+                                    const isSelected = formData.struggle === item || (isOther && formData.struggle === "Other");
+                                    return (
+                                        <button
+                                            key={item}
+                                            onClick={() => handleStruggleSelect(item)}
+                                            className={`w-full text-left p-4 rounded-xl border transition-all group flex items-center justify-between ${isSelected
+                                                ? "bg-red-900/20 border-red-500/50"
+                                                : "bg-[#1a1a1a] border-white/5 hover:bg-[#202020] hover:border-red-500/30"
+                                                }`}
+                                        >
+                                            <span className={`font-medium ${isOther ? 'text-red-500' : 'text-gray-200'} group-hover:text-white`}>{item}</span>
+                                            <Zap className="w-4 h-4 text-white/0 group-hover:text-red-500 transition-all opacity-0 group-hover:opacity-100" />
+                                        </button>
+                                    );
+                                })}
 
                                 {formData.struggle === "Other" && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
@@ -193,18 +226,18 @@ export default function Onboarding() {
                                             type="text"
                                             placeholder="Type your specific obstacle..."
                                             autoFocus
-                                            className="w-full bg-transparent border-b border-blue-500 p-2 focus:outline-none text-white mt-2"
+                                            className="w-full bg-transparent border-b border-red-500 p-2 focus:outline-none text-white mt-2 placeholder:text-gray-600"
                                             value={customStruggle}
                                             onChange={(e) => setCustomStruggle(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && handleNext()}
                                         />
-                                        <button onClick={handleNext} className="mt-2 text-xs text-blue-400 font-bold uppercase tracking-wider hover:text-blue-300">
+                                        <button onClick={handleNext} className="mt-2 text-xs text-red-500 font-bold uppercase tracking-wider hover:text-red-400">
                                             Confirm
                                         </button>
                                     </motion.div>
                                 )}
                             </div>
-                            <button onClick={() => setStep(1)} className="mt-6 text-sm text-gray-500 hover:text-white">Back</button>
+                            <button onClick={() => setStep(1)} className="mt-6 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
                         </motion.div>
                     )}
 
@@ -216,36 +249,75 @@ export default function Onboarding() {
                             exit={{ opacity: 0, x: -20 }}
                             key="step3"
                         >
-                            <h2 className="text-xl font-semibold mb-6">
-                                <span className="text-green-400">03.</span> Where should we send your curated plan?
+                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                                <span className="text-red-500">03.</span> Claim your Veritas profile:
                             </h2>
-                            <div className="space-y-4">
+                            <div className="mt-4 space-y-4">
                                 <div>
-                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2">Name</label>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Name</label>
                                     <input
                                         type="text"
-                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-green-500 transition-colors"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="Your Name"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2">Email</label>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Email</label>
                                     <input
                                         type="email"
-                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-green-500 transition-colors"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="your@email.com"
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Password</label>
+                                    <input
+                                        type="password"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="Create a password (min. 6 characters)"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm Password</label>
+                                    <input
+                                        type="password"
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                        placeholder="Re-type your password"
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleNext()}
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div className="text-red-500 text-sm font-medium text-center animate-pulse">
+                                        {error}
+                                    </div>
+                                )}
 
                                 <button
                                     onClick={handleNext}
                                     disabled={loading}
-                                    className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="w-full bg-white text-black font-bold py-4 rounded-xl mt-2 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
-                                    {loading ? 'Saving...' : 'Build My Feed'} <CheckCircle2 className="w-5 h-5" />
+                                    {loading ? 'Analyzing...' : 'Build My Feed'} <CheckCircle2 className="w-5 h-5" />
                                 </button>
+                                <button onClick={() => setStep(2)} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+
+                                <div className="text-center mt-4 pt-4 border-t border-white/10">
+                                    <p className="text-sm text-gray-400">
+                                        Already have a profile?{' '}
+                                        <Link href="/login" className="text-red-400 hover:text-red-300 transition-colors font-medium">
+                                            Log In
+                                        </Link>
+                                    </p>
+                                </div>
                             </div>
                         </motion.div>
                     )}

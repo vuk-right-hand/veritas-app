@@ -19,7 +19,9 @@ export const aiModel = genAI.getGenerativeModel({
 });
 
 // Model specifically for creating vector embeddings
-const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+// "embedding-001" returns 768 dims normally? NO, user tests show 3072.
+// We stick to what works: "embedding-001"
+const embeddingModel = genAI.getGenerativeModel({ model: "models/gemini-embedding-001" });
 
 export async function generateEmbedding(text: string): Promise<number[]> {
     const result = await embeddingModel.embedContent(text);
