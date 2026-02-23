@@ -1,0 +1,23 @@
+
+> veritas-app@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1638.4ms
+  Running TypeScript ...
+  Collecting page data using 23 workers ...
+Error: Missing Supabase environment variables
+    at module evaluation (C:\Antigravity\veritas-app\.next\server\chunks\[root-of-the-server]__196d0fdf._.js:1:1393)
+    at instantiateModule (C:\Antigravity\veritas-app\.next\server\chunks\[turbopack]_runtime.js:740:9)
+    at instantiateRuntimeModule (C:\Antigravity\veritas-app\.next\server\chunks\[turbopack]_runtime.js:768:12)
+    at getOrInstantiateRuntimeModule (C:\Antigravity\veritas-app\.next\server\chunks\[turbopack]_runtime.js:781:12)
+    at Object.m (C:\Antigravity\veritas-app\.next\server\chunks\[turbopack]_runtime.js:790:18)
+    at Object.<anonymous> (C:\Antigravity\veritas-app\.next\server\app\api\search\route.js:8:3)
+
+> Build error occurred
+Error: Failed to collect page data for /api/search
+    at ignore-listed frames {
+  type: 'Error'
+}

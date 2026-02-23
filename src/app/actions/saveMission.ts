@@ -14,7 +14,7 @@ import { curateFeedForMission } from './curation-actions';
 // or imply this runs after auth. 
 // Given the form asks for Name/Email at step 3, we probably need to Create User -> Create Mission.
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 

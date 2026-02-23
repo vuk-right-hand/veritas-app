@@ -6,8 +6,8 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 // Initialize Supabase Admin Client (Service Role)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
@@ -128,8 +128,8 @@ export async function viewerLogin(email: string, password: string) {
 
     // Use anon key for sign in to verify credentials securely
     const supabaseAnon = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key'
     );
 
     try {
@@ -170,8 +170,8 @@ export async function creatorLogin(email: string, password: string) {
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
         {
             cookies: {
                 getAll() { return cookieStore.getAll() },

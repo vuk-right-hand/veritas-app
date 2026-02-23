@@ -7,8 +7,8 @@ import CreatorDashboardClient from './CreatorDashboardClient';
 import { getCreatorStats } from '../actions/creator-actions';
 
 // Initialize Supabase Client for Auth Check
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
 
 export default async function CreatorDashboard() {
     const cookieStore = await cookies();
@@ -43,7 +43,7 @@ export default async function CreatorDashboard() {
     } else {
         // Fallback for Demo/Test: If no user, fetch the first creator for DEMO purposes
         // This allows verification of UI without full auth flow if cookies are missing
-        const { data: demoCreator } = await createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!).from('creators').select('*').limit(1).single();
+        const { data: demoCreator } = await createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key').from('creators').select('*').limit(1).single();
         if (demoCreator) {
             const res = await getCreatorStats(demoCreator.user_id);
             if (res.success) {

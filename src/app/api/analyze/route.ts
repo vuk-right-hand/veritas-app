@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { aiModel, generateEmbedding } from '@/lib/gemini';
+import { getAiModel, generateEmbedding } from '@/lib/gemini';
 import { fetchVideoMeta, saveVideoAnalysis } from '@/lib/video-service';
 
 // Service role client for writing video_tags (bypasses RLS)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
@@ -101,6 +101,7 @@ export async function POST(req: Request) {
         // 3. Sequential Processing (Analysis THEN Embedding)
         console.log("Analyzing with Gemini...");
 
+        const aiModel = getAiModel();
         const analysisResult = await aiModel.generateContent(prompt);
 
         const responseText = analysisResult.response.text();
