@@ -74,7 +74,7 @@ export async function GET() {
     let spamBlocked = false;
     for (let i = 0; i < 12; i++) {
         const res = await generateVerificationToken(attackerEmail, targetChannel);
-        if (!res.success && res.message.includes("Too many")) {
+        if (!res.success && res.message?.includes("Too many")) {
             spamBlocked = true; // We hit the rate limit!
             log(`🟢 BLOCKED at attempt #${i + 1}: ${res.message}`);
             break;

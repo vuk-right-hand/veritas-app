@@ -1,0 +1,23 @@
+
+> veritas-app@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1581.2ms
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/api/red-team/route.ts:77:29
+Type error: 'res.message' is possibly 'undefined'.
+
+[0m [90m 75 |[39m     [36mfor[39m ([36mlet[39m i [33m=[39m [35m0[39m[33m;[39m i [33m<[39m [35m12[39m[33m;[39m i[33m++[39m) {
+ [90m 76 |[39m         [36mconst[39m res [33m=[39m [36mawait[39m generateVerificationToken(attackerEmail[33m,[39m targetChannel)[33m;[39m
+[31m[1m>[22m[39m[90m 77 |[39m         [36mif[39m ([33m![39mres[33m.[39msuccess [33m&&[39m res[33m.[39mmessage[33m.[39mincludes([32m"Too many"[39m)) {
+ [90m    |[39m                             [31m[1m^[22m[39m
+ [90m 78 |[39m             spamBlocked [33m=[39m [36mtrue[39m[33m;[39m [90m// We hit the rate limit![39m
+ [90m 79 |[39m             log([32m`🟢 BLOCKED at attempt #${i + 1}: ${res.message}`[39m)[33m;[39m
+ [90m 80 |[39m             [36mbreak[39m[33m;[39m[0m
+Next.js build worker exited with code: 1 and signal: null
