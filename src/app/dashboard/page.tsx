@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity } from 'lucide-react';
+import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity as InfinityIcon, Lightbulb } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
 import AuthChoiceModal from '@/components/AuthChoiceModal';
@@ -21,7 +21,7 @@ const TABS = [
     { id: 'Last 14 days', label: 'Last 14 days', icon: Zap },
     { id: 'Last 28 days', label: 'Last 28 days', icon: Clock },
     { id: 'Last 69 days', label: 'Last 69 days', icon: Flame },
-    { id: 'Evergreen', label: 'Evergreen', icon: Infinity },
+    { id: 'Evergreen', label: 'Evergreen', icon: InfinityIcon },
 ];
 
 // Convert UI filter labels to API parameter values
@@ -55,6 +55,13 @@ export default function Dashboard() {
     const [isScrolled, setIsScrolled] = useState(false);
     const [showMobileSuggest, setShowMobileSuggest] = useState(false);
     const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const [showMobileSearch, setShowMobileSearch] = useState(false);
+    const [mobileSearchQuery, setMobileSearchQuery] = useState('');
+    const [mobileSearchLoading, setMobileSearchLoading] = useState(false);
+    const [mobileSuggestions, setMobileSuggestions] = useState<string[]>([]);
+    const [mobileSuggestionsLoading, setMobileSuggestionsLoading] = useState(false);
+    const [showMobileSuggestionList, setShowMobileSuggestionList] = useState(false);
+    const mobileSearchInputRef = useRef<HTMLInputElement>(null);
     const searchSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -178,6 +185,18 @@ export default function Dashboard() {
 
         setVideos(finalVideos);
     }, []);
+
+    // Listen for feed-reset event dispatched by the BottomNav Feed tab
+    useEffect(() => {
+        const onResetFeed = () => {
+            setCurrentSearchQuery('');
+            setShowMobileSearch(false);
+            setMobileSearchQuery('');
+            loadVideos(activeTab);
+        };
+        window.addEventListener('veritas:reset-feed', onResetFeed);
+        return () => window.removeEventListener('veritas:reset-feed', onResetFeed);
+    }, [activeTab, loadVideos]);
 
     const loadMoreVideos = React.useCallback(async () => {
         if (isLoadingMore || !hasMore || currentSearchQuery) return; // Don't paginate during search
@@ -437,26 +456,200 @@ export default function Dashboard() {
                                         initial={{ opacity: 0, x: 10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         exit={{ opacity: 0, x: 10 }}
-                                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                                        className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:bg-white/10"
+                                        onClick={() => {
+                                            setShowMobileFilters(false);
+                                            if (showMobileSearch) {
+                                                // Blur FIRST so keyboard goes down cleanly before unmount
+                                                mobileSearchInputRef.current?.blur();
+                                                setShowMobileSuggestionList(false);
+                                                setTimeout(() => setShowMobileSearch(false), 50);
+                                            } else {
+                                                setShowMobileSearch(true);
+                                                setTimeout(() => mobileSearchInputRef.current?.focus(), 150);
+                                            }
+                                        }}
+                                        className={`w-9 h-9 rounded-full border flex items-center justify-center active:bg-white/10 transition-colors ${showMobileSearch
+                                            ? 'bg-red-950/40 border-red-900/50'
+                                            : 'bg-white/5 border-white/10'
+                                            }`}
                                     >
-                                        <Search className="w-4 h-4 text-gray-400" />
+                                        <Search className={`w-4 h-4 ${showMobileSearch ? 'text-red-400' : 'text-gray-400'}`} />
                                     </motion.button>
                                     <motion.button
                                         initial={{ opacity: 0, x: 10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         exit={{ opacity: 0, x: 10 }}
                                         transition={{ delay: 0.05 }}
-                                        onClick={() => setShowMobileFilters(!showMobileFilters)}
-                                        className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:bg-white/10"
+                                        onClick={() => {
+                                            setShowMobileSearch(false);
+                                            setShowMobileFilters(!showMobileFilters);
+                                        }}
+                                        className={`w-9 h-9 rounded-full border flex items-center justify-center active:bg-white/10 transition-colors ${showMobileFilters
+                                            ? 'bg-red-950/40 border-red-900/50'
+                                            : 'bg-white/5 border-white/10'
+                                            }`}
                                     >
-                                        <Clock className="w-4 h-4 text-gray-400" />
+                                        <Clock className={`w-4 h-4 ${showMobileFilters ? 'text-red-400' : 'text-gray-400'}`} />
                                     </motion.button>
                                 </>
                             )}
                         </AnimatePresence>
                     </div>
                 </div>
+
+                {/* Mobile Search Dropdown (when magnifying glass tapped) */}
+                <AnimatePresence>
+                    {showMobileSearch && isScrolled && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="md:hidden overflow-hidden border-t border-white/5 bg-black/90"
+                        >
+                            <div className="px-4 py-3">
+                                <form
+                                    className="flex items-center gap-2"
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        if (!mobileSearchQuery.trim()) return;
+                                        setMobileSearchLoading(true);
+                                        setShowMobileSuggestionList(false);
+                                        try {
+                                            const temporalFilter = getTemporalFilterValue(activeTab);
+                                            const res = await fetch('/api/search', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ query: mobileSearchQuery, temporalFilter }),
+                                            });
+                                            const data = await res.json();
+                                            if (data.success) {
+                                                await handleSearchResults(data.matches || [], mobileSearchQuery);
+                                            }
+                                        } catch (err) {
+                                            console.error('Mobile search failed', err);
+                                        } finally {
+                                            setMobileSearchLoading(false);
+                                            mobileSearchInputRef.current?.blur();
+                                            setTimeout(() => setShowMobileSearch(false), 50);
+                                        }
+                                    }}
+                                >
+                                    {/* Pulsating Lightbulb Button */}
+                                    <button
+                                        type="button"
+                                        className="flex-shrink-0"
+                                        title="Get suggestions"
+                                        onClick={async () => {
+                                            if (showMobileSuggestionList) {
+                                                setShowMobileSuggestionList(false);
+                                                return;
+                                            }
+                                            if (mobileSuggestions.length === 0) {
+                                                setMobileSuggestionsLoading(true);
+                                                try {
+                                                    const res = await fetch('/api/search/suggest', { method: 'POST' });
+                                                    const data = await res.json();
+                                                    if (data.success) setMobileSuggestions(data.suggestions || []);
+                                                } catch { }
+                                                setMobileSuggestionsLoading(false);
+                                            }
+                                            setShowMobileSuggestionList(true);
+                                        }}
+                                    >
+                                        {mobileSuggestionsLoading ? (
+                                            <Sparkles className="w-5 h-5 animate-spin text-yellow-400" />
+                                        ) : (
+                                            <motion.div
+                                                animate={{
+                                                    scale: [1, 1.2, 1],
+                                                    filter: [
+                                                        'drop-shadow(0 0 0px rgba(250,204,21,0))',
+                                                        'drop-shadow(0 0 6px rgba(250,204,21,0.9))',
+                                                        'drop-shadow(0 0 0px rgba(250,204,21,0))',
+                                                    ],
+                                                }}
+                                                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                            >
+                                                <Lightbulb className={`w-5 h-5 transition-colors ${showMobileSuggestionList ? 'text-yellow-400' : 'text-gray-500'}`} />
+                                            </motion.div>
+                                        )}
+                                    </button>
+
+                                    <div className="flex-1 relative">
+                                        <input
+                                            ref={mobileSearchInputRef}
+                                            type="search"
+                                            enterKeyHint="search"
+                                            value={mobileSearchQuery}
+                                            onChange={(e) => { setMobileSearchQuery(e.target.value); setShowMobileSuggestionList(false); }}
+                                            placeholder="Describe your struggle..."
+                                            className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 caret-red-500"
+                                            autoComplete="off"
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={mobileSearchLoading || !mobileSearchQuery.trim()}
+                                        className="px-4 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 whitespace-nowrap"
+                                    >
+                                        {mobileSearchLoading ? (
+                                            <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
+                                        ) : (
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                        )}
+                                        Solve
+                                    </button>
+                                </form>
+
+                                {/* Mobile Suggestions List */}
+                                <AnimatePresence>
+                                    {showMobileSuggestionList && mobileSuggestions.length > 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="mt-2 overflow-hidden"
+                                        >
+                                            <div className="flex items-center gap-1.5 mb-1 px-1">
+                                                <Lightbulb className="w-3 h-3 text-yellow-400" />
+                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Suggested for you</span>
+                                            </div>
+                                            {mobileSuggestions.map((s, i) => (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setMobileSearchQuery(s);
+                                                        setShowMobileSuggestionList(false);
+                                                        setMobileSearchLoading(true);
+                                                        try {
+                                                            const temporalFilter = getTemporalFilterValue(activeTab);
+                                                            const res = await fetch('/api/search', {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ query: s, temporalFilter }),
+                                                            });
+                                                            const data = await res.json();
+                                                            if (data.success) await handleSearchResults(data.matches || [], s);
+                                                        } catch { }
+                                                        setMobileSearchLoading(false);
+                                                        mobileSearchInputRef.current?.blur();
+                                                        setTimeout(() => setShowMobileSearch(false), 50);
+                                                    }}
+                                                    className="w-full text-left flex items-center gap-2 px-2 py-2.5 text-sm text-gray-300 active:bg-white/5 rounded-lg"
+                                                >
+                                                    <ArrowRight className="w-3 h-3 text-red-500/60 flex-shrink-0" />
+                                                    {s}
+                                                </button>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Mobile Filters Dropdown (when clock icon tapped) */}
                 <AnimatePresence>
@@ -642,39 +835,20 @@ export default function Dashboard() {
                     < div className="hidden lg:block" ></div >
                 </div >
 
-                {/* Mobile Suggest Bar (inline, non-scrolled state) — shows nicely below filters */}
-                < div className="md:hidden mb-8" >
-                    <div className="w-full relative">
-                        <div className="absolute inset-0 bg-red-600/20 rounded-full blur-lg" />
-                        <input
-                            type="text"
-                            suppressHydrationWarning
-                            value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
-                            onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
-                            placeholder="Suggest a creator/video..."
-                            disabled={suggestionStatus === 'success'}
-                            className={`w-full border rounded-full py-3 px-5 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
-                                ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
-                                : 'bg-[#1a1a1a] border-red-600/40 text-white placeholder:text-red-300/40 focus:border-red-500'}`}
-                        />
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
-                            <button
-                                onClick={handleSuggest}
-                                disabled={isSuggesting || suggestionStatus === 'success'}
-                                className={`p-2 rounded-full transition-all ${suggestionStatus === 'success' ? 'bg-green-500 text-white' : 'bg-red-600 text-white active:bg-red-500'}`}
-                            >
-                                {isSuggesting ? (
-                                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin block" />
-                                ) : suggestionStatus === 'success' ? (
-                                    <CheckCircle2 className="w-4 h-4" />
-                                ) : (
-                                    <Zap className="w-4 h-4 fill-current" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div >
+                {/* Mobile Suggest Button (inline, non-scrolled state) */}
+                <div className="md:hidden mb-12 flex flex-col items-center">
+                    <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowMobileSuggest(true)}
+                        className="px-6 py-2.5 bg-red-600/20 border border-red-500/40 rounded-full text-sm font-bold text-red-300 shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center gap-2"
+                    >
+                        <Zap className="w-4 h-4" />
+                        Suggest
+                    </motion.button>
+                    <span className="text-[10px] text-red-500 uppercase tracking-widest mt-4 font-bold animate-pulse text-center px-4">
+                        Promote your favorite creator or video
+                    </span>
+                </div>
 
 
                 {/* Video Grid - 3 Columns */}

@@ -1,0 +1,113 @@
+{
+  "channels": [
+    {
+      "youtube_channel_id": "jeff-geerling",
+      "name": "Jeff Geerling",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-10T11:22:12.20943+00:00"
+    },
+    {
+      "youtube_channel_id": "daniel-priestley",
+      "name": "Daniel Priestley",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-10T11:30:53.335725+00:00"
+    },
+    {
+      "youtube_channel_id": "hormozi-highlights",
+      "name": "Hormozi Highlights",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T11:14:32.872675+00:00"
+    },
+    {
+      "youtube_channel_id": "karston-fox",
+      "name": "Karston Fox",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T13:44:27.08712+00:00"
+    },
+    {
+      "youtube_channel_id": "UC_VERITAS_OFFICIAL",
+      "name": "Veritas Team",
+      "status": "verified",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T15:06:43.491794+00:00"
+    },
+    {
+      "youtube_channel_id": "tubebuddy",
+      "name": "TubeBuddy",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T15:13:46.130173+00:00"
+    },
+    {
+      "youtube_channel_id": "matt-gray",
+      "name": "Matt Gray",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T15:31:02.57929+00:00"
+    },
+    {
+      "youtube_channel_id": "beyond-the-internet",
+      "name": "Beyond The Internet",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-12T10:57:34.520249+00:00"
+    },
+    {
+      "youtube_channel_id": "danny-klein",
+      "name": "Danny Klein",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-13T11:15:09.484202+00:00"
+    },
+    {
+      "youtube_channel_id": "ed-lawrence",
+      "name": "Ed Lawrence",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-19T14:02:52.512368+00:00"
+    },
+    {
+      "youtube_channel_id": "mohammed-lhadi",
+      "name": "Mohammed Lhadi",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-11T16:14:22.463751+00:00"
+    },
+    {
+      "youtube_channel_id": "156iq-locked-in-a-room",
+      "name": "156IQ Locked in a Room",
+      "status": "pending",
+      "global_links": {},
+      "is_claimed": false,
+      "owner_id": null,
+      "created_at": "2026-02-16T13:08:07.234786+00:00"
+    }
+  ],
+  "error": null
+}

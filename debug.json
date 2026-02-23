@@ -1,0 +1,25 @@
+{
+  "missions": [
+    {
+      "id": "5857c8dd-e35c-4572-b244-c9d2770b6c02",
+      "user_id": "0ce56eb2-0951-4369-afac-4ee0bfeded43",
+      "name": null,
+      "email": null
+    },
+    {
+      "id": "49ab00a0-0f92-49ff-be97-7a058c0f2a28",
+      "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+      "name": "Megi",
+      "email": "megisuperduper3000@gmail.com"
+    }
+  ],
+  "megi": {
+    "id": "49ab00a0-0f92-49ff-be97-7a058c0f2a28",
+    "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+    "name": "Megi",
+    "email": "megisuperduper3000@gmail.com"
+  },
+  "megiStats": [],
+  "megiScores": [],
+  "videos": null
+}

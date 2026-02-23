@@ -1,0 +1,271 @@
+{
+  "events": [
+    {
+      "id": "568f0e0f-d4db-4361-8e6d-e294cb504026",
+      "event_type": "video_view",
+      "target_id": "avl9qLAu-Ck",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 52,
+        "timestamp": "2026-02-23T15:21:21.972Z",
+        "watch_pct": 99,
+        "current_time": 52,
+        "reported_delta": 22
+      },
+      "created_at": "2026-02-23T15:21:21.84983+00:00"
+    },
+    {
+      "id": "1d3947b7-8364-4844-a532-ac42dbb44914",
+      "event_type": "video_view",
+      "target_id": "avl9qLAu-Ck",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 52,
+        "timestamp": "2026-02-23T15:20:59.876Z",
+        "watch_pct": 57,
+        "current_time": 30,
+        "reported_delta": 30
+      },
+      "created_at": "2026-02-23T15:20:59.752952+00:00"
+    },
+    {
+      "id": "fa6b7397-0c42-4811-833c-6bc4e3bf0679",
+      "event_type": "video_view",
+      "target_id": "avl9qLAu-Ck",
+      "metadata": {
+        "timestamp": "2026-02-23T15:20:28.294Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:20:28.285816+00:00"
+    },
+    {
+      "id": "4316925b-53db-4da2-bc40-850d78d5e80c",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T15:19:26.486Z",
+        "watch_pct": 81,
+        "current_time": 1174,
+        "reported_delta": 26
+      },
+      "created_at": "2026-02-23T15:19:26.36533+00:00"
+    },
+    {
+      "id": "058cf308-12a3-45ab-8fcd-6f172c635949",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T15:19:00.954Z",
+        "watch_pct": 79,
+        "current_time": 1149,
+        "reported_delta": 30
+      },
+      "created_at": "2026-02-23T15:19:00.835363+00:00"
+    },
+    {
+      "id": "a3a8a3e8-3bc9-4040-8e22-1fa8e9324b74",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T15:18:31.140Z",
+        "watch_pct": 77,
+        "current_time": 1119,
+        "reported_delta": 1119
+      },
+      "created_at": "2026-02-23T15:18:31.02124+00:00"
+    },
+    {
+      "id": "5b5a1c30-d239-46ce-a8dc-9b731e55db48",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T15:17:59.870Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:17:59.854279+00:00"
+    },
+    {
+      "id": "89c93111-f20c-4d37-a395-8e2d6d5ebd2a",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 591,
+        "timestamp": "2026-02-23T15:17:37.675Z",
+        "watch_pct": 56,
+        "current_time": 331,
+        "reported_delta": 10
+      },
+      "created_at": "2026-02-23T15:17:37.560486+00:00"
+    },
+    {
+      "id": "38dc4987-59c6-4aa4-a7ff-534ccd7a9f84",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 591,
+        "timestamp": "2026-02-23T15:17:27.527Z",
+        "watch_pct": 54,
+        "current_time": 321,
+        "reported_delta": 321
+      },
+      "created_at": "2026-02-23T15:17:27.631967+00:00"
+    },
+    {
+      "id": "a8beca54-0dcd-48d4-9769-42e50a802b9e",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T15:16:55.759Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:16:55.947076+00:00"
+    },
+    {
+      "id": "c23fb6aa-a2e1-4c5e-9be5-fb4eeb0d0b7b",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T15:04:04.013Z",
+        "watch_pct": 64,
+        "current_time": 931,
+        "reported_delta": 931
+      },
+      "created_at": "2026-02-23T15:04:03.912495+00:00"
+    },
+    {
+      "id": "ae0f0981-f588-4834-a3d6-e4f38fda5ac3",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T15:03:14.265Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:03:14.452185+00:00"
+    },
+    {
+      "id": "9b9f193a-417a-40f4-89f4-d27f79062c0b",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T15:01:37.638Z",
+        "watch_pct": 40,
+        "current_time": 583,
+        "reported_delta": 583
+      },
+      "created_at": "2026-02-23T15:01:37.537511+00:00"
+    },
+    {
+      "id": "7f7adaf5-ec35-4050-b83b-1344c0e2d2d7",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T15:01:12.579Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:01:12.743659+00:00"
+    },
+    {
+      "id": "010c035b-f17e-4b70-955d-bc5f91c52201",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 591,
+        "timestamp": "2026-02-23T14:56:17.824Z",
+        "watch_pct": 19,
+        "current_time": 110,
+        "reported_delta": 110
+      },
+      "created_at": "2026-02-23T14:56:17.739677+00:00"
+    },
+    {
+      "id": "6d23d79d-3b3e-4458-a69d-eabb4db301fe",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T14:51:34.528Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T14:51:34.820395+00:00"
+    },
+    {
+      "id": "1a2e940e-2161-467f-ba27-28bbb64f25b8",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T14:11:50.979Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T14:11:50.944485+00:00"
+    },
+    {
+      "id": "d999f0b5-590c-4125-a268-bc3915cd0fac",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+        "duration": 1446,
+        "timestamp": "2026-02-23T14:02:04.782Z",
+        "watch_pct": 5,
+        "current_time": 78,
+        "reported_delta": 78
+      },
+      "created_at": "2026-02-23T14:02:04.748619+00:00"
+    },
+    {
+      "id": "59520001-b35c-4695-aa8d-b983f5cc8d4d",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T14:01:20.859Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T14:01:20.879089+00:00"
+    },
+    {
+      "id": "0db5f034-2d7f-4498-a7cf-843f7336185b",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T13:40:50.293Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T13:40:50.328515+00:00"
+    }
+  ],
+  "stats": [
+    {
+      "id": "7e262770-db30-404e-a9f8-1b1160db8463",
+      "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+      "channel_id": "nicksaraev",
+      "total_watch_seconds": 321,
+      "last_watched_at": "2026-02-23T15:17:27.44+00:00"
+    },
+    {
+      "id": "4510ebf1-f6ce-43bb-bd32-b0af18031693",
+      "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+      "channel_id": "Itssssss_Jack",
+      "total_watch_seconds": 1119,
+      "last_watched_at": "2026-02-23T15:18:31.067+00:00"
+    },
+    {
+      "id": "c98b08e6-9ac6-4aa9-a858-4fe0c73126c4",
+      "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+      "channel_id": "156iq-locked-in-a-room",
+      "total_watch_seconds": 30,
+      "last_watched_at": "2026-02-23T15:20:59.806+00:00"
+    }
+  ]
+}

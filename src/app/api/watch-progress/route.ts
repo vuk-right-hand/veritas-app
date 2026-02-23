@@ -34,7 +34,7 @@ function decodeJwtPayload(token: string): Record<string, any> | null {
  */
 export async function POST(req: Request) {
     try {
-        const { videoId, currentTime, duration } = await req.json();
+        const { videoId, currentTime, duration, realWatchSeconds, lastReportedTime } = await req.json();
 
         if (!videoId || currentTime === undefined || !duration) {
             return NextResponse.json(
@@ -42,6 +42,9 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
+
+        // Use real wall-clock seconds if provided (seek-proof), otherwise fall back to position delta
+        const reportedDelta = realWatchSeconds ?? Math.max(0, currentTime - (lastReportedTime || 0));
 
         const cookieStore = await cookies();
         let userId: string | null = null;
@@ -122,7 +125,9 @@ export async function POST(req: Request) {
         }
 
         console.log(`[watch-progress] User resolved via: ${resolvedVia}, id: ${userId}`);
-        const result = await recordWatchProgress(videoId, currentTime, duration, userId);
+
+        // Pass the watchDelta to recordWatchProgress to record creator stats
+        const result = await recordWatchProgress(videoId, currentTime, duration, userId, reportedDelta);
 
         // Merge result into response (preserving the cookie we may have set)
         return new NextResponse(JSON.stringify({ ...result, resolvedVia }), {

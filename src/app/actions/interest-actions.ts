@@ -23,7 +23,8 @@ export async function recordWatchProgress(
     videoId: string,
     currentTime: number,
     duration: number,
-    userId?: string
+    userId?: string,
+    reportedDelta: number = 0
 ) {
     try {
         // Must have a user and valid watch data
@@ -47,55 +48,92 @@ export async function recordWatchProgress(
         if (!tags || tags.length === 0) {
             // Video hasn't been tagged yet — no scoring possible
             console.log(`[Interest] No tags found for video ${videoId}, skipping scoring`);
-            return { success: true, message: "No tags for this video" };
-        }
+        } else {
+            // 2. Calculate score deltas using segment-aware logic
+            const scoreDeltas: { tag: string; delta: number }[] = [];
 
-        // 2. Calculate score deltas using segment-aware logic
-        const scoreDeltas: { tag: string; delta: number }[] = [];
+            for (const tag of tags) {
+                const { tag: tagName, weight, segment_start_pct, segment_end_pct } = tag;
+                let delta = 0;
 
-        for (const tag of tags) {
-            const { tag: tagName, weight, segment_start_pct, segment_end_pct } = tag;
-            let delta = 0;
+                if (watchPct >= segment_end_pct) {
+                    // User watched past the entire segment → full weight
+                    delta = weight;
+                } else if (watchPct <= segment_start_pct) {
+                    // User quit before the segment started → 0
+                    delta = 0;
+                } else {
+                    // User is somewhere in the middle of this segment → proportional
+                    const segmentLength = segment_end_pct - segment_start_pct;
+                    const watchedInSegment = watchPct - segment_start_pct;
+                    delta = Math.round(weight * (watchedInSegment / segmentLength));
+                }
 
-            if (watchPct >= segment_end_pct) {
-                // User watched past the entire segment → full weight
-                delta = weight;
-            } else if (watchPct <= segment_start_pct) {
-                // User quit before the segment started → 0
-                delta = 0;
+                if (delta > 0) {
+                    scoreDeltas.push({ tag: tagName, delta });
+                }
+            }
+
+            if (scoreDeltas.length > 0) {
+                // 3. Upsert each score using the RPC function
+                console.log(`🧠 Scoring user ${userId}: ${scoreDeltas.map(s => `${s.tag}:+${s.delta}`).join(', ')}`);
+
+                for (const { tag, delta } of scoreDeltas) {
+                    const { error: rpcError } = await supabase.rpc('upsert_user_interest', {
+                        p_user_id: userId,
+                        p_tag: tag,
+                        p_score_delta: delta,
+                    });
+
+                    if (rpcError) {
+                        console.error(`[Interest] Failed to upsert score for tag "${tag}":`, rpcError);
+                    }
+                }
             } else {
-                // User is somewhere in the middle of this segment → proportional
-                const segmentLength = segment_end_pct - segment_start_pct;
-                const watchedInSegment = watchPct - segment_start_pct;
-                delta = Math.round(weight * (watchedInSegment / segmentLength));
-            }
-
-            if (delta > 0) {
-                scoreDeltas.push({ tag: tagName, delta });
+                console.log(`[Interest] User ${userId} didn't reach any tag segments in video ${videoId}`);
             }
         }
 
-        if (scoreDeltas.length === 0) {
-            console.log(`[Interest] User ${userId} didn't reach any tag segments in video ${videoId}`);
-            return { success: true, message: "Watch time too short for any tags" };
-        }
+        // 4. Update Creator Watch Time (Super-Fan Metric)
+        // Frontend already enforces the 30s minimum threshold before sending
+        if (reportedDelta > 0) {
+            const { data: videoData } = await supabase
+                .from('videos')
+                .select('channel_id')
+                .eq('id', videoId)
+                .single();
 
-        // 3. Upsert each score using the RPC function
-        console.log(`🧠 Scoring user ${userId}: ${scoreDeltas.map(s => `${s.tag}:+${s.delta}`).join(', ')}`);
+            if (videoData?.channel_id) {
+                const { data: statsData } = await supabase
+                    .from('user_creator_stats')
+                    .select('total_watch_seconds')
+                    .eq('user_id', userId)
+                    .eq('channel_id', videoData.channel_id)
+                    .single();
 
-        for (const { tag, delta } of scoreDeltas) {
-            const { error: rpcError } = await supabase.rpc('upsert_user_interest', {
-                p_user_id: userId,
-                p_tag: tag,
-                p_score_delta: delta,
-            });
+                const currentSeconds = statsData?.total_watch_seconds || 0;
+                const addedSeconds = Math.round(reportedDelta);
 
-            if (rpcError) {
-                console.error(`[Interest] Failed to upsert score for tag "${tag}":`, rpcError);
+                const { error: upsertError } = await supabase
+                    .from('user_creator_stats')
+                    .upsert({
+                        user_id: userId,
+                        channel_id: videoData.channel_id,
+                        total_watch_seconds: currentSeconds + addedSeconds,
+                        last_watched_at: new Date().toISOString()
+                    }, { onConflict: 'user_id,channel_id' });
+
+                if (upsertError) {
+                    console.error(`[Interest] Failed to update creator stats:`, upsertError);
+                } else {
+                    console.log(`[Interest] Added ${addedSeconds}s watch time to creator ${videoData.channel_id} for user ${userId}`);
+                }
+            } else {
+                console.log(`[Interest] Skipped creator stats — video ${videoId} has no channel_id`);
             }
         }
 
-        // 4. Also record the raw watch event in analytics_events for audit trail
+        // 5. Also record the raw watch event in analytics_events for audit trail
         await supabase.from('analytics_events').insert({
             event_type: 'video_view',
             target_id: videoId,
@@ -104,15 +142,14 @@ export async function recordWatchProgress(
                 watch_pct: Math.round(watchPct),
                 current_time: Math.round(currentTime),
                 duration: Math.round(duration),
-                scores_applied: scoreDeltas,
+                reported_delta: Math.round(reportedDelta),
                 timestamp: new Date().toISOString(),
             }
         });
 
         return {
             success: true,
-            message: `Scored ${scoreDeltas.length} tags`,
-            scores: scoreDeltas,
+            message: `Scored and tracked progress`,
         };
 
     } catch (err: any) {

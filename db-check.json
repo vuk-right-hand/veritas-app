@@ -1,0 +1,9 @@
+{
+  "e1": {
+    "code": "23503",
+    "details": "Key (user_id)=(11111111-2222-3333-4444-555555555555) is not present in table \"profiles\".",
+    "hint": null,
+    "message": "insert or update on table \"user_creator_stats\" violates foreign key constraint \"user_creator_stats_user_id_fkey\""
+  },
+  "e2": null
+}

@@ -46,7 +46,7 @@ export async function getCreatorStats(userId: string) {
         // Let's fetch all videos by this creator to get their IDs
         const { data: videos, error: videoError } = await supabaseAdmin
             .from('videos')
-            .select('id, title, status, human_score, custom_links, published_at, custom_description')
+            .select('id, title, status, human_score, custom_links, published_at, custom_description, takeaways, summary_points')
             .eq('channel_url', creator.channel_url);
 
         if (videoError) {
@@ -96,11 +96,20 @@ export async function getCreatorStats(userId: string) {
             });
         }
 
-        // Enrich videos with view counts
-        const enrichedVideos = videos?.map(video => ({
-            ...video,
-            views_count: perVideoViewCounts[video.id] || 0
-        })) || [];
+        // Enrich videos with view counts and resolved takeaways
+        const enrichedVideos = videos?.map(video => {
+            // If creator has saved custom takeaways (non-empty), use those.
+            // Otherwise fall back to the AI-generated summary_points shown on the feed.
+            const resolvedTakeaways: string[] =
+                (video.takeaways && video.takeaways.some((t: string) => t.trim() !== ''))
+                    ? video.takeaways
+                    : (video.summary_points || []);
+            return {
+                ...video,
+                views_count: perVideoViewCounts[video.id] || 0,
+                takeaways: resolvedTakeaways,
+            };
+        }) || [];
 
         // 3. Traffic Insights (Filter usage)
         let trafficInsights = {
@@ -311,6 +320,22 @@ export async function updateCreatorAvatar(creatorId: string, avatarUrl: string) 
         return { success: true };
     } catch (e: any) {
         console.error('updateCreatorAvatar error:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function updateVideoTakeaways(videoId: string, takeaways: string[]) {
+    try {
+        const { error } = await supabaseAdmin
+            .from('videos')
+            .update({ takeaways })
+            .eq('id', videoId);
+
+        if (error) throw error;
+        revalidatePath('/creator-dashboard');
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (e: any) {
         return { success: false, error: e.message };
     }
 }

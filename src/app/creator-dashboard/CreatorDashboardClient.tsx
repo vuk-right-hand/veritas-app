@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, CheckCircle2, Youtube, BarChart3, Users, Zap, Search, Plus, ExternalLink, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-import { updateCreatorLinks, updateVideoLinks, updateCreatorAvatar } from '../actions/creator-actions'; // We need to export suggestVideo from creator-actions or import from video-actions
+import { updateCreatorLinks, updateVideoLinks, updateCreatorAvatar, updateVideoTakeaways } from '../actions/creator-actions'; // We need to export suggestVideo from creator-actions or import from video-actions
 
 // Import from video actions for suggestion as it was there? 
 // Actually I put suggestVideo in creator-actions? No, I put getCreatorStats, updateCreatorLinks, updateVideoLinks. 
 // suggestVideo is in video-actions.ts. I should reference that.
 import { suggestVideo, updateVideoDescription } from '../actions/video-actions';
+import BottomNav from '@/components/BottomNav';
 
 interface LinkType {
     title: string;
@@ -26,6 +27,7 @@ interface VideoType {
     published_at: string | null;
     custom_links?: LinkType[];
     analytics_views?: number; // passed from server stats
+    takeaways?: string[];
 }
 
 interface CreatorStats {
@@ -83,6 +85,8 @@ export default function CreatorDashboardClient({
     // State for Video Customization
     const [videoLinks, setVideoLinks] = useState<LinkType[]>([]);
     const [videoDescription, setVideoDescription] = useState('');
+    const [videoTakeaways, setVideoTakeaways] = useState<string[]>(['', '', '']);
+    const [activeModalTab, setActiveModalTab] = useState<'links' | 'lessons'>('links');
 
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -209,7 +213,7 @@ export default function CreatorDashboardClient({
                 </div>
             </nav>
 
-            <main className="pt-32 pb-20 px-8 max-w-[1200px] mx-auto min-h-[80vh]">
+            <main className="pt-32 pb-24 px-8 max-w-[1200px] mx-auto min-h-[80vh]">
                 {/* Header & Stats */}
                 <div className="flex flex-col md:flex-row items-end justify-between gap-6 mb-12 border-b border-white/5 pb-8">
                     <div className="flex items-center gap-6">
@@ -456,8 +460,17 @@ export default function CreatorDashboardClient({
                                             </div>
                                             <button
                                                 onClick={() => {
+                                                    const existing = video.takeaways || ['', '', ''];
+                                                    const padded: string[] = [
+                                                        existing[0] || '',
+                                                        existing[1] || '',
+                                                        existing[2] || ''
+                                                    ];
                                                     setEditingVideoId(video.id);
                                                     setVideoLinks(video.custom_links || []);
+                                                    setVideoDescription((video as any).custom_description || '');
+                                                    setVideoTakeaways(padded);
+                                                    setActiveModalTab('links');
                                                 }}
                                                 className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white"
                                             >
@@ -521,7 +534,7 @@ export default function CreatorDashboardClient({
 
 
 
-            {/* Video Links Modal */}
+            {/* Video Edit Modal */}
             <AnimatePresence>
                 {
                     editingVideoId && (
@@ -530,41 +543,109 @@ export default function CreatorDashboardClient({
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl p-6"
+                                className="w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl overflow-hidden"
                             >
-                                <h2 className="text-xl font-bold mb-4">Customize Video</h2>
-                                <p className="text-sm text-gray-400 mb-4">Add a custom description and specific links for this video.</p>
-
-                                {/* Video Description */}
-                                <div className="mb-6">
-                                    <label className="block text-sm font-semibold text-gray-300 mb-2">Custom Description (optional)</label>
-                                    <textarea
-                                        value={videoDescription}
-                                        onChange={(e) => setVideoDescription(e.target.value)}
-                                        placeholder="Override channel description for this specific video..."
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white min-h-[80px] resize-none shadow-inner"
-                                    />
+                                {/* Modal Tabs */}
+                                <div className="flex border-b border-white/10">
+                                    <button
+                                        onClick={() => setActiveModalTab('links')}
+                                        className={`flex-1 py-4 text-sm font-semibold transition-colors border-b-2 ${activeModalTab === 'links'
+                                            ? 'border-red-500 text-white'
+                                            : 'border-transparent text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        Links
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveModalTab('lessons')}
+                                        className={`flex-1 py-4 text-sm font-semibold transition-colors border-b-2 ${activeModalTab === 'lessons'
+                                            ? 'border-red-500 text-white'
+                                            : 'border-transparent text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        3 Lessons
+                                    </button>
                                 </div>
 
-                                {/* Video Links */}
-                                <LinkEditor links={videoLinks} onChange={setVideoLinks} />
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button onClick={() => setEditingVideoId(null)} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Cancel</button>
-                                    <button onClick={async () => {
-                                        setSavingLinks(true);
-                                        await Promise.all([
-                                            updateVideoLinks(editingVideoId, videoLinks),
-                                            updateVideoDescription(editingVideoId, videoDescription)
-                                        ]);
-                                        setSavingLinks(false);
-                                        setEditingVideoId(null);
-                                    }} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold">{savingLinks ? 'Saving...' : 'Save Changes'}</button>
+                                <div className="p-6">
+                                    {/* Links Tab */}
+                                    {activeModalTab === 'links' && (
+                                        <>
+                                            <p className="text-sm text-gray-400 mb-4">Add a custom description and specific links for this video.</p>
+
+                                            {/* Video Description */}
+                                            <div className="mb-6">
+                                                <label className="block text-sm font-semibold text-gray-300 mb-2">Custom Description (optional)</label>
+                                                <textarea
+                                                    value={videoDescription}
+                                                    onChange={(e) => setVideoDescription(e.target.value)}
+                                                    placeholder="Override channel description for this specific video..."
+                                                    className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white min-h-[80px] resize-none shadow-inner"
+                                                />
+                                            </div>
+
+                                            {/* Video Links */}
+                                            <LinkEditor links={videoLinks} onChange={setVideoLinks} />
+                                        </>
+                                    )}
+
+                                    {/* 3 Lessons Tab */}
+                                    {activeModalTab === 'lessons' && (
+                                        <>
+                                            <p className="text-sm font-semibold text-gray-200 mb-4">Make sure your video delivers these:</p>
+                                            <div className="space-y-3">
+                                                {videoTakeaways.map((lesson, i) => (
+                                                    <div key={i} className="relative">
+                                                        <div className="flex items-center gap-2 p-3 bg-black/50 border border-white/10 rounded-lg group">
+                                                            <span className="text-xs font-bold text-red-500 shrink-0 w-4">{i + 1}</span>
+                                                            <textarea
+                                                                value={lesson}
+                                                                maxLength={80}
+                                                                rows={2}
+                                                                onChange={(e) => {
+                                                                    const updated = [...videoTakeaways];
+                                                                    updated[i] = e.target.value.slice(0, 80);
+                                                                    setVideoTakeaways(updated);
+                                                                }}
+                                                                placeholder={`Lesson ${i + 1}...`}
+                                                                className="flex-1 bg-transparent text-white text-sm placeholder:text-gray-600 focus:outline-none resize-none leading-snug"
+                                                            />
+                                                            <Edit2 className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" />
+                                                        </div>
+                                                        <div className="text-right text-[10px] text-gray-600 mt-0.5 pr-1">
+                                                            {lesson.length}/80
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex justify-end gap-3 mt-6">
+                                        <button onClick={() => setEditingVideoId(null)} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Cancel</button>
+                                        <button
+                                            onClick={async () => {
+                                                setSavingLinks(true);
+                                                await Promise.all([
+                                                    updateVideoLinks(editingVideoId, videoLinks),
+                                                    updateVideoDescription(editingVideoId, videoDescription),
+                                                    updateVideoTakeaways(editingVideoId, videoTakeaways),
+                                                ]);
+                                                setSavingLinks(false);
+                                                setEditingVideoId(null);
+                                            }}
+                                            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold"
+                                        >
+                                            {savingLinks ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                    </div>
                                 </div>
                             </motion.div>
                         </div>
                     )
                 }
-            </AnimatePresence >
+            </AnimatePresence>
 
             {/* Confirmation Modal */}
             <AnimatePresence>
@@ -602,6 +683,7 @@ export default function CreatorDashboardClient({
                 }
             </AnimatePresence >
 
+            <BottomNav />
         </div >
     );
 }

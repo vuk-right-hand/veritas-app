@@ -258,16 +258,45 @@ export async function suggestVideo(videoUrl: string) {
     // 3. Fetch real metadata from YouTube
     const metadata = await getYouTubeMetadata(videoId);
 
+    // Extract channel ID from author_url (e.g., https://www.youtube.com/@veritas -> veritas)
+    let parsedChannelId = null;
+    if (metadata.author_url) {
+        const match = metadata.author_url.match(/@([^/?]+)/);
+        if (match && match[1]) {
+            parsedChannelId = match[1];
+        } else {
+            parsedChannelId = metadata.author_url.split('/').filter(Boolean).pop() || null;
+        }
+    }
+
+    // NEW: Auto-register the channel in the channels table if it doesn't already exist
+    // This perfectly captures the YouTube name requested by the user so we have beautiful data linked!
+    if (parsedChannelId && metadata.author_name) {
+        const { error: channelInsertError } = await supabase
+            .from('channels')
+            .upsert({
+                youtube_channel_id: parsedChannelId,
+                name: metadata.author_name,
+                status: 'pending',
+                is_claimed: false
+            }, { onConflict: 'youtube_channel_id', ignoreDuplicates: true });
+
+        if (channelInsertError) {
+            console.error("Failed to auto-register channel:", channelInsertError);
+        }
+    }
+
     // 4. Insert new Pending Video
     const { error: insertError } = await supabase
         .from('videos')
         .insert({
             id: videoId,
             title: metadata.title,
-            description: metadata.description, // Store the description
+            description: metadata.description,
             channel_title: metadata.author_name,
+            channel_id: parsedChannelId,
             channel_url: metadata.author_url,
-            published_at: metadata.published_at, // Store YouTube publish date
+            published_at: metadata.published_at,
             status: 'pending',
             human_score: 50,
             suggestion_count: 1
@@ -555,21 +584,3 @@ export async function updateVideoDescription(videoId: string, description: strin
     }
 }
 
-export async function logWatchTime(videoId: string, seconds: number) {
-    try {
-        const { error } = await supabase.rpc('track_creator_watch_time', {
-            p_video_id: videoId,
-            p_seconds: seconds
-        });
-
-        if (error) {
-            console.error('Error logging watch time:', error);
-            return { success: false, error: error.message };
-        }
-
-        return { success: true };
-    } catch (e: any) {
-        console.error('Exception logging watch time:', e);
-        return { success: false, error: e.message };
-    }
-}

@@ -1,0 +1,64 @@
+{
+  "stats": [
+    {
+      "id": "4ee31f20-55e0-4d8d-87ec-57d91823a29c",
+      "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+      "channel_id": "nicksaraev",
+      "total_watch_seconds": 56,
+      "last_watched_at": "2026-02-23T15:44:58.052+00:00"
+    }
+  ],
+  "recentEvents": [
+    {
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:44:58.117Z",
+        "watch_pct": 9,
+        "current_time": 56,
+        "reported_delta": 26
+      }
+    },
+    {
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:44:32.800Z",
+        "watch_pct": 5,
+        "current_time": 30,
+        "reported_delta": 30
+      }
+    },
+    {
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T15:44:01.224Z",
+        "source_context": "direct"
+      }
+    },
+    {
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:41:39.810Z",
+        "watch_pct": 8,
+        "current_time": 48,
+        "reported_delta": 18
+      }
+    },
+    {
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:41:22.477Z",
+        "watch_pct": 5,
+        "current_time": 30,
+        "reported_delta": 30
+      }
+    }
+  ]
+}

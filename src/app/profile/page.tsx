@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { getMyMission } from '../actions/video-actions';
 import { updateProfile, updateProfileAvatar, updateUserPassword } from '../actions/profile-actions';
 import { supabase } from '@/lib/supabaseClient';
+import BottomNav from '@/components/BottomNav';
 
 const GOALS = [
     "Make $10,000/m Online",
@@ -258,199 +259,202 @@ export default function Profile() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white font-sans p-6 md:p-12 relative overflow-hidden flex items-center justify-center">
-            {/* Background Ambience */}
-            <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[120px] pointer-events-none" />
+        <>
+            <div className="min-h-screen bg-black text-white font-sans p-6 md:p-12 pb-24 md:pb-12 relative overflow-hidden flex items-center justify-center">
+                {/* Background Ambience */}
+                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[120px] pointer-events-none" />
 
-            <div className="w-full max-w-2xl relative z-10">
-                <Link href="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group">
-                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Back to Feed
-                </Link>
+                <div className="w-full max-w-2xl relative z-10">
+                    <Link href="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group">
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Feed
+                    </Link>
 
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-3xl p-6 md:p-10 shadow-2xl"
-                >
-                    <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-8">
-                        <div
-                            className="w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center border border-red-500/20 relative cursor-pointer group overflow-hidden"
-                            onClick={handleAvatarClick}
-                        >
-                            {uploadingAvatar ? (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                </div>
-                            ) : avatarUrl ? (
-                                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" loading="lazy" />
-                            ) : (
-                                <User className="w-8 h-8 text-red-500 group-hover:scale-110 transition-transform" />
-                            )}
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept="image/*"
-                                onChange={handleFileChange}
-                            />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <span className="text-[10px] uppercase font-bold text-white tracking-wider">Edit</span>
-                            </div>
-                        </div>
-                        <div>
-                            <h1 className="text-2xl md:text-3xl font-bold">Your Profile</h1>
-                            <p className="text-gray-400">Manage your identity and mission.</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-6">
-                        {/* Personal Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Full Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                    placeholder="Enter your name"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Email Address</label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                    placeholder="Enter your email"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Account Security */}
-                        <div className="pt-6 border-t border-white/5 space-y-4">
-                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-                                <Lock className="w-4 h-4 text-gray-400" />
-                                Account Security
-                            </h3>
-                            <div>
-                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password (Optional)</label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                    placeholder="Leave blank to keep current password"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
-                                <input
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                    placeholder="Re-type your new password"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Mission */}
-                        <div className="pt-6 border-t border-white/5">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <Target className="w-5 h-5 text-red-500" />
-                                Current Mission
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Main Goal</label>
-                                    <select
-                                        value={formData.goal}
-                                        onChange={handleGoalSelect}
-                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
-                                    >
-                                        {GOALS.map(g => (
-                                            <option key={g} value={g}>{g}</option>
-                                        ))}
-                                    </select>
-                                    {showCustomGoal && (
-                                        <input
-                                            type="text"
-                                            value={customGoal}
-                                            onChange={(e) => setCustomGoal(e.target.value)}
-                                            className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
-                                            placeholder="Describe your specific goal..."
-                                        />
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Biggest Struggle</label>
-                                    <select
-                                        value={formData.struggle}
-                                        onChange={handleStruggleSelect}
-                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
-                                    >
-                                        {STRUGGLES.map(s => (
-                                            <option key={s} value={s}>{s}</option>
-                                        ))}
-                                    </select>
-                                    {showCustomStruggle && (
-                                        <input
-                                            type="text"
-                                            value={customStruggle}
-                                            onChange={(e) => setCustomStruggle(e.target.value)}
-                                            className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
-                                            placeholder="Describe your struggle..."
-                                        />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Status Messages */}
-                        {error && (
-                            <div className="p-4 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
-                                <Zap className="w-4 h-4" /> {error}
-                            </div>
-                        )}
-
-                        {successMessage && (
-                            <div className="p-4 rounded-xl bg-green-900/20 border border-green-500/30 text-green-200 text-sm font-medium flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4" /> {successMessage}
-                            </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="pt-4">
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-3xl p-6 md:p-10 shadow-2xl"
+                    >
+                        <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-8">
+                            <div
+                                className="w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center border border-red-500/20 relative cursor-pointer group overflow-hidden"
+                                onClick={handleAvatarClick}
                             >
-                                {saving ? (
-                                    <>
-                                        <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                                        Saving Changes...
-                                    </>
+                                {uploadingAvatar ? (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    </div>
+                                ) : avatarUrl ? (
+                                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" loading="lazy" />
                                 ) : (
-                                    <>
-                                        <Save className="w-5 h-5" />
-                                        Save Changes
-                                    </>
+                                    <User className="w-8 h-8 text-red-500 group-hover:scale-110 transition-transform" />
                                 )}
-                            </button>
-                            <p className="text-center text-xs text-gray-500 mt-4">
-                                Updating your goal will refresh your video feed to match your new direction.
-                            </p>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <span className="text-[10px] uppercase font-bold text-white tracking-wider">Edit</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-bold">Your Profile</h1>
+                                <p className="text-gray-400">Manage your identity and mission.</p>
+                            </div>
                         </div>
-                    </div>
-                </motion.div>
+
+                        <div className="space-y-6">
+                            {/* Personal Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Full Name</label>
+                                    <input
+                                        type="text"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                        placeholder="Enter your name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                        placeholder="Enter your email"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Account Security */}
+                            <div className="pt-6 border-t border-white/5 space-y-4">
+                                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
+                                    <Lock className="w-4 h-4 text-gray-400" />
+                                    Account Security
+                                </h3>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password (Optional)</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                        placeholder="Leave blank to keep current password"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                        placeholder="Re-type your new password"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Mission */}
+                            <div className="pt-6 border-t border-white/5">
+                                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <Target className="w-5 h-5 text-red-500" />
+                                    Current Mission
+                                </h2>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Main Goal</label>
+                                        <select
+                                            value={formData.goal}
+                                            onChange={handleGoalSelect}
+                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
+                                        >
+                                            {GOALS.map(g => (
+                                                <option key={g} value={g}>{g}</option>
+                                            ))}
+                                        </select>
+                                        {showCustomGoal && (
+                                            <input
+                                                type="text"
+                                                value={customGoal}
+                                                onChange={(e) => setCustomGoal(e.target.value)}
+                                                className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
+                                                placeholder="Describe your specific goal..."
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Biggest Struggle</label>
+                                        <select
+                                            value={formData.struggle}
+                                            onChange={handleStruggleSelect}
+                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
+                                        >
+                                            {STRUGGLES.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                        {showCustomStruggle && (
+                                            <input
+                                                type="text"
+                                                value={customStruggle}
+                                                onChange={(e) => setCustomStruggle(e.target.value)}
+                                                className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
+                                                placeholder="Describe your struggle..."
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Status Messages */}
+                            {error && (
+                                <div className="p-4 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
+                                    <Zap className="w-4 h-4" /> {error}
+                                </div>
+                            )}
+
+                            {successMessage && (
+                                <div className="p-4 rounded-xl bg-green-900/20 border border-green-500/30 text-green-200 text-sm font-medium flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4" /> {successMessage}
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="pt-4">
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {saving ? (
+                                        <>
+                                            <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                                            Saving Changes...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-5 h-5" />
+                                            Save Changes
+                                        </>
+                                    )}
+                                </button>
+                                <p className="text-center text-xs text-gray-500 mt-4">
+                                    Updating your goal will refresh your video feed to match your new direction.
+                                </p>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
             </div>
-        </div>
+            <BottomNav />
+        </>
     );
 }

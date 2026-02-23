@@ -1,0 +1,71 @@
+{
+  "stats": [
+    {
+      "id": "07cba763-f4ed-44d5-80fd-1dbf84688862",
+      "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+      "channel_id": "nicksaraev",
+      "total_watch_seconds": 30,
+      "last_watched_at": "2026-02-23T15:41:22.365+00:00"
+    }
+  ],
+  "events": [
+    {
+      "id": "244874e1-4804-4c4c-9377-b9b64819026b",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:41:39.810Z",
+        "watch_pct": 8,
+        "current_time": 48,
+        "reported_delta": 18
+      },
+      "created_at": "2026-02-23T15:41:39.715624+00:00"
+    },
+    {
+      "id": "28da905c-e1bb-4429-917b-403c583e1002",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "user_id": "9125e2ae-c037-4010-b143-d13968554527",
+        "duration": 590,
+        "timestamp": "2026-02-23T15:41:22.477Z",
+        "watch_pct": 5,
+        "current_time": 30,
+        "reported_delta": 30
+      },
+      "created_at": "2026-02-23T15:41:22.341813+00:00"
+    },
+    {
+      "id": "5bed90c5-5ad1-4d02-af67-2ae535a18f16",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T15:40:50.468Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:40:50.394853+00:00"
+    },
+    {
+      "id": "98cbdcea-053c-4787-a7ca-ec066f18bee6",
+      "event_type": "video_view",
+      "target_id": "UwyUHOq1hIA",
+      "metadata": {
+        "timestamp": "2026-02-23T15:33:57.720Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:33:57.703332+00:00"
+    },
+    {
+      "id": "87b32558-4fcc-40a4-945a-74f3f4f250e0",
+      "event_type": "video_view",
+      "target_id": "avl9qLAu-Ck",
+      "metadata": {
+        "timestamp": "2026-02-23T15:33:06.381Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T15:33:06.549703+00:00"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "events": [
+    {
+      "id": "6d23d79d-3b3e-4458-a69d-eabb4db301fe",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T14:51:34.528Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T14:51:34.820395+00:00"
+    },
+    {
+      "id": "1a2e940e-2161-467f-ba27-28bbb64f25b8",
+      "event_type": "video_view",
+      "target_id": "czLrUyA_Bh4",
+      "metadata": {
+        "timestamp": "2026-02-23T14:11:50.979Z",
+        "source_context": "direct"
+      },
+      "created_at": "2026-02-23T14:11:50.944485+00:00"
+    }
+  ],
+  "stats": [
+    {
+      "id": "f64d1c04-e416-4eeb-911a-c71731dd5f47",
+      "user_id": "b94606d5-4fa9-4016-ab10-df3e1886a823",
+      "channel_id": "nicksaraev",
+      "total_watch_seconds": 10,
+      "last_watched_at": "2026-02-23T14:55:18.482+00:00"
+    }
+  ]
+}

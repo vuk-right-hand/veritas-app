@@ -56,45 +56,85 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+    const [showMobileControls, setShowMobileControls] = useState(false);
+    const mobileControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Swipe-down-to-close gesture state
+    const swipeTouchStartYRef = useRef<number>(0);
+    const swipeTouchStartXRef = useRef<number>(0);
+    const [swipeDragY, setSwipeDragY] = useState(0);
+    const swipeActiveRef = useRef(false); // true once we've committed to a vertical drag
 
     // Watch Progress Tracking (Interest Scoring)
-    const lastReportedTimeRef = useRef<number>(0); // Prevent duplicate reports for same position
     const watchReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastKnownTimeRef = useRef<number>(0); // Video position (for interest scoring)
+    const lastKnownDurationRef = useRef<number>(0);
+
+    // Wall-clock tracking — seek-proof
+    const playStartTimeRef = useRef<number>(0);       // Date.now() when play started/resumed
+    const accumulatedWatchRef = useRef<number>(0);     // Seconds from COMPLETED play segments
+    const lastSentWatchRef = useRef<number>(0);        // Last accumulated value we sent to API
+
+    /**
+     * NON-DESTRUCTIVE read: total real seconds watched including any live segment.
+     * Does NOT modify any refs — safe to call anytime.
+     */
+    const getRealWatchSeconds = useCallback((): number => {
+        let total = accumulatedWatchRef.current;
+        if (playStartTimeRef.current > 0) {
+            total += (Date.now() - playStartTimeRef.current) / 1000;
+        }
+        return total;
+    }, []);
 
     /**
      * Send watch progress to the scoring API.
-     * Only sends if the user has watched further than the last report.
+     * Uses wall-clock accumulated time (seek-proof).
+     * Only sends if user watched > 30 real seconds.
      */
-    const sendWatchProgress = useCallback(async (currTime?: number, dur?: number) => {
-        const ct = currTime ?? playerRef.current?.getCurrentTime() ?? currentTime;
-        const d = dur ?? playerRef.current?.getDuration() ?? duration;
+    const sendWatchProgress = useCallback(async () => {
+        const realWatched = getRealWatchSeconds();
+        const ct = lastKnownTimeRef.current;
+        const d = lastKnownDurationRef.current;
+        const newSeconds = realWatched - lastSentWatchRef.current;
 
-        console.log(`[WatchProgress] Triggered — ct:${ct.toFixed(1)}s dur:${d.toFixed(1)}s lastReported:${lastReportedTimeRef.current.toFixed(1)}s`);
+        console.log(`[WatchProgress] Triggered — realWatched:${realWatched.toFixed(1)}s videoPos:${ct.toFixed(1)}s dur:${d.toFixed(1)}s newDelta:${newSeconds.toFixed(1)}s`);
 
-        if (!videoId || d <= 0 || ct <= 0) {
-            console.log('[WatchProgress] Skipped — missing videoId or zero time/duration');
+        if (!videoId || d <= 0) {
+            console.log('[WatchProgress] Skipped — missing videoId or zero duration');
             return;
         }
-        if (ct <= lastReportedTimeRef.current + 5) {
-            console.log(`[WatchProgress] Skipped — not enough progress (need >${(lastReportedTimeRef.current + 5).toFixed(1)}s)`);
+        if (realWatched < 30) {
+            console.log(`[WatchProgress] Skipped — under 30s threshold (${realWatched.toFixed(1)}s real)`);
+            return;
+        }
+        if (newSeconds < 5) {
+            console.log(`[WatchProgress] Skipped — only ${newSeconds.toFixed(1)}s new since last report`);
             return;
         }
 
-        lastReportedTimeRef.current = ct;
-        console.log(`[WatchProgress] Sending — video:${videoId} ct:${ct.toFixed(1)}s dur:${d.toFixed(1)}s (${((ct / d) * 100).toFixed(1)}%)`);
+        const payload = {
+            videoId,
+            currentTime: ct,
+            duration: d,
+            realWatchSeconds: Math.round(newSeconds)
+        };
+
+        lastSentWatchRef.current = realWatched;
+        console.log(`[WatchProgress] Sending — video:${videoId} realDelta:${Math.round(newSeconds)}s videoPos:${ct.toFixed(1)}s`);
 
         try {
             const res = await fetch('/api/watch-progress', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ videoId, currentTime: ct, duration: d }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             console.log('[WatchProgress] Response:', data);
         } catch (err) {
             console.error('[WatchProgress] Error:', err);
         }
-    }, [videoId, currentTime, duration]);
+    }, [videoId, getRealWatchSeconds]); // STABLE identity
 
     // Volume Hover Timeout Logic
     const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -174,7 +214,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         };
     }, [isOpen]);
 
-    // Progress Loop
+    // Progress Loop — updates both state (for UI) and refs (for reliable watch tracking)
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (isOpen && isPlaying) {
@@ -184,6 +224,9 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                     const dur = playerRef.current.getDuration();
                     setCurrentTime(curr);
                     setDuration(dur);
+                    // Keep refs in sync — these survive player unmount
+                    lastKnownTimeRef.current = curr;
+                    lastKnownDurationRef.current = dur;
                     if (dur > 0) {
                         setProgress((curr / dur) * 100);
                     }
@@ -194,6 +237,8 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     }, [isOpen, isPlaying]);
 
     // Periodic watch progress reporter (every 30s while playing)
+    // NOTE: sendWatchProgress is now stable (only depends on videoId),
+    // so this interval won't be reset every render
     useEffect(() => {
         if (isOpen && isPlaying) {
             watchReportIntervalRef.current = setInterval(() => {
@@ -210,10 +255,18 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
     // Report watch progress when modal closes
     useEffect(() => {
-        if (!isOpen && lastReportedTimeRef.current > 0) {
-            // Modal just closed — send final report
+        if (!isOpen && (accumulatedWatchRef.current > 0 || playStartTimeRef.current > 0)) {
+            // Close any live play segment before sending
+            if (playStartTimeRef.current > 0) {
+                accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
+                playStartTimeRef.current = 0;
+            }
             sendWatchProgress();
-            lastReportedTimeRef.current = 0; // Reset for next session
+            // Reset ALL tracking for next session
+            lastKnownTimeRef.current = 0;
+            lastKnownDurationRef.current = 0;
+            accumulatedWatchRef.current = 0;
+            lastSentWatchRef.current = 0;
         }
     }, [isOpen, sendWatchProgress]);
 
@@ -466,8 +519,67 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                         : 'w-full max-w-6xl rounded-none md:rounded-[32px] bg-[#1a1a1a]/60 backdrop-blur-3xl border-0 md:border md:border-white/10 h-[100dvh] md:h-auto md:max-h-[95vh]'
                                     }
                             `}
+                                style={{
+                                    transform: swipeDragY > 0 ? `translateY(${swipeDragY}px)` : undefined,
+                                    transition: swipeDragY === 0 ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
+                                    opacity: swipeDragY > 0 ? Math.max(0.4, 1 - swipeDragY / 300) : undefined,
+                                }}
                                 onClick={(e) => e.stopPropagation()}
+                                onTouchStart={(e) => {
+                                    const touch = e.touches[0];
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const relY = touch.clientY - rect.top;
+
+                                    // Allow swipe from the top 120px OR if touching the video player itself
+                                    const isTopZone = relY < 120;
+                                    const isVideoContainer = videoContainerRef.current?.contains(e.target as Node);
+
+                                    if (isTopZone || isVideoContainer) {
+                                        swipeTouchStartYRef.current = touch.clientY;
+                                        swipeTouchStartXRef.current = touch.clientX;
+                                        swipeActiveRef.current = false; // not yet committed
+                                    } else {
+                                        swipeTouchStartYRef.current = -1; // sentinel = inactive
+                                    }
+                                }}
+                                onTouchMove={(e) => {
+                                    if (swipeTouchStartYRef.current < 0) return;
+                                    const touch = e.touches[0];
+                                    const dy = touch.clientY - swipeTouchStartYRef.current;
+                                    const dx = Math.abs(touch.clientX - swipeTouchStartXRef.current);
+                                    // Commit to vertical swipe only if more vertical than horizontal
+                                    if (!swipeActiveRef.current) {
+                                        if (Math.abs(dy) < 8 && dx < 8) return; // not moved enough yet
+                                        if (dx > Math.abs(dy)) {
+                                            swipeTouchStartYRef.current = -1; // horizontal — cancel
+                                            return;
+                                        }
+                                        swipeActiveRef.current = true;
+                                    }
+                                    if (dy > 0) {
+                                        e.preventDefault(); // prevent scroll while swiping down
+                                        setSwipeDragY(dy);
+                                    }
+                                }}
+                                onTouchEnd={() => {
+                                    if (swipeDragY > 120) {
+                                        setIsOpen(false);
+                                    }
+                                    setSwipeDragY(0);
+                                    swipeTouchStartYRef.current = -1;
+                                    swipeActiveRef.current = false;
+                                }}
                             >
+                                {/* Swipe pill handle — mobile-only, top of modal */}
+                                {!isFullscreen && (
+                                    <div
+                                        className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0"
+                                        style={{ touchAction: 'none' }}
+                                    >
+                                        <div className="w-10 h-1 rounded-full bg-white/25" />
+                                    </div>
+                                )}
+
                                 {/* Close Button - Internal Top Right (Hidden in Fullscreen) */}
                                 {!isFullscreen && (
                                     <button
@@ -490,6 +602,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                             <div
                                                 ref={videoContainerRef}
                                                 className="relative group bg-black shadow-2xl flex flex-col justify-center overflow-hidden transition-all duration-300 w-full rounded-2xl border border-white/10 aspect-video"
+                                                style={{ touchAction: 'pan-x' }}
                                                 onDoubleClick={(e) => {
                                                     e.preventDefault();
                                                     handleFullscreen();
@@ -505,13 +618,26 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         className="w-full h-full object-cover"
                                                         onEnded={() => {
                                                             console.log("Main Feed Video Ended");
+                                                            // Close the play segment: accumulate elapsed time
+                                                            if (playStartTimeRef.current > 0) {
+                                                                accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
+                                                                playStartTimeRef.current = 0;
+                                                            }
                                                             setIsPlaying(false);
-                                                            sendWatchProgress(); // Score on video completion
+                                                            sendWatchProgress();
                                                         }}
-                                                        onPlay={() => setIsPlaying(true)}
+                                                        onPlay={() => {
+                                                            playStartTimeRef.current = Date.now();
+                                                            setIsPlaying(true);
+                                                        }}
                                                         onPause={() => {
+                                                            // Close the play segment: accumulate elapsed time
+                                                            if (playStartTimeRef.current > 0) {
+                                                                accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
+                                                                playStartTimeRef.current = 0;
+                                                            }
                                                             setIsPlaying(false);
-                                                            sendWatchProgress(); // Score on pause
+                                                            sendWatchProgress();
                                                         }}
                                                     />
 
@@ -520,6 +646,22 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         className="absolute inset-0 z-10"
                                                         onClick={(e) => {
                                                             e.preventDefault();
+                                                            const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+                                                            if (isTouch) {
+                                                                if (showMobileControls) {
+                                                                    setShowMobileControls(false);
+                                                                    if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
+                                                                } else {
+                                                                    setShowMobileControls(true);
+                                                                    if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
+                                                                    mobileControlsTimeoutRef.current = setTimeout(() => {
+                                                                        setShowMobileControls(false);
+                                                                    }, 3000);
+                                                                }
+                                                                return;
+                                                            }
+
                                                             // Use timeout to avoid conflict with double-click
                                                             const clickTimer = setTimeout(() => {
                                                                 togglePlay();
@@ -536,9 +678,26 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         }}
                                                     />
 
+                                                    {/* Big Play/Pause Button in the middle (Visible only when mobile controls are active) */}
+                                                    <div className={`absolute inset-0 pointer-events-none flex items-center justify-center z-20 transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0'}`}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                togglePlay();
+                                                                if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
+                                                                mobileControlsTimeoutRef.current = setTimeout(() => {
+                                                                    setShowMobileControls(false);
+                                                                }, 3000);
+                                                            }}
+                                                            className={`w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center hover:bg-black/70 transition-colors border border-white/20 shadow-2xl ${showMobileControls ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                                                        >
+                                                            {isPlaying ? <Pause className="w-8 h-8 text-white fill-white" /> : <Play className="w-8 h-8 text-white fill-white ml-1" />}
+                                                        </button>
+                                                    </div>
+
                                                     {/* Custom Controls Overlay */}
                                                     <div
-                                                        className="absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                                        className={`absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0 md:opacity-0 md:group-hover:opacity-100'}`}
                                                     >
 
                                                         {/* Bottom Controls Container */}

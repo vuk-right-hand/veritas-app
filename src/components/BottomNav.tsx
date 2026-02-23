@@ -26,6 +26,12 @@ export default function BottomNav() {
                 {/* Feed Tab */}
                 <Link
                     href={'/dashboard'}
+                    onClick={() => {
+                        // If already on feed, dispatch reset event to clear search & reload feed
+                        if (isFeedActive) {
+                            window.dispatchEvent(new CustomEvent('veritas:reset-feed'));
+                        }
+                    }}
                     className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors ${isFeedActive
                         ? 'text-red-500'
                         : 'text-gray-500 active:text-gray-300'
