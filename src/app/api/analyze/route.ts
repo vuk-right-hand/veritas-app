@@ -81,6 +81,16 @@ export async function POST(req: Request) {
             {"tag": "tech_setup", "weight": 5, "segment_start_pct": 65, "segment_end_pct": 100}
           ]
 
+        Goal 5: Generate 6 "Proof of Work" Questions based on the insights from Goal 2 and the overall context.
+        - Convert the essence of the lessons into 6 UNIQUE, open-ended application questions.
+        - Do not just make 2 questions per lesson. Draw from the full context of the video to create 6 varied questions.
+        - The questions must force the user to apply the concept to their own business, life, or workflow.
+        - Do NOT ask "What did the video say?" Ask "How would you use this to..."
+        - You MUST assign one of these exact 'Skill Tags' to each question: ['Sales', 'Copywriting', 'Marketing Psychology', 'AI/Automation', 'Content Creation', 'Outreach', 'Time Management', 'VibeCoding/Architecture'].
+        - Questions must be SHORT and punchy. MAXIMUM 15 WORDS per question. No fluff. Cut all preamble.
+        - Do NOT start with "Based on..." or "According to..." — just ask directly.
+        - Number them 1 through 6 via the "lesson_number" field.
+
         Transcript:
         "${truncatedTranscript}" 
         
@@ -94,6 +104,13 @@ export async function POST(req: Request) {
                 {"tag": "slug", "weight": 10, "segment_start_pct": 0, "segment_end_pct": 50},
                 {"tag": "slug", "weight": 8,  "segment_start_pct": 30, "segment_end_pct": 70},
                 {"tag": "slug", "weight": 5,  "segment_start_pct": 60, "segment_end_pct": 100}
+            ],
+            "quiz_questions": [
+                {
+                    "lesson_number": 1,
+                    "skill_tag": "string",
+                    "question": "question text"
+                }
             ]
         }
         `;
@@ -149,6 +166,31 @@ export async function POST(req: Request) {
                 }
             }
             console.log(`✅ Content DNA saved for ${meta.youtube_id}`);
+        }
+
+        // 6. Save 6 Quiz Questions directly to video_quizzes
+        if (analysis.quiz_questions && Array.isArray(analysis.quiz_questions)) {
+            console.log(`🧠 Saving ${analysis.quiz_questions.length} quiz questions for ${meta.youtube_id}...`);
+
+            const SKILL_TAGS = ['Sales', 'Copywriting', 'Marketing Psychology', 'AI/Automation', 'Content Creation', 'Outreach', 'Time Management', 'VibeCoding/Architecture'];
+
+            for (let i = 0; i < analysis.quiz_questions.length; i++) {
+                const q = analysis.quiz_questions[i];
+                const lessonNum = i + 1; // Force sequential 1-6 ordering regardless of LLM output
+                const { error } = await supabaseAdmin
+                    .from('video_quizzes')
+                    .upsert({
+                        video_id: meta.youtube_id,
+                        lesson_number: lessonNum,
+                        skill_tag: SKILL_TAGS.includes(q.skill_tag) ? q.skill_tag : 'Content Creation',
+                        question_text: q.question,
+                    }, { onConflict: 'video_id,lesson_number' });
+
+                if (error) {
+                    console.error(`❌ Failed to save quiz question ${lessonNum}:`, error);
+                }
+            }
+            console.log(`✅ Quiz questions saved for ${meta.youtube_id}`);
         }
 
         return NextResponse.json({

@@ -96,8 +96,8 @@ export default function Dashboard() {
         if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
             console.log("Found Active Mission:", mission.goal);
 
-            // Filter Mission Videos by Time
-            let curations = mission.mission_curations;
+            // Filter Mission Videos by Time and Status
+            let curations = mission.mission_curations.filter((c: any) => c.videos?.status === 'verified');
 
             if (temporalFilter !== 'evergreen') {
                 const days = parseInt(temporalFilter);
@@ -869,7 +869,7 @@ export default function Dashboard() {
                                 channelLinks={video.channelLinks}
                                 isChannelClaimed={video.isChannelClaimed}
                                 publishedAt={video.publishedAt}
-                                onQuizStart={() => alert(`Starting quiz for: ${video.title}`)}
+                                onQuizStart={() => { }}
                                 onVideoView={() => setVideoViewCount(c => c + 1)}
                             />
                         ))

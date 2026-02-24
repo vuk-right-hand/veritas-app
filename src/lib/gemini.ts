@@ -20,6 +20,16 @@ export const getAiModel = () => {
     });
 };
 
+// Lightweight model for quiz grading & question generation (token-efficient)
+export const getQuizAiModel = () => {
+    return getGenAI().getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: {
+            temperature: 0.4,
+        }
+    });
+};
+
 // Model specifically for creating vector embeddings
 // "embedding-001" returns 768 dims normally? NO, user tests show 3072.
 // We stick to what works: "embedding-001"

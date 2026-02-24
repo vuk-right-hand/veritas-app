@@ -9,7 +9,7 @@ config({ path: envPath });
 
 async function main() {
     // Dynamic import to ensure env vars are loaded first
-    const { getVerifiedVideos, logWatchTime, getPendingVideos } = await import('../src/app/actions/video-actions');
+    const { getVerifiedVideos, getPendingVideos } = await import('../src/app/actions/video-actions');
 
     console.log("1. Fetching a video to test with...");
     let videos = await getVerifiedVideos();
@@ -27,15 +27,8 @@ async function main() {
     const video = videos[0];
     console.log(`Found video: ${video.title} (ID: ${video.id})`);
 
-    console.log("2. Logging 120 seconds of watch time...");
-    const result = await logWatchTime(video.id, 120);
-
-    if (result.success) {
-        console.log("SUCCESS: Watch time logged!");
-    } else {
-        console.error("FAILURE: Could not log watch time:", result.error);
-        console.log("NOTE: This might fail if the migration hasn't been applied yet or if the user is not authenticated (which this script isn't by default without a session).");
-    }
+    console.log("2. Test script previously logged watch time here but action is removed.");
+    console.log("SUCCESS: Video fetched successfully.");
 }
 
 main().catch(console.error);

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink } from 'lucide-react';
+import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles } from 'lucide-react';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
 import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
+import { getQuizQuestions, getUserIdFromMission } from '@/app/actions/quiz-actions';
 
 interface VideoCardProps {
     videoId: string;
@@ -19,7 +20,7 @@ interface VideoCardProps {
     channelDescription?: string; // Channel-level description (from "Manage Links" modal)
     channelLinks?: { title: string; url: string; }[]; // Channel-level links (from "Manage Links" modal)
     isChannelClaimed?: boolean; // Whether the creator has claimed this channel
-    onQuizStart: () => void;
+    onQuizStart?: () => void;
     onVideoView?: () => void;
 }
 
@@ -27,6 +28,10 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [isOpen, setIsOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+    const [isVideoEnded, setIsVideoEnded] = useState(false);
+    const [showQuizOverlay, setShowQuizOverlay] = useState(false);
+    const [mobileStartSignal, setMobileStartSignal] = useState(0);
+    const quizPanelRef = useRef<HTMLDivElement>(null);
 
     // === DISPLAY PRIORITY LOGIC ===
     // First line: video description (priority) OR channel description (fallback)
@@ -597,7 +602,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                     {/* Grid Layout for strict alignment */}
                                     <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 ${isFullscreen ? 'h-full w-full flex flex-col md:grid' : ''}`}>
 
-                                        <div className="col-span-3 flex flex-col gap-6">
+                                        <div className="col-span-1 md:col-span-3 flex flex-col gap-6">
                                             {/* LEFT: Video Player (Browser Fullscreen API handles fullscreen) */}
                                             <div
                                                 ref={videoContainerRef}
@@ -624,6 +629,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                 playStartTimeRef.current = 0;
                                                             }
                                                             setIsPlaying(false);
+                                                            setIsVideoEnded(true);
                                                             sendWatchProgress();
                                                         }}
                                                         onPlay={() => {
@@ -640,6 +646,102 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                             sendWatchProgress();
                                                         }}
                                                     />
+
+                                                    {/* VIDEO END SCREEN OVERLAY */}
+                                                    <AnimatePresence>
+                                                        {isVideoEnded && (
+                                                            <motion.div
+                                                                key="end-screen"
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                exit={{ opacity: 0 }}
+                                                                className="absolute inset-0 z-30 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center gap-5 p-6"
+                                                            >
+                                                                {/* Dismiss */}
+                                                                <button
+                                                                    onClick={() => setIsVideoEnded(false)}
+                                                                    className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+
+                                                                {/* Creator Links Section */}
+                                                                {(customLinks?.length || channelLinks?.length) ? (
+                                                                    <div className="w-full max-w-xs space-y-2">
+                                                                        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold text-center mb-3">From the Creator</p>
+                                                                        {(customLinks?.length ? customLinks : channelLinks!).slice(0, 3).map((link, i) => (
+                                                                            <a
+                                                                                key={i}
+                                                                                href={link.url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="flex items-center gap-3 w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all group"
+                                                                            >
+                                                                                <ExternalLink className="w-3.5 h-3.5 text-gray-500 group-hover:text-red-400 transition-colors flex-shrink-0" />
+                                                                                <span className="text-sm text-gray-200 font-medium truncate">{link.title}</span>
+                                                                            </a>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-center">
+                                                                        <p className="text-sm font-bold text-white mb-1">Great watch!</p>
+                                                                        <p className="text-xs text-gray-500">Now prove you got something from it.</p>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Divider */}
+                                                                <div className="w-full max-w-xs border-t border-white/10" />
+
+                                                                {/* Proof of Work CTA */}
+                                                                <div className="text-center space-y-3">
+                                                                    <p className="text-[11px] text-gray-400 italic">{`Don't make this a "brain-porn"!`}</p>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setIsVideoEnded(false);
+                                                                            const isMobile = window.innerWidth < 768;
+                                                                            if (isMobile) {
+                                                                                // Mobile: scroll to quiz panel and trigger start
+                                                                                setMobileStartSignal(s => s + 1);
+                                                                                setTimeout(() => {
+                                                                                    quizPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                                }, 50);
+                                                                            } else {
+                                                                                setShowQuizOverlay(true);
+                                                                            }
+                                                                        }}
+                                                                        className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center gap-2 mx-auto"
+                                                                    >
+                                                                        <Zap className="w-4 h-4 fill-current" />
+                                                                        Proof of Work
+                                                                    </button>
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+
+                                                    {/* DESKTOP QUIZ OVERLAY (animates across the video on desktop) */}
+                                                    <AnimatePresence>
+                                                        {showQuizOverlay && (
+                                                            <motion.div
+                                                                key="quiz-overlay"
+                                                                initial={{ opacity: 0, x: '100%' }}
+                                                                animate={{ opacity: 1, x: 0 }}
+                                                                exit={{ opacity: 0, x: '100%' }}
+                                                                transition={{ type: 'spring', damping: 28, stiffness: 240 }}
+                                                                className="absolute inset-0 z-30 bg-[#0f0f0f]/95 backdrop-blur-md hidden md:flex"
+                                                            >
+                                                                <button
+                                                                    onClick={() => setShowQuizOverlay(false)}
+                                                                    className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                                <div className="w-full h-full overflow-y-auto no-scrollbar">
+                                                                    <QuizPanel videoId={videoId} takeaways={takeaways} autoStart={true} onClose={() => setShowQuizOverlay(false)} />
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
 
                                                     {/* Transparent Double-Click Capture Layer */}
                                                     <div
@@ -1032,32 +1134,15 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                             </div>
                                         </div > {/* End col-span-3 Wrapper */}
 
-                                        {/* RIGHT: Quiz Box */}
-                                        {!isFullscreen && (
-                                            <div className="col-span-1">
-                                                <div className="w-full bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/5 flex flex-col gap-4 relative overflow-hidden group sticky top-0">
-                                                    {/* Background Pattern */}
-                                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-
-                                                    <div className="relative z-10 flex flex-col items-center justify-center text-center h-full gap-4">
-                                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-red-900 shadow-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-500">
-                                                            <Brain className="w-8 h-8 text-white" />
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="text-lg font-bold text-white mb-1">Verify Knowledge</h3>
-                                                            <p className="text-xs text-gray-400 max-w-[150px] mx-auto">Take a quick quiz to earn Human Score points.</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onQuizStart();
-                                                            }}
-                                                            className="px-6 py-2.5 bg-white text-black text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors shadow-lg shadow-white/10"
-                                                        >
-                                                            Start Quiz
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                        {/* RIGHT: Proof of Work Quiz Box (mobile: full width below video; desktop: right column; NOT shown when overlay is active) */}
+                                        {!isFullscreen && !showQuizOverlay && (
+                                            <div ref={quizPanelRef} className="col-span-1">
+                                                <QuizPanel
+                                                    videoId={videoId}
+                                                    takeaways={takeaways}
+                                                    onOpenOverlay={() => setShowQuizOverlay(true)}
+                                                    mobileStartSignal={mobileStartSignal}
+                                                />
                                             </div>
                                         )}
 
@@ -1068,5 +1153,452 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                     </>)}
             </AnimatePresence>
         </>
+    );
+}
+
+// ==========================================
+// QuizPanel — "Proof of Work" Quiz Component
+// ==========================================
+type QuizQuestion = {
+    id: string;
+    lesson_number: number;
+    skill_tag: string;
+    question_text: string;
+};
+
+type QuizState = 'cta' | 'loading' | 'active' | 'feedback' | 'complete' | 'no-questions';
+
+function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobileStartSignal }: {
+    videoId: string;
+    takeaways: string[];
+    autoStart?: boolean;
+    onClose?: () => void;
+    onOpenOverlay?: () => void;
+    mobileStartSignal?: number;
+}) {
+    const [quizState, setQuizState] = useState<QuizState>(autoStart ? 'loading' : 'cta');
+    const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+    // batch 0 = first 3 questions (indices 0-2), batch 1 = second 3 (indices 3-5)
+    const [batch, setBatch] = useState(0);
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [userAnswer, setUserAnswer] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [feedback, setFeedback] = useState<{ passed: boolean; confidence: string; feedback: string } | null>(null);
+    const [passedCount, setPassedCount] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    // Resolve the veritas_user cookie (mission_id) → real user UUID on mount
+    useEffect(() => {
+        const resolveMission = async () => {
+            if (typeof document === 'undefined') return;
+            const match = document.cookie.match(/veritas_user=([^;]+)/);
+            const missionId = match ? match[1] : null;
+            if (missionId) {
+                const realUserId = await getUserIdFromMission(missionId);
+                setResolvedUserId(realUserId);
+            }
+        };
+        resolveMission();
+    }, []);
+
+    // If autoStart, immediately try to load questions
+    useEffect(() => {
+        if (autoStart) handleStartQuiz();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoStart]);
+
+    // Mobile: trigger quiz start when parent signals (from end screen)
+    useEffect(() => {
+        if (mobileStartSignal && mobileStartSignal > 0 && quizState === 'cta') {
+            handleStartQuiz();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mobileStartSignal]);
+
+    const handleStartQuiz = async () => {
+        setQuizState('loading');
+        try {
+            const data = await getQuizQuestions(videoId);
+
+            if (!data || data.length === 0) {
+                setQuizState('no-questions');
+                return;
+            }
+
+            setQuestions(data);
+            setBatch(0);
+            setCurrentIndex(0);
+            setPassedCount(0);
+            setQuizState('active');
+            setTimeout(() => inputRef.current?.focus(), 300);
+        } catch (err) {
+            console.error('Failed to load quiz:', err);
+            setQuizState('no-questions');
+        }
+    };
+
+    const handleSubmitAnswer = async () => {
+        if (!userAnswer.trim() || isSubmitting) return;
+        setIsSubmitting(true);
+
+        // Real index into questions array: batch 0 uses 0-2, batch 1 uses 3-5
+        const realIndex = batch * 3 + currentIndex;
+        const currentQ = questions[realIndex];
+        try {
+            const res = await fetch('/api/quiz/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: resolvedUserId || 'anonymous',
+                    video_id: videoId,
+                    topic: currentQ.skill_tag,
+                    question: currentQ.question_text,
+                    user_answer: userAnswer,
+                }),
+            });
+            const data = await res.json();
+            setFeedback({
+                passed: data.passed ?? true,
+                confidence: data.confidence || 'low',
+                feedback: data.feedback || 'Great effort!',
+            });
+            if (data.passed) setPassedCount(p => p + 1);
+            setQuizState('feedback');
+        } catch (err) {
+            console.error('Quiz submit error:', err);
+            setFeedback({ passed: true, confidence: 'low', feedback: 'Great effort! Keep going.' });
+            setQuizState('feedback');
+        }
+        setIsSubmitting(false);
+    };
+
+    const handleNext = () => {
+        setUserAnswer('');
+        setFeedback(null);
+        // Move to next question in current batch (0, 1, 2 per batch)
+        if (currentIndex < 2) {
+            setCurrentIndex(i => i + 1);
+            setQuizState('active');
+            setTimeout(() => inputRef.current?.focus(), 200);
+        } else {
+            // End of current batch (question 3 of this batch answered)
+            setQuizState('complete');
+        }
+    };
+
+    const handleLoadMore = async () => {
+        setIsLoadingMore(true);
+        try {
+            // Switch to batch 1 (questions at indices 3-5)
+            if (questions.length >= 6) {
+                setBatch(1);
+                setCurrentIndex(0);
+                setPassedCount(0);
+                setQuizState('active');
+                setTimeout(() => inputRef.current?.focus(), 300);
+            } else {
+                console.log('No extra questions available for this video.');
+            }
+        } catch (err) {
+            console.error('Load more error:', err);
+        }
+        setIsLoadingMore(false);
+    };
+
+    // The question currently displayed
+    const realIndex = batch * 3 + currentIndex;
+    const currentQ = questions[realIndex];
+
+    // Tier colors for the skill tag badge
+    const getTagColor = (tag: string) => {
+        const colors: Record<string, string> = {
+            'Sales': 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+            'Copywriting': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+            'Marketing Psychology': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+            'AI/Automation': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+            'Content Creation': 'bg-green-500/20 text-green-300 border-green-500/30',
+            'Outreach': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+            'Time Management': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+            'VibeCoding/Architecture': 'bg-red-500/20 text-red-300 border-red-500/30',
+        };
+        return colors[tag] || 'bg-white/10 text-gray-300 border-white/20';
+    };
+
+    // On desktop: clicking CTA opens overlay instead of staying in panel
+    const handleDesktopCta = () => {
+        if (onOpenOverlay && window.innerWidth >= 768) {
+            onOpenOverlay();
+        } else {
+            handleStartQuiz();
+        }
+    };
+
+    return (
+        <div className="col-span-1 md:col-span-1">
+            <div className="w-full bg-white/[0.03] backdrop-blur-sm rounded-2xl border border-white/5 flex flex-col relative overflow-hidden">
+                {/* Background noise */}
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none" />
+
+                <div className="relative z-10 p-5">
+                    <AnimatePresence mode="wait">
+                        {/* === CTA STATE === */}
+                        {quizState === 'cta' && (
+                            <motion.div
+                                key="cta"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center justify-center text-center gap-4 py-6"
+                            >
+                                <motion.div
+                                    animate={{ scale: [1, 1.05, 1] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-red-900 shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center"
+                                >
+                                    <Brain className="w-8 h-8 text-white" />
+                                </motion.div>
+
+                                <div>
+                                    <p className="text-xs text-gray-400 mb-1 italic">{`Don't make this a "brain-porn"!`}</p>
+                                    <h3 className="text-lg font-bold text-white">Claim your knowledge!</h3>
+                                </div>
+
+                                <p className="text-[11px] text-gray-500 max-w-[180px]">
+                                    In 3 minutes get 50x more from watching this video
+                                </p>
+
+                                <button
+                                    onClick={handleDesktopCta}
+                                    className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] flex items-center gap-2 active:scale-95"
+                                >
+                                    <Zap className="w-4 h-4 fill-current" />
+                                    Proof of Work
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* === LOADING STATE === */}
+                        {quizState === 'loading' && (
+                            <motion.div
+                                key="loading"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center justify-center py-12 gap-3"
+                            >
+                                <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+                                <p className="text-xs text-gray-500">Loading your quiz...</p>
+                            </motion.div>
+                        )}
+
+                        {/* === NO QUESTIONS STATE === */}
+                        {quizState === 'no-questions' && (
+                            <motion.div
+                                key="no-q"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center justify-center py-8 gap-3 text-center"
+                            >
+                                <Brain className="w-10 h-10 text-gray-600" />
+                                <p className="text-sm text-gray-400">Quiz questions are being generated...</p>
+                                <p className="text-xs text-gray-600">Check back in a moment!</p>
+                                <button
+                                    onClick={() => setQuizState('cta')}
+                                    className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                    Try again
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* === ACTIVE QUIZ STATE === */}
+                        {quizState === 'active' && currentQ && (
+                            <motion.div
+                                key={`q-${currentIndex}`}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="flex flex-col gap-4"
+                            >
+                                {/* Progress indicator */}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                        Question {currentIndex + 1} of {questions.length}
+                                    </span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getTagColor(currentQ.skill_tag)}`}>
+                                        {currentQ.skill_tag}
+                                    </span>
+                                </div>
+
+                                {/* Progress dots */}
+                                <div className="flex gap-1.5">
+                                    {questions.map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${i < currentIndex ? 'bg-green-500'
+                                                : i === currentIndex ? 'bg-red-500'
+                                                    : 'bg-white/10'
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Question */}
+                                <p className="text-sm text-gray-200 leading-relaxed font-medium">
+                                    {currentQ.question_text}
+                                </p>
+
+                                {/* Answer Input */}
+                                <textarea
+                                    ref={inputRef}
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSubmitAnswer();
+                                        }
+                                    }}
+                                    placeholder="Type your answer..."
+                                    rows={5}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 resize-none caret-red-500"
+                                />
+
+                                {/* Submit Button */}
+                                <button
+                                    onClick={handleSubmitAnswer}
+                                    disabled={!userAnswer.trim() || isSubmitting}
+                                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-800 disabled:text-gray-600 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Evaluating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="w-4 h-4" />
+                                            Submit Answer
+                                        </>
+                                    )}
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* === FEEDBACK STATE === */}
+                        {quizState === 'feedback' && feedback && (
+                            <motion.div
+                                key={`fb-${currentIndex}`}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col gap-4"
+                            >
+                                {/* Pass/Fail Header */}
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${feedback.passed
+                                    ? 'bg-green-500/10 border border-green-500/20'
+                                    : 'bg-red-500/10 border border-red-500/20'
+                                    }`}>
+                                    {feedback.passed ? (
+                                        <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                                    ) : (
+                                        <X className="w-5 h-5 text-red-400 flex-shrink-0" />
+                                    )}
+                                    <span className={`text-sm font-bold ${feedback.passed ? 'text-green-300' : 'text-red-300'}`}>
+                                        {feedback.passed ? 'Passed!' : 'Not quite — try again next time!'}
+                                    </span>
+                                    {feedback.confidence === 'high' && (
+                                        <Trophy className="w-4 h-4 text-yellow-400 ml-auto" />
+                                    )}
+                                </div>
+
+                                {/* AI Feedback */}
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                                    <p className="text-sm text-gray-300 leading-relaxed italic">
+                                        {`"${feedback.feedback}"`}
+                                    </p>
+                                </div>
+
+                                {/* Skill tag earned */}
+                                {feedback.passed && currentQ && (
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <Sparkles className="w-3 h-3 text-yellow-400" />
+                                        <span>+1 to <span className="text-white font-medium">{currentQ.skill_tag}</span></span>
+                                    </div>
+                                )}
+
+                                {/* Next Button */}
+                                <button
+                                    onClick={handleNext}
+                                    className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                >
+                                    {currentIndex + 1 < questions.length ? (
+                                        <>Next Question <ArrowRight className="w-4 h-4" /></>
+                                    ) : (
+                                        <>See Results <Trophy className="w-4 h-4" /></>
+                                    )}
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* === COMPLETE STATE === */}
+                        {quizState === 'complete' && (
+                            <motion.div
+                                key="complete"
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center text-center gap-4 py-4"
+                            >
+                                <motion.div
+                                    initial={{ rotate: 0 }}
+                                    animate={{ rotate: [0, -10, 10, 0] }}
+                                    transition={{ duration: 0.5, delay: 0.2 }}
+                                >
+                                    <Trophy className="w-12 h-12 text-yellow-400" />
+                                </motion.div>
+
+                                <div>
+                                    <h3 className="text-lg font-bold text-white mb-1">Quiz Complete!</h3>
+                                    <p className="text-sm text-gray-400">Your answers have been recorded. Keep going!</p>
+                                </div>
+
+                                {/* +3 More Questions Button - only show if 6 questions exist AND user hasn't done batch 1 yet */}
+                                {questions.length >= 6 && batch === 0 && (
+                                    <button
+                                        onClick={handleLoadMore}
+                                        disabled={isLoadingMore}
+                                        className="w-full py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {isLoadingMore ? (
+                                            <>
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                Loading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="w-3 h-3" />
+                                                Give me 3 more questions — I love this!
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {/* Back to CTA */}
+                                <button
+                                    onClick={() => { setQuizState('cta'); setBatch(0); setCurrentIndex(0); setPassedCount(0); }}
+                                    className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                                >
+                                    Done
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
+        </div>
     );
 }
