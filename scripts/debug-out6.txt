@@ -1,0 +1,3 @@
+﻿Testing analyze API...
+No questions generated or error:
+{ error: 'Invalid YouTube URL or Metadata Error' }

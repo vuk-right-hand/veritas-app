@@ -81,15 +81,16 @@ export async function POST(req: Request) {
             {"tag": "tech_setup", "weight": 5, "segment_start_pct": 65, "segment_end_pct": 100}
           ]
 
-        Goal 5: Generate 6 "Proof of Work" Questions based on the insights from Goal 2 and the overall context.
+        Goal 5: Generate EXACTLY 6 "Proof of Work" Questions based on the insights from Goal 2 and the overall context.
+        - CRITICAL REQUIREMENT: YOU MUST GENERATE EXACTLY 6 QUESTIONS. DO NOT GENERATE 3. DO NOT GENERATE 5. EXACTLY 6. If you generate less than 6, the system will crash.
         - Convert the essence of the lessons into 6 UNIQUE, open-ended application questions.
-        - Do not just make 2 questions per lesson. Draw from the full context of the video to create 6 varied questions.
+        - Draw from the full context of the video to create 6 varied questions. (e.g., Q1 about the hook, Q2 about the core concept, Q3 about implementation, Q4 about mindset, Q5 about a case study, Q6 about immediate action).
         - The questions must force the user to apply the concept to their own business, life, or workflow.
         - Do NOT ask "What did the video say?" Ask "How would you use this to..."
         - You MUST assign one of these exact 'Skill Tags' to each question: ['Sales', 'Copywriting', 'Marketing Psychology', 'AI/Automation', 'Content Creation', 'Outreach', 'Time Management', 'VibeCoding/Architecture'].
         - Questions must be SHORT and punchy. MAXIMUM 15 WORDS per question. No fluff. Cut all preamble.
         - Do NOT start with "Based on..." or "According to..." — just ask directly.
-        - Number them 1 through 6 via the "lesson_number" field.
+        - Number them exactly 1, 2, 3, 4, 5, and 6 via the "lesson_number" field. You must provide all 6.
 
         Transcript:
         "${truncatedTranscript}" 
@@ -109,7 +110,32 @@ export async function POST(req: Request) {
                 {
                     "lesson_number": 1,
                     "skill_tag": "string",
-                    "question": "question text"
+                    "question": "question text 1"
+                },
+                {
+                    "lesson_number": 2,
+                    "skill_tag": "string",
+                    "question": "question text 2"
+                },
+                {
+                    "lesson_number": 3,
+                    "skill_tag": "string",
+                    "question": "question text 3"
+                },
+                {
+                    "lesson_number": 4,
+                    "skill_tag": "string",
+                    "question": "question text 4"
+                },
+                {
+                    "lesson_number": 5,
+                    "skill_tag": "string",
+                    "question": "question text 5"
+                },
+                {
+                    "lesson_number": 6,
+                    "skill_tag": "string",
+                    "question": "question text 6"
                 }
             ]
         }

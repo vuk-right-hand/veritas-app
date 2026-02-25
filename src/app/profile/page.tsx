@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, User, Target, Zap, Save, CheckCircle2, Lock, Brain, Trophy } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,7 @@ import { updateProfile, updateProfileAvatar, updateUserPassword } from '../actio
 import { supabase } from '@/lib/supabaseClient';
 import BottomNav from '@/components/BottomNav';
 import SkillProgressCard from '@/components/SkillProgressCard';
-import { getUserSkillsMatrix, getUserIdFromMission } from '../actions/quiz-actions';
+import { getUserSkillsMatrix, getCurrentUserId } from '../actions/quiz-actions';
 
 const GOALS = [
     "Make $10,000/m Online",
@@ -50,6 +50,7 @@ export default function Profile() {
     const [customStruggle, setCustomStruggle] = useState('');
     const [showCustomGoal, setShowCustomGoal] = useState(false);
     const [showCustomStruggle, setShowCustomStruggle] = useState(false);
+    const [showResetPassword, setShowResetPassword] = useState(false);
 
     // Tab state
     const [activeTab, setActiveTab] = useState<'profile' | 'proof-of-work'>('profile');
@@ -98,18 +99,10 @@ export default function Profile() {
 
         // Load skills matrix for Proof of Work tab
         const loadSkills = async () => {
-            const getMissionId = () => {
-                if (typeof document === 'undefined') return '';
-                const match = document.cookie.match(/veritas_user=([^;]+)/);
-                return match ? match[1] : '';
-            };
-            const missionId = getMissionId();
-            if (missionId) {
-                const userId = await getUserIdFromMission(missionId);
-                if (userId) {
-                    const matrix = await getUserSkillsMatrix(userId);
-                    setSkillsMatrix(matrix);
-                }
+            const userId = await getCurrentUserId();
+            if (userId) {
+                const matrix = await getUserSkillsMatrix(userId);
+                setSkillsMatrix(matrix);
             }
         };
         loadSkills();
@@ -300,7 +293,7 @@ export default function Profile() {
                         animate={{ opacity: 1, y: 0 }}
                         className="bg-[#0f0f0f] border border-white/5 backdrop-blur-md rounded-3xl p-6 md:p-10 shadow-2xl"
                     >
-                        <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-8">
+                        <div className="flex items-center gap-4 mb-8">
                             <div
                                 className="w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center border border-red-500/20 relative cursor-pointer group overflow-hidden"
                                 onClick={handleAvatarClick}
@@ -332,193 +325,240 @@ export default function Profile() {
                         </div>
 
                         {/* Tab Switcher */}
-                        <div className="flex gap-2 mb-6">
+                        <div className="flex gap-8 mb-8 border-b border-white/10 relative">
                             <button
                                 onClick={() => setActiveTab('profile')}
-                                className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'profile'
-                                    ? 'bg-white/10 text-white border border-white/10'
-                                    : 'bg-white/[0.03] text-gray-500 border border-transparent hover:text-gray-300'
+                                className={`relative pb-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors flex items-center gap-2 ${activeTab === 'profile'
+                                    ? 'text-white'
+                                    : 'text-white/40 hover:text-white/70'
                                     }`}
                             >
                                 <User className="w-4 h-4" />
                                 Profile
+                                {activeTab === 'profile' && (
+                                    <motion.div
+                                        layoutId="activeTabIndicator"
+                                        className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-white/80"
+                                    />
+                                )}
                             </button>
                             <button
                                 onClick={() => setActiveTab('proof-of-work')}
-                                className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'proof-of-work'
-                                    ? 'bg-red-600/20 text-red-300 border border-red-500/30'
-                                    : 'bg-white/[0.03] text-gray-500 border border-transparent hover:text-gray-300'
+                                className={`relative pb-4 text-xs font-bold uppercase tracking-[0.2em] transition-colors flex items-center gap-2 ${activeTab === 'proof-of-work'
+                                    ? 'text-white'
+                                    : 'text-white/40 hover:text-white/70'
                                     }`}
                             >
                                 <Trophy className="w-4 h-4" />
                                 Proof of Work
+                                {activeTab === 'proof-of-work' && (
+                                    <motion.div
+                                        layoutId="activeTabIndicator"
+                                        className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-white/80"
+                                    />
+                                )}
                             </button>
                         </div>
 
-                        {/* Profile Tab Content */}
-                        {activeTab === 'profile' && (
+                        <AnimatePresence mode="wait">
+                            {/* Profile Tab Content */}
+                            {activeTab === 'profile' && (
 
-                            <div className="space-y-6">
-                                {/* Personal Info */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Full Name</label>
-                                        <input
-                                            type="text"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                            placeholder="Enter your name"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Email Address</label>
-                                        <input
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                            placeholder="Enter your email"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Account Security */}
-                                <div className="pt-6 border-t border-white/5 space-y-4">
-                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-                                        <Lock className="w-4 h-4 text-gray-400" />
-                                        Account Security
-                                    </h3>
-                                    <div>
-                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password (Optional)</label>
-                                        <input
-                                            type="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                            placeholder="Leave blank to keep current password"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                            placeholder="Re-type your new password"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Mission */}
-                                <div className="pt-6 border-t border-white/5">
-                                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                        <Target className="w-5 h-5 text-red-500" />
-                                        Current Mission
-                                    </h2>
-
-                                    <div className="space-y-4">
+                                <motion.div
+                                    key="profile"
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="space-y-6"
+                                >
+                                    {/* Personal Info */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Main Goal</label>
-                                            <select
-                                                value={formData.goal}
-                                                onChange={handleGoalSelect}
-                                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
-                                            >
-                                                {GOALS.map(g => (
-                                                    <option key={g} value={g}>{g}</option>
-                                                ))}
-                                            </select>
-                                            {showCustomGoal && (
-                                                <input
-                                                    type="text"
-                                                    value={customGoal}
-                                                    onChange={(e) => setCustomGoal(e.target.value)}
-                                                    className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
-                                                    placeholder="Describe your specific goal..."
-                                                />
-                                            )}
+                                            <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Full Name</label>
+                                            <input
+                                                type="text"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                                placeholder="Enter your name"
+                                            />
                                         </div>
-
                                         <div>
-                                            <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Biggest Struggle</label>
-                                            <select
-                                                value={formData.struggle}
-                                                onChange={handleStruggleSelect}
-                                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
-                                            >
-                                                {STRUGGLES.map(s => (
-                                                    <option key={s} value={s}>{s}</option>
-                                                ))}
-                                            </select>
-                                            {showCustomStruggle && (
-                                                <input
-                                                    type="text"
-                                                    value={customStruggle}
-                                                    onChange={(e) => setCustomStruggle(e.target.value)}
-                                                    className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
-                                                    placeholder="Describe your struggle..."
-                                                />
-                                            )}
+                                            <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Email Address</label>
+                                            <input
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                                placeholder="Enter your email"
+                                            />
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Status Messages */}
-                                {error && (
-                                    <div className="p-4 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
-                                        <Zap className="w-4 h-4" /> {error}
+                                    {/* Account Security */}
+                                    <div className="pt-6 border-t border-white/5 space-y-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                                <Lock className="w-4 h-4 text-gray-400" />
+                                                Account Security
+                                            </h3>
+                                            <button
+                                                onClick={() => setShowResetPassword(!showResetPassword)}
+                                                className="text-xs font-medium text-red-500 hover:text-red-400 transition-colors"
+                                            >
+                                                Reset password
+                                            </button>
+                                        </div>
+                                        <AnimatePresence>
+                                            {showResetPassword && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    className="space-y-4 overflow-hidden"
+                                                >
+                                                    <div>
+                                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password</label>
+                                                        <input
+                                                            type="password"
+                                                            value={password}
+                                                            onChange={(e) => setPassword(e.target.value)}
+                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                                            placeholder="Enter new password"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
+                                                        <input
+                                                            type="password"
+                                                            value={confirmPassword}
+                                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                                            placeholder="Re-type your new password"
+                                                        />
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
-                                )}
 
-                                {successMessage && (
-                                    <div className="p-4 rounded-xl bg-green-900/20 border border-green-500/30 text-green-200 text-sm font-medium flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4" /> {successMessage}
-                                    </div>
-                                )}
+                                    {/* Mission */}
+                                    <div className="pt-6 border-t border-white/5">
+                                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                            <Target className="w-5 h-5 text-red-500" />
+                                            Current Mission
+                                        </h2>
 
-                                {/* Actions */}
-                                <div className="pt-4">
-                                    <button
-                                        onClick={handleSave}
-                                        disabled={saving}
-                                        className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                                                Saving Changes...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-5 h-5" />
-                                                Save Changes
-                                            </>
-                                        )}
-                                    </button>
-                                    <p className="text-center text-xs text-gray-500 mt-4">
-                                        Updating your goal will refresh your video feed to match your new direction.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Main Goal</label>
+                                                <select
+                                                    value={formData.goal}
+                                                    onChange={handleGoalSelect}
+                                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
+                                                >
+                                                    {GOALS.map(g => (
+                                                        <option key={g} value={g}>{g}</option>
+                                                    ))}
+                                                </select>
+                                                {showCustomGoal && (
+                                                    <input
+                                                        type="text"
+                                                        value={customGoal}
+                                                        onChange={(e) => setCustomGoal(e.target.value)}
+                                                        className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
+                                                        placeholder="Describe your specific goal..."
+                                                    />
+                                                )}
+                                            </div>
 
-                        {/* Proof of Work Tab Content */}
-                        {activeTab === 'proof-of-work' && (
-                            <div className="space-y-6">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
-                                        <Brain className="w-5 h-5 text-red-400" />
+                                            <div>
+                                                <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Biggest Struggle</label>
+                                                <select
+                                                    value={formData.struggle}
+                                                    onChange={handleStruggleSelect}
+                                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-red-500/50 transition-colors appearance-none cursor-pointer"
+                                                >
+                                                    {STRUGGLES.map(s => (
+                                                        <option key={s} value={s}>{s}</option>
+                                                    ))}
+                                                </select>
+                                                {showCustomStruggle && (
+                                                    <input
+                                                        type="text"
+                                                        value={customStruggle}
+                                                        onChange={(e) => setCustomStruggle(e.target.value)}
+                                                        className="mt-2 w-full bg-[#1a1a1a] border border-red-500/30 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition-colors placeholder:text-gray-600"
+                                                        placeholder="Describe your struggle..."
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h2 className="text-lg font-bold text-white">Your Skills</h2>
-                                        <p className="text-xs text-gray-500">Built from Proof of Work quizzes</p>
+
+                                    {/* Status Messages */}
+                                    {error && (
+                                        <div className="p-4 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
+                                            <Zap className="w-4 h-4" /> {error}
+                                        </div>
+                                    )}
+
+                                    {successMessage && (
+                                        <div className="p-4 rounded-xl bg-green-900/20 border border-green-500/30 text-green-200 text-sm font-medium flex items-center gap-2">
+                                            <CheckCircle2 className="w-4 h-4" /> {successMessage}
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="pt-4">
+                                        <button
+                                            onClick={handleSave}
+                                            disabled={saving}
+                                            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {saving ? (
+                                                <>
+                                                    <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                                                    Saving Changes...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-5 h-5" />
+                                                    Save Changes
+                                                </>
+                                            )}
+                                        </button>
+                                        <p className="text-center text-xs text-gray-500 mt-4">
+                                            Updating your goal will refresh your video feed to match your new direction.
+                                        </p>
                                     </div>
-                                </div>
-                                <SkillProgressCard skillsMatrix={skillsMatrix} />
-                            </div>
-                        )}
+                                </motion.div>
+                            )}
+
+                            {/* Proof of Work Tab Content */}
+                            {activeTab === 'proof-of-work' && (
+                                <motion.div
+                                    key="proof-of-work"
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
+                                            <Brain className="w-5 h-5 text-red-400" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-bold text-white">Your Skills</h2>
+                                            <p className="text-xs text-gray-500">Built from Proof of Work quizzes</p>
+                                        </div>
+                                    </div>
+                                    <SkillProgressCard skillsMatrix={skillsMatrix} />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </motion.div>
                 </div>
             </div>

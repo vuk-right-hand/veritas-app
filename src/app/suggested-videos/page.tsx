@@ -280,7 +280,7 @@ export default function SuggestedVideosPage() {
                 </div>
 
                 {/* Scroll Area */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar flex flex-col">
                     {dataList.map((item: any) => (
                         <div
                             key={item.id}
@@ -331,11 +331,15 @@ export default function SuggestedVideosPage() {
                                     {activeView === 'videos' && (
                                         <div className="flex items-center gap-2 overflow-hidden">
                                             {item.channel_url ? (
-                                                <span
-                                                    className="text-[10px] text-blue-400 truncate"
+                                                <a
+                                                    href={item.channel_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline truncate pointer-events-auto"
+                                                    onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {item.channel_title || item.channel_id || "Unknown Channel"}
-                                                </span>
+                                                </a>
                                             ) : (
                                                 <span className="text-[10px] text-gray-500 truncate">{item.channel_title || item.channel_id || "Unknown Channel"}</span>
                                             )}
@@ -361,6 +365,19 @@ export default function SuggestedVideosPage() {
                             </div>
                         </div>
                     ))}
+
+                    {/* Explicit Drop Area Builder - forces column to have empty droppable space */}
+                    <div className={`mt-2 flex-1 min-h-[150px] w-full rounded-xl border-2 border-dashed transition-all flex items-center justify-center pointer-events-none
+                        ${dragOverColumn === status
+                            ? 'border-red-500/50 bg-red-500/10'
+                            : 'border-white/5 bg-white/[0.01] hover:border-white/10'
+                        }`}
+                    >
+                        <div className="flex flex-col items-center gap-2 opacity-30">
+                            <Box className={`w-6 h-6 ${dragOverColumn === status ? 'animate-bounce text-red-500' : ''}`} />
+                            <span className="text-xs font-bold uppercase tracking-widest">Drop Zone</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         );

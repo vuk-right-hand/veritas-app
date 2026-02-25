@@ -12,7 +12,7 @@ const getGenAI = () => {
 // It creates the model instance we'll use throughout the app
 export const getAiModel = () => {
     return getGenAI().getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         generationConfig: {
             // Force the AI to be more deterministic (less random) for scoring
             temperature: 0.3,
@@ -23,7 +23,7 @@ export const getAiModel = () => {
 // Lightweight model for quiz grading & question generation (token-efficient)
 export const getQuizAiModel = () => {
     return getGenAI().getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         generationConfig: {
             temperature: 0.4,
         }

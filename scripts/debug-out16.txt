@@ -1,0 +1,73 @@
+﻿Testing analyze API...
+{
+  "success": true,
+  "meta": {
+    "youtube_id": "X5zgFLgFwXE",
+    "title": "Get U.S. Clients From Anywhere by Doing This",
+    "channel_name": "Hormozi Highlights",
+    "channel_id": "hormozi-highlights",
+    "thumbnail_url": "https://i.ytimg.com/vi/X5zgFLgFwXE/hqdefault.jpg"
+  },
+  "analysis": {
+    "humanScore": 95,
+    "humanScoreReason": "Highly practical advice delivered with directness and clear value proposition.",
+    "takeaways": [
+      "Speak American English to unlock US market pricing.",
+      "Value-based selling overcomes location-based price objections.",
+      "Your profile and communication must be US-centric."
+    ],
+    "category": "Sales",
+    "content_tags": [
+      {
+        "tag": "international_sales",
+        "weight": 10,
+        "segment_start_pct": 0,
+        "segment_end_pct": 50
+      },
+      {
+        "tag": "pricing_strategy",
+        "weight": 8,
+        "segment_start_pct": 30,
+        "segment_end_pct": 75
+      },
+      {
+        "tag": "communication_skills",
+        "weight": 5,
+        "segment_start_pct": 50,
+        "segment_end_pct": 100
+      }
+    ],
+    "quiz_questions": [
+      {
+        "lesson_number": 1,
+        "skill_tag": "Sales",
+        "question": "How can you adapt your communication to command US prices?"
+      },
+      {
+        "lesson_number": 2,
+        "skill_tag": "Marketing Psychology",
+        "question": "How do you reframe price objections based on location?"
+      },
+      {
+        "lesson_number": 3,
+        "skill_tag": "Content Creation",
+        "question": "What elements of your online presence signal US market readiness?"
+      },
+      {
+        "lesson_number": 4,
+        "skill_tag": "Sales",
+        "question": "How would you demonstrate value to justify higher rates?"
+      },
+      {
+        "lesson_number": 5,
+        "skill_tag": "Outreach",
+        "question": "What's your strategy for building credibility with US clients?"
+      },
+      {
+        "lesson_number": 6,
+        "skill_tag": "Sales",
+        "question": "How do you handle price objections tied to your location?"
+      }
+    ]
+  }
+}

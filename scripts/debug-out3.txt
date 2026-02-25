@@ -1,0 +1,101 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+Checking recent profiles...
+[
+  {
+    id: 'f4845d63-027f-49b9-810c-89a2e3aeb832',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-24T15:46:59.993417+00:00',
+    skills_matrix: {
+      ai_automation: [Object],
+      content_creation: [Object],
+      marketing_psychology: [Object],
+      vibecoding_architecture: [Object]
+    }
+  },
+  {
+    id: 'b94606d5-4fa9-4016-ab10-df3e1886a823',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-18T17:29:25.971635+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: 'a619c547-3d87-4a0f-9104-450c1c096986',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-20T13:36:10.107028+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: '3839fdb2-bb26-4d57-a2e7-7030bdcfdcd1',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-24T17:27:29.379769+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: '3693d425-d01e-4042-a44c-c454baeac6f4',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-24T17:08:40.042349+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: '1bf4d78c-ea52-4176-b17c-532576aded15',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-25T13:53:33.861252+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: '0ce56eb2-0951-4369-afac-4ee0bfeded43',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-18T15:20:42.795337+00:00',
+    skills_matrix: {}
+  },
+  {
+    id: '06187afa-06aa-4c8e-b502-f9ca81d90fb2',
+    username: null,
+    avatar_url: null,
+    goals: null,
+    subscription_tier: 'free',
+    role: 'user',
+    updated_at: null,
+    created_at: '2026-02-13T13:12:09.284734+00:00',
+    skills_matrix: {
+      time_management: [Object],
+      content_creation: [Object],
+      marketing_psychology: [Object]
+    }
+  }
+]

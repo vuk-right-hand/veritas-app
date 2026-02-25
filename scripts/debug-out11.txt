@@ -1,0 +1,12 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ≡ƒöÉ encrypt with Dotenvx: https://dotenvx.com
+Checking newest video quizzes...
+Recent question counts per video:
+{
+  romGzY0Xu0s: 3,
+  iQFTolh1IAk: 3,
+  slYZascqs34: 3,
+  Qgi5hb7yxjU: 3,
+  UwyUHOq1hIA: 3,
+  SkyjFiTzkjA: 3,
+  KcRYIMQJEo8: 2
+}

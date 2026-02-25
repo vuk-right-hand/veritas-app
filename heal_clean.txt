@@ -1,0 +1,8 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ΓÜí∩╕Å secrets for agents: https://dotenvx.com/as2
+Checking for verified videos without summary points...
+Found 4 stuck videos. Processing...
+Triggering analysis for: Update #13: The New Verification Engine (dQw4w9WgXcQ)
+Triggering analysis for: Update #12: How we are changing the algo (pL5223_Cq1s)
+Triggering analysis for: Before You Set Your Prices, Watch This! (IWpBxHqU1G8)
+Triggering analysis for: How to Remember Everything You READ (For (zYr2XZcpNhM)
+Done processing stuck videos.

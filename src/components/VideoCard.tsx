@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles } from 'lucide-react';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
 import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
-import { getQuizQuestions, getUserIdFromMission } from '@/app/actions/quiz-actions';
+import { getQuizQuestions, getUserIdFromMission, getCurrentUserId } from '@/app/actions/quiz-actions';
 
 interface VideoCardProps {
     videoId: string;
@@ -729,6 +729,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                 exit={{ opacity: 0, x: '100%' }}
                                                                 transition={{ type: 'spring', damping: 28, stiffness: 240 }}
                                                                 className="absolute inset-0 z-30 bg-[#0f0f0f]/95 backdrop-blur-md hidden md:flex"
+                                                                onDoubleClick={(e) => e.stopPropagation()}
                                                             >
                                                                 <button
                                                                     onClick={() => setShowQuizOverlay(false)}
@@ -1188,19 +1189,17 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const submitBtnRef = useRef<HTMLButtonElement>(null);
 
-    // Resolve the veritas_user cookie (mission_id) → real user UUID on mount
+    // Resolve the current user UUID on mount (Viewer or Creator)
     useEffect(() => {
-        const resolveMission = async () => {
-            if (typeof document === 'undefined') return;
-            const match = document.cookie.match(/veritas_user=([^;]+)/);
-            const missionId = match ? match[1] : null;
-            if (missionId) {
-                const realUserId = await getUserIdFromMission(missionId);
+        const resolveUser = async () => {
+            const realUserId = await getCurrentUserId();
+            if (realUserId) {
                 setResolvedUserId(realUserId);
             }
         };
-        resolveMission();
+        resolveUser();
     }, []);
 
     // If autoStart, immediately try to load questions
@@ -1292,10 +1291,12 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
         setIsLoadingMore(true);
         try {
             // Switch to batch 1 (questions at indices 3-5)
-            if (questions.length >= 6) {
+            if (questions.length > 3) {
                 setBatch(1);
                 setCurrentIndex(0);
                 setPassedCount(0);
+                setUserAnswer(''); // Clear text input for new batch
+                setFeedback(null);
                 setQuizState('active');
                 setTimeout(() => inputRef.current?.focus(), 300);
             } else {
@@ -1336,7 +1337,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     };
 
     return (
-        <div className="col-span-1 md:col-span-1">
+        <div className="col-span-1 md:col-span-1 pb-72 md:pb-0">
             <div className="w-full bg-white/[0.03] backdrop-blur-sm rounded-2xl border border-white/5 flex flex-col relative overflow-hidden">
                 {/* Background noise */}
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none" />
@@ -1417,7 +1418,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                         {/* === ACTIVE QUIZ STATE === */}
                         {quizState === 'active' && currentQ && (
                             <motion.div
-                                key={`q-${currentIndex}`}
+                                key={`q-${batch}-${currentIndex}`}
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -20 }}
@@ -1426,7 +1427,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                 {/* Progress indicator */}
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                        Question {currentIndex + 1} of {questions.length}
+                                        Question {currentIndex + 1} of {Math.min(3, questions.length - batch * 3)}
                                     </span>
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getTagColor(currentQ.skill_tag)}`}>
                                         {currentQ.skill_tag}
@@ -1435,7 +1436,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
 
                                 {/* Progress dots */}
                                 <div className="flex gap-1.5">
-                                    {questions.map((_, i) => (
+                                    {Array.from({ length: Math.min(3, questions.length - batch * 3) }).map((_, i) => (
                                         <div
                                             key={i}
                                             className={`h-1 flex-1 rounded-full transition-all duration-300 ${i < currentIndex ? 'bg-green-500'
@@ -1456,6 +1457,11 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                     ref={inputRef}
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
+                                    onFocus={() => {
+                                        setTimeout(() => {
+                                            submitBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                        }, 400); // Wait for mobile keyboard to fully transition before scrolling
+                                    }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -1464,11 +1470,12 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                     }}
                                     placeholder="Type your answer..."
                                     rows={5}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 resize-none caret-red-500"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20 resize-none caret-red-500 transition-all duration-300"
                                 />
 
                                 {/* Submit Button */}
                                 <button
+                                    ref={submitBtnRef}
                                     onClick={handleSubmitAnswer}
                                     disabled={!userAnswer.trim() || isSubmitting}
                                     className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-800 disabled:text-gray-600 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
@@ -1508,7 +1515,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                         <X className="w-5 h-5 text-red-400 flex-shrink-0" />
                                     )}
                                     <span className={`text-sm font-bold ${feedback.passed ? 'text-green-300' : 'text-red-300'}`}>
-                                        {feedback.passed ? 'Passed!' : 'Not quite — try again next time!'}
+                                        {feedback.passed ? 'Passed!' : ''}
                                     </span>
                                     {feedback.confidence === 'high' && (
                                         <Trophy className="w-4 h-4 text-yellow-400 ml-auto" />
@@ -1530,17 +1537,46 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                     </div>
                                 )}
 
-                                {/* Next Button */}
-                                <button
-                                    onClick={handleNext}
-                                    className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                >
-                                    {currentIndex + 1 < questions.length ? (
-                                        <>Next Question <ArrowRight className="w-4 h-4" /></>
-                                    ) : (
-                                        <>See Results <Trophy className="w-4 h-4" /></>
-                                    )}
-                                </button>
+                                {/* Next Button or End of Batch Actions */}
+                                {!((batch === 0 && currentIndex === 2) || (batch === 1 && currentIndex === questions.length - 4) || (currentIndex + 1 === questions.length) || (currentIndex === 2 && batch === 1)) ? (
+                                    <button
+                                        onClick={handleNext}
+                                        className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        Next Question <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                ) : (
+                                    <div className="flex flex-col gap-2 w-full mt-4">
+                                        {/* +3 More Questions Button */}
+                                        {questions.length > 3 && batch === 0 && (
+                                            <button
+                                                onClick={handleLoadMore}
+                                                disabled={isLoadingMore}
+                                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
+                                            >
+                                                {isLoadingMore ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles className="w-4 h-4" />
+                                                        I like this, give me 3 more!
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+
+                                        {/* Save to Profile Button */}
+                                        <button
+                                            onClick={handleNext}
+                                            className="w-full py-3 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                        >
+                                            Save to my profile <Trophy className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
                             </motion.div>
                         )}
 
@@ -1566,27 +1602,6 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
                                     <p className="text-sm text-gray-400">Your answers have been recorded. Keep going!</p>
                                 </div>
 
-                                {/* +3 More Questions Button - only show if 6 questions exist AND user hasn't done batch 1 yet */}
-                                {questions.length >= 6 && batch === 0 && (
-                                    <button
-                                        onClick={handleLoadMore}
-                                        disabled={isLoadingMore}
-                                        className="w-full py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                    >
-                                        {isLoadingMore ? (
-                                            <>
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                Loading...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-3 h-3" />
-                                                Give me 3 more questions — I love this!
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-
                                 {/* Back to CTA */}
                                 <button
                                     onClick={() => { setQuizState('cta'); setBatch(0); setCurrentIndex(0); setPassedCount(0); }}
@@ -1602,3 +1617,4 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
         </div>
     );
 }
+

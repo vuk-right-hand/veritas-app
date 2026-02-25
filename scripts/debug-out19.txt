@@ -1,0 +1,14 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ≡ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+Check constraints? Let's try raw query
+{
+  "error": {
+    "code": "23514",
+    "details": "Failing row contains (8a873db5-2774-4085-8491-b049a1ae8812, X5zgFLgFwXE, 4, Sales, Test 4?, 2026-02-25 16:42:11.29706+00).",
+    "hint": null,
+    "message": "new row for relation \"video_quizzes\" violates check constraint \"video_quizzes_lesson_number_check\""
+  },
+  "data": null,
+  "count": null,
+  "status": 400,
+  "statusText": "Bad Request"
+}

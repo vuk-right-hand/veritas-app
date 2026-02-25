@@ -1,0 +1,23 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+Checking newest videos for summary_points...
+Recent videos:
+- X5zgFLgFwXE (verified): Has points? NULL
+- FK5UNNBPbgM (verified): Has points? NULL
+- romGzY0Xu0s (verified): Has points? 3
+[
+  "The 'Superpowers' plugin that forces AI to follow your rules.",
+  'Master AI debugging: The 4-phase systematic fix for any bug.',
+  'Optimize AI workflows: When to use full process vs. fast-track.'
+]
+- iQFTolh1IAk (verified): Has points? 3
+[
+  "The 'Outputs Lag' principle that guarantees future results.",
+  'Why your first 30 days of effort will likely yield zero results.',
+  'The simple heuristic to accurately predict project timelines.'
+]
+- slYZascqs34 (verified): Has points? 3
+[
+  'The secret setting to track your AI model quotas *before* you run out.',
+  "Why Gemini Pro's quota runs out fast (and how to plan for it).",
+  "Access Gemini & Opus with 'anti-gravity' for superior AI power."
+]

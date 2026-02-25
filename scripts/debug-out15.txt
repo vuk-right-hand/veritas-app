@@ -1,0 +1,45 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+Fetching models...
+models/gemini-2.5-flash (generate)
+models/gemini-2.5-pro (generate)
+models/gemini-2.0-flash (generate)
+models/gemini-2.0-flash-001 (generate)
+models/gemini-2.0-flash-exp-image-generation (generate)
+models/gemini-2.0-flash-lite-001 (generate)
+models/gemini-2.0-flash-lite (generate)
+models/gemini-2.5-flash-preview-tts (generate)
+models/gemini-2.5-pro-preview-tts (generate)
+models/gemma-3-1b-it (generate)
+models/gemma-3-4b-it (generate)
+models/gemma-3-12b-it (generate)
+models/gemma-3-27b-it (generate)
+models/gemma-3n-e4b-it (generate)
+models/gemma-3n-e2b-it (generate)
+models/gemini-flash-latest (generate)
+models/gemini-flash-lite-latest (generate)
+models/gemini-pro-latest (generate)
+models/gemini-2.5-flash-lite (generate)
+models/gemini-2.5-flash-image (generate)
+models/gemini-2.5-flash-lite-preview-09-2025 (generate)
+models/gemini-3-pro-preview (generate)
+models/gemini-3-flash-preview (generate)
+models/gemini-3.1-pro-preview (generate)
+models/gemini-3.1-pro-preview-customtools (generate)
+models/gemini-3-pro-image-preview (generate)
+models/nano-banana-pro-preview (generate)
+models/gemini-robotics-er-1.5-preview (generate)
+models/gemini-2.5-computer-use-preview-10-2025 (generate)
+models/deep-research-pro-preview-12-2025 (generate)
+models/gemini-embedding-001 
+models/aqa 
+models/imagen-4.0-generate-001 
+models/imagen-4.0-ultra-generate-001 
+models/imagen-4.0-fast-generate-001 
+models/veo-2.0-generate-001 
+models/veo-3.0-generate-001 
+models/veo-3.0-fast-generate-001 
+models/veo-3.1-generate-preview 
+models/veo-3.1-fast-generate-preview 
+models/gemini-2.5-flash-native-audio-latest 
+models/gemini-2.5-flash-native-audio-preview-09-2025 
+models/gemini-2.5-flash-native-audio-preview-12-2025 

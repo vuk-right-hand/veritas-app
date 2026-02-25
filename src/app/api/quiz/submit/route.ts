@@ -15,6 +15,29 @@ function calculateTier(score: number): string {
     return 'Uncommon';
 }
 
+// Hard fail conditions
+const HARD_FAIL_WORDS = ['stupid', 'fuck', 'awful', 'f you', 'f u', 'bitch', 'shit', 'asshole', 'cunt', 'dick', 'idiot', 'moron', 'dumb', 'fck', 'fukk'];
+const NEGATIVE_PHRASES = ['dont know', "don't know", 'dunno', 'who cares', 'idk', 'i have no idea', 'no idea', 'not sure', 'whatever', 'giving up', 'give up'];
+
+function checkHardFail(answer: string): boolean {
+    const trimmed = answer.trim().toLowerCase();
+
+    // 1. One letter answers
+    if (trimmed.length <= 1) return true;
+
+    // 2. Swearing/Profanity
+    if (HARD_FAIL_WORDS.some(word => trimmed.includes(word))) return true;
+
+    // 3. Negative/Give-up phrases
+    if (NEGATIVE_PHRASES.some(phrase => trimmed.includes(phrase))) return true;
+
+    // 4. Gibberish (5+ repeating characters or 20+ character words without spaces)
+    if (/(.)\1{4,}/.test(trimmed)) return true;
+    if (trimmed.split(/\s+/).some(word => word.length > 20)) return true;
+
+    return false;
+}
+
 export async function POST(req: Request) {
     try {
         const { user_id, video_id, topic, question, user_answer } = await req.json();
@@ -23,32 +46,40 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // 1. Grade with Gemini 1.5 Flash (strict JSON output)
-        const prompt = `You are the primary learning evaluator for Veritas, a premium, high-signal educational video app. Your job is to assess a user's answer to a specific question based on a video they just watched.
+        const isHardFail = checkHardFail(user_answer);
 
-Your grading philosophy is STRICTLY ENCOURAGING AND FORGIVING. Users are likely typing on mobile devices. If they demonstrate ANY basic understanding of the core concept, you must pass them. Do not grade for grammar, spelling, or academic perfection. Grade for effort and conceptual grasp.
+        // 1. Grade with Gemini 1.5 Flash (strict JSON output)
+        const prompt = `You are the primary learning evaluator for Veritas, a premium educational app.
+Your job is to assess a user's answer to a specific question based on a video they just watched.
 
 INPUT VARIABLES:
 - Topic: ${topic}
 - Question: ${question}
 - User's Answer: ${user_answer}
 
+${isHardFail ? `STATUS: The user has AUTOMATICALLY FAILED due to completely invalid input.
 YOUR TASK:
-1. Determine if the user passed or failed. (Fail them ONLY if the answer is completely blank, outright spam, or 100% contradictory to the topic).
-2. Generate exactly 1 to 3 sentences of feedback.
-3. Assign a confidence score based on how profound their answer is (low, medium, high). 'High' answers will be featured on their public profile.
+1. Set "passed": false.
+2. Set "confidence": "low".
+3. Provide a helpful tip or useful information regarding the QUESTION. 
+CRITICAL RULE: NEVER explain why they failed. NEVER mention their answer. ONLY provide a useful tip or insight on how to think about the question. (e.g., "A great way to think about this is...").` : `YOUR TASK:
+1. Determine if the user passed or failed. Open-ended questions require effort. Single-word answers (e.g. "yes", "no", "me") or completely off-topic answers MUST fail ("passed": false).
+2. If they demonstrate basic understanding of the core concept and it's on-topic, they pass ("passed": true). Grade for effort, not grammar.
+3. Provide feedback based on their result.
 
-FEEDBACK CONSTRAINTS (CRITICAL):
-- Sentence 1: MUST be an encouraging affirmation (e.g., "Spot on.", "Great angle.", "Love this approach.").
-- Sentence 2: MUST add one specific, actionable expansion on their idea. Connect it to real-world application.
+CRITICAL FEEDBACK RULES:
+- If passed: Sentence 1 MUST be an encouraging affirmation (e.g., "Spot on.", "Great angle."). Sentence 2 MUST add an actionable expansion.
+- If failed: NEVER explain why they failed (don't say "Your answer was too short" or "You missed the point"). INSTEAD, provide a useful tip or piece of information regarding the QUESTION itself (e.g., "When considering [topic], it's highly beneficial to...").`}
+
+GLOBAL CONSTRAINTS:
 - MAXIMUM length: 3 sentences. MAXIMUM word count: 40 words. Do not exceed this under any circumstances.
+- You must respond ONLY with a valid JSON object. No markdown, no conversational text before or after.
 
 OUTPUT FORMAT:
-You must respond ONLY with a valid JSON object. No markdown, no conversational text before or after.
 {
-  "passed": true,
-  "confidence": "medium",
-  "feedback": "Your strictly 3-sentence feedback goes here."
+  "passed": ${isHardFail ? "false" : "true or false"},
+  "confidence": "low, medium, or high",
+  "feedback": "Your strictly compliant feedback goes here."
 }`;
 
         const model = getQuizAiModel();

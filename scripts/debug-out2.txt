@@ -1,0 +1,128 @@
+﻿[dotenv@17.3.1] injecting env (4) from .env.local -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+Checking User Missions for vpppv...
+Recent missions: [
+  {
+    id: '2ff3da76-e4a4-49f6-b1b1-02f2e106008c',
+    user_id: '1bf4d78c-ea52-4176-b17c-532576aded15',
+    goal: 'Master VibeCoding',
+    obstacle: 'Lack of Focus',
+    status: 'active',
+    preferences: {},
+    created_at: '2026-02-25T13:53:34.10798+00:00',
+    updated_at: null,
+    name: 'vpppv',
+    email: 'vpppv@gmail.com'
+  },
+  {
+    id: '81e47c84-fcc5-4dd0-bf88-5d9569f2979f',
+    user_id: '3839fdb2-bb26-4d57-a2e7-7030bdcfdcd1',
+    goal: 'Master VibeCoding',
+    obstacle: "Don't Know Where to Start",
+    status: 'active',
+    preferences: {},
+    created_at: '2026-02-24T17:27:29.86484+00:00',
+    updated_at: null,
+    name: 'VukVugla',
+    email: 'vuglapjescic@gmail.com'
+  },
+  {
+    id: '4e054df3-260c-4d76-a3a5-9ea30a3f8041',
+    user_id: '3693d425-d01e-4042-a44c-c454baeac6f4',
+    goal: 'Build a Personal Brand',
+    obstacle: "Don't Know Where to Start",
+    status: 'active',
+    preferences: {},
+    created_at: '2026-02-24T17:08:40.288774+00:00',
+    updated_at: null,
+    name: 'Blavugla',
+    email: 'blablavukpjescic@gmail.com'
+  },
+  {
+    id: 'e380b75a-0338-4679-9969-baccead52daf',
+    user_id: 'f4845d63-027f-49b9-810c-89a2e3aeb832',
+    goal: 'Master VibeCoding',
+    obstacle: 'Lack of Focus',
+    status: 'active',
+    preferences: {},
+    created_at: '2026-02-24T15:47:00.153771+00:00',
+    updated_at: null,
+    name: 'Vugla',
+    email: 'vuglavukpjescic@gmail.com'
+  },
+  {
+    id: '49ab00a0-0f92-49ff-be97-7a058c0f2a28',
+    user_id: 'b94606d5-4fa9-4016-ab10-df3e1886a823',
+    goal: 'Build a Personal Brand',
+    obstacle: "Don't Know Where to Start",
+    status: 'active',
+    preferences: {},
+    created_at: '2026-02-18T17:29:26.085227+00:00',
+    updated_at: null,
+    name: 'Megi',
+    email: 'megisuperduper3000@gmail.com'
+  }
+]
+Found vpppv! 1bf4d78c-ea52-4176-b17c-532576aded15
+Checking recent quiz attempts...
+[
+  {
+    user_id: '06187afa-06aa-4c8e-b502-f9ca81d90fb2',
+    video_id: 'iQFTolh1IAk',
+    created_at: '2026-02-25T14:40:21.090768+00:00',
+    question: 'Describe a past project you quit too early. What was the lag?'
+  },
+  {
+    user_id: '06187afa-06aa-4c8e-b502-f9ca81d90fb2',
+    video_id: 'iQFTolh1IAk',
+    created_at: '2026-02-25T14:39:01.427218+00:00',
+    question: 'What specific daily inputs will you commit to for 90 days?'
+  },
+  {
+    user_id: '06187afa-06aa-4c8e-b502-f9ca81d90fb2',
+    video_id: 'iQFTolh1IAk',
+    created_at: '2026-02-25T14:38:24.001472+00:00',
+    question: "How will you apply the 'outputs lag' principle to your next project?"
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:56:54.5304+00:00',
+    question: 'How can a multi-model AI platform enhance your content creation?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:55:51.471949+00:00',
+    question: 'How to adjust project planning for rapid Gemini Pro quota use?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:54:36.819873+00:00',
+    question: 'Integrate AI quota checks into your daily workflow? How?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:52:20.143634+00:00',
+    question: 'How can a multi-model AI platform enhance your content creation?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:51:07.916013+00:00',
+    question: 'How to adjust project planning for rapid Gemini Pro quota use?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'slYZascqs34',
+    created_at: '2026-02-25T13:49:42.745708+00:00',
+    question: 'Integrate AI quota checks into your daily workflow? How?'
+  },
+  {
+    user_id: 'anonymous',
+    video_id: 'Qgi5hb7yxjU',
+    created_at: '2026-02-25T12:10:27.515441+00:00',
+    question: 'How can AI voice/video cloning scale your social media presence?'
+  }
+]
