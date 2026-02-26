@@ -201,3 +201,98 @@ export async function creatorLogin(email: string, password: string) {
         return { success: false, message: e.message || "An unexpected error occurred." };
     }
 }
+
+export async function claimChannelForExistingUser(
+    email: string,
+    channelInfo: {
+        url: string;
+        title: string;
+        token: string;
+    }
+) {
+    console.log(`[Authorization] Attempting to link channel ${channelInfo.title} to existing session`);
+
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+                    } catch {
+                        // Ignored
+                    }
+                },
+            },
+        }
+    );
+
+    try {
+        // --- 1. SECURELY GET USER ID ---
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            console.error("[Authorization] Unauthorized link attempt.");
+            return { success: false, message: "You must be logged in to link a channel." };
+        }
+
+        const userId = user.id;
+
+        // --- 2. SECURITY CHECK ---
+        const { data: request, error: verifyFetchError } = await supabaseAdmin
+            .from('verification_requests')
+            .select('verified')
+            .eq('email', email)
+            .eq('channel_url', channelInfo.url)
+            .eq('token', channelInfo.token)
+            .single();
+
+        if (verifyFetchError || !request?.verified) {
+            console.error("[Authorization] Security Violation: Channel ownership not verified.");
+            return { success: false, message: "Security Violation: Channel ownership not verified." };
+        }
+        // --- END SECURITY CHECK ---
+
+        // 3. Link User to Channel in 'creators' table
+        const { data: existingCreator } = await supabaseAdmin
+            .from('creators')
+            .select('id, user_id')
+            .eq('channel_url', channelInfo.url)
+            .single();
+
+        if (existingCreator) {
+            if (existingCreator.user_id !== userId) {
+                return { success: false, message: "This channel is already claimed by another user." };
+            }
+            return { success: true, message: "Channel already linked to this account." };
+        }
+
+        // 4. Create Creator Profile
+        const { error: insertError } = await supabaseAdmin
+            .from('creators')
+            .insert({
+                user_id: userId,
+                public_contact_email: email, // The user-provided contact email
+                channel_url: channelInfo.url,
+                channel_name: channelInfo.title,
+                channel_id: channelInfo.url, // Fallback
+                verification_token: channelInfo.token,
+                is_verified: true,
+                human_score: 100 // Default
+            });
+
+        if (insertError) {
+            console.error("[Authorization] Insert Error:", insertError);
+            throw new Error("Failed to create creator profile: " + insertError.message);
+        }
+
+        return { success: true, message: "Channel successfully linked to your account!" };
+
+    } catch (error: any) {
+        console.error("[Authorization] Error:", error);
+        return { success: false, message: error.message || "An unexpected error occurred." };
+    }
+}

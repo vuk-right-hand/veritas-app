@@ -130,9 +130,32 @@ export default function ClaimChannelPage() {
         try {
             const result = await verifyChannelOwnership(email, channelUrl, verificationToken);
             if (result.success) {
-                // Instead of jumping to claimed, go to Password Step
                 setError(""); // Ensure error doesn't bleed into next step
-                setStep(3); // 3 = Password Set
+
+                // --- BYPASS LOGIC ---
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (session && session.user) {
+                    setStep(3); // Go to step 3 to show loading/success State
+                    setClaimStatus('loading');
+
+                    const { claimChannelForExistingUser } = await import('../actions/auth-actions');
+                    const bypassResult = await claimChannelForExistingUser(email, {
+                        url: channelUrl,
+                        title: channelName,
+                        token: verificationToken
+                    });
+
+                    if (bypassResult.success) {
+                        setClaimStatus('success');
+                        setTimeout(() => router.push('/creator-dashboard'), 3000);
+                    } else {
+                        setClaimStatus('error');
+                        setError(bypassResult.message);
+                    }
+                } else {
+                    setStep(3); // 3 = Password Set for new users
+                }
             } else {
                 setError("Verification failed. We couldn't find the token in your channel description. Please try again.");
                 setIsTimerRunning(false); // Reset to allow retry
