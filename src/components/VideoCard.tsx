@@ -6,6 +6,8 @@ import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send,
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
 import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
 import { getQuizQuestions, getUserIdFromMission, getCurrentUserId } from '@/app/actions/quiz-actions';
+import { useUser } from '@/components/UserContext';
+import ProfileRequiredModal from '@/components/ProfileRequiredModal';
 
 interface VideoCardProps {
     videoId: string;
@@ -25,11 +27,13 @@ interface VideoCardProps {
 }
 
 export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView }: VideoCardProps) {
+    const { userProfile, isLoading: isUserLoading } = useUser();
     const [isOpen, setIsOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
     const [isVideoEnded, setIsVideoEnded] = useState(false);
     const [showQuizOverlay, setShowQuizOverlay] = useState(false);
+    const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
     const [mobileStartSignal, setMobileStartSignal] = useState(0);
     const quizPanelRef = useRef<HTMLDivElement>(null);
 
@@ -234,12 +238,16 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                     lastKnownDurationRef.current = dur;
                     if (dur > 0) {
                         setProgress((curr / dur) * 100);
+                        // Trigger end screen earlier (5-6s before)
+                        if (dur - curr <= 6 && !isVideoEnded && curr > 10) {
+                            setIsVideoEnded(true);
+                        }
                     }
                 }
             }, 500); // Update every 500ms
         }
         return () => clearInterval(interval);
-    }, [isOpen, isPlaying]);
+    }, [isOpen, isPlaying, isVideoEnded]);
 
     // Periodic watch progress reporter (every 30s while playing)
     // NOTE: sendWatchProgress is now stable (only depends on videoId),
@@ -318,20 +326,24 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     };
 
     const handlePostComment = async () => {
+        if (!userProfile) {
+            setShowProfileRequiredModal(true);
+            return;
+        }
         if (!newComment.trim()) return;
         setIsPostingComment(true);
 
         // Optimistic Update
         const optimisticComment = {
             id: `temp-${Date.now()}`,
-            user_name: 'You',
+            user_name: userProfile.name,
             text: newComment,
             created_at: new Date().toISOString()
         };
         setComments(prev => [optimisticComment, ...prev]);
         setNewComment("");
 
-        const result = await postComment(videoId, optimisticComment.text);
+        const result = await postComment(videoId, optimisticComment.text, userProfile.name, userProfile.id);
 
         if (result.success && result.comment) {
             // Replace temp with real
@@ -343,6 +355,23 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         }
         setIsPostingComment(false);
     };
+
+    // --- Custom Event Listener for QuizPanel ---
+    // Listen for the custom event dispatched by QuizPanel when an unauthenticated
+    // user attempts to start a quiz or clicks the desktop CTA.
+    useEffect(() => {
+        const handleRequireProfile = () => {
+            setShowProfileRequiredModal(true);
+        };
+
+        window.addEventListener('requireProfile', handleRequireProfile);
+
+        return () => {
+            window.removeEventListener('requireProfile', handleRequireProfile);
+        };
+    }, []);
+
+    // --- End Custom Event Listener ---
 
     const handleFullscreen = async () => {
         if (!videoContainerRef.current) return;
@@ -684,8 +713,8 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                     </div>
                                                                 ) : (
                                                                     <div className="text-center">
-                                                                        <p className="text-sm font-bold text-white mb-1">Great watch!</p>
-                                                                        <p className="text-xs text-gray-500">Now prove you got something from it.</p>
+                                                                        <p className="text-[22px] font-bold text-white mb-1">Great watch!</p>
+                                                                        <p className="text-sm text-gray-400">But don't make this a brain porn.</p>
                                                                     </div>
                                                                 )}
 
@@ -694,9 +723,13 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                                 {/* Proof of Work CTA */}
                                                                 <div className="text-center space-y-3">
-                                                                    <p className="text-[11px] text-gray-400 italic">{`Don't make this a "brain-porn"!`}</p>
                                                                     <button
                                                                         onClick={() => {
+                                                                            if (!userProfile) {
+                                                                                setIsVideoEnded(false);
+                                                                                setShowProfileRequiredModal(true);
+                                                                                return;
+                                                                            }
                                                                             setIsVideoEnded(false);
                                                                             const isMobile = window.innerWidth < 768;
                                                                             if (isMobile) {
@@ -712,7 +745,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                         className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center gap-2 mx-auto"
                                                                     >
                                                                         <Zap className="w-4 h-4 fill-current" />
-                                                                        Proof of Work
+                                                                        Claim your knowledge!
                                                                     </button>
                                                                 </div>
                                                             </motion.div>
@@ -1153,6 +1186,12 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                         </div> {/* End Modal Wrapper */}
                     </>)}
             </AnimatePresence>
+
+            {/* Profile Required Modal */}
+            <ProfileRequiredModal
+                isOpen={showProfileRequiredModal}
+                onClose={() => setShowProfileRequiredModal(false)}
+            />
         </>
     );
 }
@@ -1190,6 +1229,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const submitBtnRef = useRef<HTMLButtonElement>(null);
+    const { userProfile } = useUser();
 
     // Resolve the current user UUID on mount (Viewer or Creator)
     useEffect(() => {
@@ -1217,6 +1257,13 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     }, [mobileStartSignal]);
 
     const handleStartQuiz = async () => {
+        if (!userProfile) {
+            // Signal to parent VideoCard to show modal
+            const customEvent = new CustomEvent('requireProfile');
+            window.dispatchEvent(customEvent);
+            return;
+        }
+
         setQuizState('loading');
         try {
             const data = await getQuizQuestions(videoId);
@@ -1329,6 +1376,13 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
 
     // On desktop: clicking CTA opens overlay instead of staying in panel
     const handleDesktopCta = () => {
+        if (!userProfile) {
+            // Signal to parent VideoCard to show modal
+            const customEvent = new CustomEvent('requireProfile');
+            window.dispatchEvent(customEvent);
+            return;
+        }
+
         if (onOpenOverlay && window.innerWidth >= 768) {
             onOpenOverlay();
         } else {

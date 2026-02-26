@@ -550,13 +550,14 @@ export async function getComments(videoId: string, limit = 10, offset = 0) {
     return data;
 }
 
-export async function postComment(videoId: string, text: string, userName = 'Community Member') {
+export async function postComment(videoId: string, text: string, userName = 'Community Member', userId?: string) {
     const { data, error } = await supabase
         .from('comments')
         .insert({
             video_id: videoId,
             text,
-            user_name: userName
+            user_name: userName,
+            user_id: userId
         })
         .select()
         .single();

@@ -703,13 +703,29 @@ export default function Dashboard() {
                             </p>
 
                             <div className="w-full max-w-sm relative">
+                                <AnimatePresence>
+                                    {suggestionStatus === 'success' && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: -64, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute left-0 right-0 flex justify-center z-50 pointer-events-auto"
+                                            onClick={() => setSuggestionStatus('idle')}
+                                        >
+                                            <div className="bg-[#1a1a1a] border border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.4)] rounded-2xl px-5 py-3 text-center cursor-pointer max-w-[280px]">
+                                                <p className="text-[15px] font-bold text-white mb-0.5">Thank you!🙏</p>
+                                                <p className="text-xs text-green-100/80">We'll email you when your video is reviewed.</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                                 <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl" />
                                 <input
                                     type="text"
-                                    value={suggestionStatus === 'success' ? 'Thank you! ❤️' : suggestionUrl}
+                                    value={suggestionUrl}
                                     onChange={(e) => { if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value); }}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
-                                    placeholder="Paste video or channel link..."
+                                    placeholder={suggestionStatus === 'success' ? '' : 'Paste video or channel link...'}
                                     disabled={suggestionStatus === 'success'}
                                     className={`w-full border-2 rounded-full py-4 px-6 text-sm focus:outline-none relative z-10 ${suggestionStatus === 'success'
                                         ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center'
@@ -791,18 +807,34 @@ export default function Dashboard() {
                     < div className="w-full max-w-lg mx-auto flex flex-col items-center" >
                         <span className="text-[10px] text-red-500 uppercase tracking-widest mb-2 font-bold animate-pulse">Let's promote the good ones</span>
                         <div className="w-full relative group">
+                            <AnimatePresence>
+                                {suggestionStatus === 'success' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: -72, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute left-0 right-0 flex justify-center z-50 pointer-events-auto"
+                                        onClick={() => setSuggestionStatus('idle')}
+                                    >
+                                        <div className="bg-[#1a1a1a] border border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.4)] rounded-2xl px-6 py-3.5 text-center cursor-pointer">
+                                            <p className="text-[15px] font-bold text-white mb-0.5">Thank you!🙏</p>
+                                            <p className="text-sm text-green-100/80">We'll email you when your video is reviewed.</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                             {/* Pulsating Glow Background */}
                             <div className="absolute inset-0 bg-red-600/30 rounded-full blur-xl animate-pulse" />
 
                             <input
                                 type="text"
                                 suppressHydrationWarning
-                                value={suggestionStatus === 'success' ? "Success! Thank you!" : suggestionUrl}
+                                value={suggestionUrl}
                                 onChange={(e) => {
                                     if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value);
                                 }}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSuggest()}
-                                placeholder="Paste your favorite video/creator..."
+                                placeholder={suggestionStatus === 'success' ? '' : 'Paste your favorite video/creator...'}
                                 disabled={suggestionStatus === 'success'}
                                 className={`w-full border-2 rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 shadow-[0_0_20px_rgba(220,38,38,0.4)] ${suggestionStatus === 'success'
                                     ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold text-center tracking-wide'

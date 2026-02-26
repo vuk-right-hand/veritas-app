@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { UserProvider } from "@/components/UserContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -48,19 +49,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-        {/* Service Worker Registration */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
-                });
-              }
-            `,
-          }}
-        />
+        <UserProvider>
+          {children}
+          {/* Service Worker Registration */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js').catch(() => {});
+                  });
+                }
+              `,
+            }}
+          />
+        </UserProvider>
       </body>
     </html>
   );

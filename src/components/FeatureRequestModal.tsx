@@ -8,9 +8,10 @@ import { submitFeatureRequest } from '@/app/actions/feature-actions';
 interface FeatureRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
+    userProfile: { id: string; name: string; } | null;
 }
 
-export default function FeatureRequestModal({ isOpen, onClose }: FeatureRequestModalProps) {
+export default function FeatureRequestModal({ isOpen, onClose, userProfile }: FeatureRequestModalProps) {
     const [thought, setThought] = useState("");
     const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
 
@@ -19,7 +20,7 @@ export default function FeatureRequestModal({ isOpen, onClose }: FeatureRequestM
         if (!thought.trim()) return;
 
         setStatus('submitting');
-        const result = await submitFeatureRequest(thought);
+        const result = await submitFeatureRequest(thought, userProfile?.id);
 
         if (result.success) {
             setStatus('success');

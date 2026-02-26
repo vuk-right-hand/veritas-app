@@ -6,7 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MessageSquare, Send, Sparkles, Calendar, Lightbulb, Loader2, ChevronDown } from 'lucide-react';
 import SmartVideoPlayer from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
+import ProfileRequiredModal from '@/components/ProfileRequiredModal';
 import { getComments, postComment } from '@/app/actions/video-actions';
+import { useUser } from '@/components/UserContext';
 
 // Mock Data for "Founder Updates"
 const MOCK_UPDATES = [
@@ -29,7 +31,9 @@ const MOCK_UPDATES = [
 ];
 
 export default function FounderMeeting() {
+    const { userProfile, isLoading: isUserLoading } = useUser();
     const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
+    const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
 
     // Home Tab State
     const [activeUpdate, setActiveUpdate] = useState(MOCK_UPDATES[0]);
@@ -73,19 +77,23 @@ export default function FounderMeeting() {
     };
 
     const handlePostComment = async () => {
+        if (!userProfile) {
+            setShowProfileRequiredModal(true);
+            return;
+        }
         if (!newComment.trim()) return;
         setIsPostingComment(true);
 
         const optimisticComment = {
             id: `temp-${Date.now()}`,
-            user_name: 'You',
+            user_name: userProfile.name,
             text: newComment,
             created_at: new Date().toISOString()
         };
         setComments(prev => [optimisticComment, ...prev]);
         setNewComment("");
 
-        const result = await postComment(activeUpdate.videoId, optimisticComment.text);
+        const result = await postComment(activeUpdate.videoId, optimisticComment.text, userProfile.name, userProfile.id);
 
         if (result.success && result.comment) {
             setComments(prev => prev.map(c => c.id === optimisticComment.id ? result.comment : c));
@@ -278,7 +286,13 @@ export default function FounderMeeting() {
                                 Have an idea that would make Veritas better? Let us know directly.
                             </p>
                             <button
-                                onClick={() => setIsFeatureModalOpen(true)}
+                                onClick={() => {
+                                    if (!userProfile) {
+                                        setShowProfileRequiredModal(true);
+                                    } else {
+                                        setIsFeatureModalOpen(true);
+                                    }
+                                }}
                                 className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-medium transition-colors"
                             >
                                 Submit Request
@@ -291,6 +305,13 @@ export default function FounderMeeting() {
                 <FeatureRequestModal
                     isOpen={isFeatureModalOpen}
                     onClose={() => setIsFeatureModalOpen(false)}
+                    userProfile={userProfile}
+                />
+
+                {/* Profile Required Modal */}
+                <ProfileRequiredModal
+                    isOpen={showProfileRequiredModal}
+                    onClose={() => setShowProfileRequiredModal(false)}
                 />
             </main>
         </div>
