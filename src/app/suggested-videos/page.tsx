@@ -8,13 +8,15 @@ import Hexagon from '@/components/Hexagon';
 import Portal from '@/components/ui/portal';
 import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo } from '@/app/actions/video-actions';
 import { suggestChannel, getPendingChannels, getApprovedChannels, getDeniedChannels, getStorageChannels, moderateChannel, deleteChannel } from '@/app/actions/channel-actions';
+import { getFeatureRequestsByStatus, moderateFeatureRequest, deleteFeatureRequest } from '@/app/actions/feature-actions';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Column Types
 type StatusColumn = 'pending' | 'verified' | 'banned' | 'storage';
 
 export default function SuggestedVideosPage() {
     // Tab State
-    const [activeView, setActiveView] = useState<'videos' | 'channels'>('videos');
+    const [activeView, setActiveView] = useState<'videos' | 'channels' | 'features'>('videos');
     const [suggestionUrl, setSuggestionUrl] = useState("");
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionStatus, setSuggestionStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -32,8 +34,16 @@ export default function SuggestedVideosPage() {
         banned: [],
         storage: []
     });
+    const [featureColumns, setFeatureColumns] = useState<{ [key in StatusColumn]: any[] }>({
+        pending: [],
+        verified: [],
+        banned: [],
+        storage: []
+    });
     const [isLoading, setIsLoading] = useState(false);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [selectedFeature, setSelectedFeature] = useState<any | null>(null); // For the feature request modal
+
     // Changed to CSSProperties to support top/bottom switching
     const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
@@ -77,7 +87,7 @@ export default function SuggestedVideosPage() {
                 banned: banned || [],
                 storage: storage || []
             });
-        } else {
+        } else if (activeView === 'channels') {
             const [pending, approved, banned, storage] = await Promise.all([
                 getPendingChannels(),
                 getApprovedChannels(),
@@ -90,14 +100,34 @@ export default function SuggestedVideosPage() {
                 banned: banned || [],
                 storage: storage || []
             });
+        } else {
+            const [pending, approved, banned, storage] = await Promise.all([
+                getFeatureRequestsByStatus('pending'),
+                getFeatureRequestsByStatus('verified'),
+                getFeatureRequestsByStatus('banned'),
+                getFeatureRequestsByStatus('storage')
+            ]);
+            setFeatureColumns({
+                pending: pending || [],
+                verified: approved || [],
+                banned: banned || [],
+                storage: storage || []
+            });
         }
         setIsLoading(false);
     };
 
     const handleMove = async (id: string, toStatus: StatusColumn) => {
         setActiveMenuId(null);
-        const currentData = activeView === 'videos' ? columns : channelColumns;
-        const setMethod = activeView === 'videos' ? setColumns : setChannelColumns;
+        let currentData = columns;
+        let setMethod = setColumns;
+        if (activeView === 'channels') {
+            currentData = channelColumns;
+            setMethod = setChannelColumns;
+        } else if (activeView === 'features') {
+            currentData = featureColumns;
+            setMethod = setFeatureColumns;
+        }
 
         const sourceColumnKey = Object.keys(currentData).find(key =>
             currentData[key as StatusColumn].some((v: any) => v.id === id)
@@ -122,8 +152,10 @@ export default function SuggestedVideosPage() {
         let result;
         if (activeView === 'videos') {
             result = await moderateVideo(id, serverAction);
-        } else {
+        } else if (activeView === 'channels') {
             result = await moderateChannel(id, serverAction);
+        } else {
+            result = await moderateFeatureRequest(id, serverAction);
         }
 
         if (!result.success) {
@@ -213,8 +245,15 @@ export default function SuggestedVideosPage() {
 
         setActiveMenuId(null);
 
-        const currentData = activeView === 'videos' ? columns : channelColumns;
-        const setMethod = activeView === 'videos' ? setColumns : setChannelColumns;
+        let currentData = columns;
+        let setMethod = setColumns;
+        if (activeView === 'channels') {
+            currentData = channelColumns;
+            setMethod = setChannelColumns;
+        } else if (activeView === 'features') {
+            currentData = featureColumns;
+            setMethod = setFeatureColumns;
+        }
 
         // Optimistic UI Removal
         const sourceColumnKey = Object.keys(currentData).find(key =>
@@ -231,8 +270,10 @@ export default function SuggestedVideosPage() {
         let result;
         if (activeView === 'videos') {
             result = await deleteVideo(id);
-        } else {
+        } else if (activeView === 'channels') {
             result = await deleteChannel(id);
+        } else {
+            result = await deleteFeatureRequest(id);
         }
 
         if (!result.success) {
@@ -262,7 +303,7 @@ export default function SuggestedVideosPage() {
     };
 
     const renderColumn = (title: string, status: StatusColumn, icon: any, colorClass: string) => {
-        const dataList = activeView === 'videos' ? columns[status] : channelColumns[status];
+        const dataList = activeView === 'videos' ? columns[status] : activeView === 'channels' ? channelColumns[status] : featureColumns[status];
         return (
             <div
                 className={`flex-1 min-w-[300px] flex flex-col h-full bg-[#111] rounded-2xl border transition-all ${dragOverColumn === status ? 'border-red-500 bg-red-900/10' : 'border-white/5 overflow-hidden'}`}
@@ -286,7 +327,10 @@ export default function SuggestedVideosPage() {
                             key={item.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, item.id)}
-                            className={`group relative bg-black/40 border border-white/5 rounded-xl p-2 hover:border-white/20 transition-all ${draggedVideoId === item.id ? 'opacity-50' : 'opacity-100'} cursor-grab active:cursor-grabbing`}
+                            onClick={() => {
+                                if (activeView === 'features') setSelectedFeature(item);
+                            }}
+                            className={`group relative bg-black/40 border border-white/5 rounded-xl p-2 hover:border-white/20 transition-all ${draggedVideoId === item.id ? 'opacity-50' : 'opacity-100'} ${activeView === 'features' ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
                         >
                             {/* Row Layout */}
                             <div className="flex items-center gap-3">
@@ -298,7 +342,7 @@ export default function SuggestedVideosPage() {
                                             className="w-full h-full object-cover opacity-80"
                                         />
                                     </div>
-                                ) : (
+                                ) : activeView === 'channels' ? (
                                     <div className="w-12 h-12 rounded-full bg-gray-900 overflow-hidden flex-shrink-0 relative pointer-events-none border border-white/10">
                                         {item.avatar_url ? (
                                             <img
@@ -313,6 +357,16 @@ export default function SuggestedVideosPage() {
                                             <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs font-bold">CH</div>
                                         )}
                                     </div>
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gray-900 overflow-hidden flex-shrink-0 relative pointer-events-none border border-white/10">
+                                        {item.avatar_url ? (
+                                            <img src={item.avatar_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs font-bold">
+                                                {item.username?.slice(0, 2).toUpperCase() || 'U'}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 {/* 2. Info (Middle) */}
@@ -323,6 +377,13 @@ export default function SuggestedVideosPage() {
                                                 {item.title || item.id}
                                             </h4>
                                         </a>
+                                    ) : activeView === 'features' ? (
+                                        <>
+                                            <div className="text-[10px] text-gray-400 mb-0.5">{item.username}</div>
+                                            <h4 className="text-xs font-medium text-gray-200 line-clamp-2 leading-tight title-font italic" title={item.title}>
+                                                "{item.title}"
+                                            </h4>
+                                        </>
                                     ) : (
                                         <h4 className="text-xs font-bold text-gray-200 line-clamp-2 leading-tight mb-1" title={item.title || "Unknown Title"}>
                                             {item.title || item.id}
@@ -410,6 +471,12 @@ export default function SuggestedVideosPage() {
                         >
                             Channels
                         </button>
+                        <button
+                            onClick={() => setActiveView('features')}
+                            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeView === 'features' ? 'bg-yellow-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Feature Requests
+                        </button>
                     </div>
                 </div>
             </nav>
@@ -474,7 +541,7 @@ export default function SuggestedVideosPage() {
                             >
                                 {(() => {
                                     // Find the active item and its status
-                                    const currentDataList = activeView === 'videos' ? columns : channelColumns;
+                                    const currentDataList = activeView === 'videos' ? columns : activeView === 'channels' ? channelColumns : featureColumns;
                                     let activeItem: any = null;
                                     let activeStatus: StatusColumn | null = null;
                                     for (const statusEnv of ['pending', 'verified', 'banned', 'storage'] as StatusColumn[]) {
@@ -508,6 +575,54 @@ export default function SuggestedVideosPage() {
                     )}
                 </div>
             </main>
+
+            {/* Feature Request Modal Overlay */}
+            <AnimatePresence>
+                {selectedFeature && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSelectedFeature(null)}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] grid place-items-center p-4 cursor-pointer"
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#111] border border-white/10 rounded-2xl p-6 shadow-2xl max-w-lg w-full cursor-default"
+                        >
+                            <div className="flex items-start justify-between mb-4 pb-4 border-b border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gray-900 border border-white/10 overflow-hidden relative">
+                                        {selectedFeature.avatar_url ? (
+                                            <img src={selectedFeature.avatar_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold text-sm">
+                                                {selectedFeature.username?.slice(0, 2).toUpperCase() || 'U'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold text-white mb-0.5">{selectedFeature.username}</div>
+                                        <div className="text-[10px] text-gray-500">{new Date(selectedFeature.created_at).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedFeature(null)}
+                                    className="p-1 hover:bg-white/10 rounded-full text-gray-500 hover:text-white transition-colors"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                                {selectedFeature.title}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
