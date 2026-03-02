@@ -36,7 +36,7 @@ export default function LoginPage() {
             <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[120px] pointer-events-none" />
 
             <div className="w-full max-w-md relative z-10">
-                <Link href="/onboarding" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group">
+                <Link href="/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors group">
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Back
                 </Link>

@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 interface ProfileRequiredModalProps {
     isOpen: boolean;
     onClose: () => void;
+    source?: 'default' | 'profile' | 'comment' | 'quiz';
 }
 
-export default function ProfileRequiredModal({ isOpen, onClose }: ProfileRequiredModalProps) {
+export default function ProfileRequiredModal({ isOpen, onClose, source = 'default' }: ProfileRequiredModalProps) {
     const router = useRouter();
 
     const handleLoginClick = (e: React.MouseEvent) => {
@@ -61,28 +62,39 @@ export default function ProfileRequiredModal({ isOpen, onClose }: ProfileRequire
                                 <UserPlus className="w-8 h-8" />
                             </div>
 
-                            {/* Content */}
-                            <h2 className="text-2xl font-bold text-white mb-3">Unlock All Features!</h2>
-                            <p className="text-gray-400 mb-8 leading-relaxed">
-                                Customize the feed and claim your profile in 30 seconds.
-                            </p>
+                            {/* Conditional Content */}
+                            {source !== 'profile' && (
+                                <>
+                                    <h2 className="text-2xl font-bold text-white mb-3">Unlock All Features!</h2>
+                                    <p className="text-gray-400 mb-8 leading-relaxed">
+                                        Customize the feed and claim your profile in 30 seconds.
+                                    </p>
+                                </>
+                            )}
 
-                            {/* Action Button */}
+                            {/* Action Buttons */}
                             <button
                                 onClick={(e) => {
+                                    e.preventDefault();
                                     e.stopPropagation();
-                                    router.push('/onboarding');
+                                    onClose();
+                                    router.push('/login');
                                 }}
-                                className="w-full py-4 px-6 bg-white hover:bg-gray-200 text-black font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
+                                className="w-full py-3 px-6 bg-white hover:bg-gray-200 text-black font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-3"
                             >
-                                Customize Your Feed
+                                Login
                             </button>
 
                             <button
-                                onClick={handleLoginClick}
-                                className="mt-4 text-sm text-gray-500 hover:text-white transition-colors cursor-pointer relative z-10 p-2"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onClose();
+                                    router.push('/onboarding');
+                                }}
+                                className="w-full py-3 px-6 bg-red-600 hover:bg-red-500 text-black font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
                             >
-                                Log in
+                                Claim profile
                             </button>
                         </div>
                     </motion.div>

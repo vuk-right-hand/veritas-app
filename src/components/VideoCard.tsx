@@ -34,6 +34,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [isVideoEnded, setIsVideoEnded] = useState(false);
     const [showQuizOverlay, setShowQuizOverlay] = useState(false);
     const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
+    const [modalSource, setModalSource] = useState<'profile' | 'comment' | 'quiz' | 'default'>('default');
     const [mobileStartSignal, setMobileStartSignal] = useState(0);
     const quizPanelRef = useRef<HTMLDivElement>(null);
 
@@ -327,6 +328,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
     const handlePostComment = async () => {
         if (!userProfile) {
+            setModalSource('comment');
             setShowProfileRequiredModal(true);
             return;
         }
@@ -713,6 +715,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                         onClick={() => {
                                                                             if (!userProfile) {
                                                                                 setIsVideoEnded(false);
+                                                                                setModalSource('quiz');
                                                                                 setShowProfileRequiredModal(true);
                                                                                 return;
                                                                             }
@@ -762,7 +765,10 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                         takeaways={takeaways}
                                                                         autoStart={true}
                                                                         onClose={() => setShowQuizOverlay(false)}
-                                                                        onRequireProfile={() => setShowProfileRequiredModal(true)}
+                                                                        onRequireProfile={() => {
+                                                                            setModalSource('quiz');
+                                                                            setShowProfileRequiredModal(true);
+                                                                        }}
                                                                     />
                                                                 </div>
                                                             </motion.div>
@@ -1168,7 +1174,10 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                     takeaways={takeaways}
                                                     onOpenOverlay={() => setShowQuizOverlay(true)}
                                                     mobileStartSignal={mobileStartSignal}
-                                                    onRequireProfile={() => setShowProfileRequiredModal(true)}
+                                                    onRequireProfile={(source) => {
+                                                        setModalSource(source as any || 'quiz');
+                                                        setShowProfileRequiredModal(true);
+                                                    }}
                                                 />
                                             </div>
                                         )}
@@ -1184,6 +1193,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
             <ProfileRequiredModal
                 isOpen={showProfileRequiredModal}
                 onClose={() => setShowProfileRequiredModal(false)}
+                source={modalSource}
             />
         </>
     );
@@ -1208,7 +1218,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     onClose?: () => void;
     onOpenOverlay?: () => void;
     mobileStartSignal?: number;
-    onRequireProfile?: () => void;
+    onRequireProfile?: (source?: string) => void;
 }) {
     const [quizState, setQuizState] = useState<QuizState>(autoStart ? 'loading' : 'cta');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -1369,7 +1379,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     // On desktop: clicking CTA opens overlay instead of staying in panel
     const handleDesktopCta = () => {
         if (!userProfile) {
-            if (onRequireProfile) onRequireProfile();
+            if (onRequireProfile) onRequireProfile('quiz');
             return;
         }
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, User, Sparkles, Youtube } from 'lucide-react';
 import AuthChoiceModal from './AuthChoiceModal';
+import ProfileRequiredModal from './ProfileRequiredModal';
 import { checkIsCreator } from '@/app/actions/creator-actions';
 
 export default function BottomNav() {
@@ -12,9 +13,12 @@ export default function BottomNav() {
     const [isCreator, setIsCreator] = useState<boolean | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
+    const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+    const [showProfileModal, setShowProfileModal] = useState(false);
 
     useEffect(() => {
         checkIsCreator().then(res => setIsCreator(res.isCreator));
+        import('@/app/actions/auth-actions').then(m => m.getAuthenticatedUserId().then(id => setIsLoggedIn(!!id)));
 
         const handleOpenLogin = (e: Event) => {
             const customEvent = e as CustomEvent<{ view?: 'choice' | 'login' }>;
@@ -84,7 +88,13 @@ export default function BottomNav() {
 
                 {/* Profile Tab */}
                 <Link
-                    href={'/profile'}
+                    href={isLoggedIn === false ? '#' : '/profile'}
+                    onClick={(e) => {
+                        if (isLoggedIn === false) {
+                            e.preventDefault();
+                            setShowProfileModal(true);
+                        }
+                    }}
                     className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors ${isProfileActive
                         ? 'text-red-500'
                         : 'text-gray-500 active:text-gray-300'
@@ -102,6 +112,12 @@ export default function BottomNav() {
                 isOpen={showAuthModal}
                 onClose={() => setShowAuthModal(false)}
                 defaultView={authModalDefaultView}
+            />
+
+            <ProfileRequiredModal
+                isOpen={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+                source="profile"
             />
         </nav>
     );
