@@ -15,12 +15,18 @@ export default async function CreatorDashboard() {
     // 1. Get User Session via SSR client
     const supabase = createServerClient(supabaseUrl, supabaseKey, {
         cookies: {
-            getAll() { return cookieStore.getAll() },
+            getAll() {
+                return cookieStore.getAll()
+            },
             setAll(cookiesToSet) {
                 try {
-                    cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        cookieStore.set(name, value, options)
+                    )
                 } catch {
-                    // Ignored in Server Component
+                    // The `setAll` method was called from a Server Component.
+                    // This can be ignored if you have middleware refreshing
+                    // user sessions.
                 }
             },
         },

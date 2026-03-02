@@ -397,7 +397,10 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
     // Trigger analysis if approving (background)
     if (action === 'approve') {
         const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/analyze`, {
+        // Prevent hitting localhost in Vercel prod if NEXT_PUBLIC_SITE_URL is missing
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+        fetch(`${baseUrl}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: videoUrl })

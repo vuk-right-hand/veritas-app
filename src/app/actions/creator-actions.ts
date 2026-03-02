@@ -12,7 +12,24 @@ async function getCallerUserId(): Promise<string | null> {
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
-        { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+        {
+            cookies: {
+                getAll() {
+                    return cookieStore.getAll()
+                },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch {
+                        // The `setAll` method was called from a Server Component.
+                        // This can be ignored if you have middleware refreshing
+                        // user sessions.
+                    }
+                },
+            },
+        }
     );
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id ?? null;
@@ -417,7 +434,24 @@ export async function checkIsCreator() {
         const supabaseSsr = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
-            { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch {
+                            // The `setAll` method was called from a Server Component.
+                            // This can be ignored if you have middleware refreshing
+                            // user sessions.
+                        }
+                    },
+                },
+            }
         );
         const { data: authData } = await supabaseSsr.auth.getUser();
         if (authData?.user?.id) {

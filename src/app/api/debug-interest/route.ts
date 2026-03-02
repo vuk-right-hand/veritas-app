@@ -29,7 +29,24 @@ export async function GET() {
         const supabaseServer = createServerClient(
             supabaseUrl,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            { cookies: { getAll() { return cookieStore.getAll(); }, setAll() { } } }
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch {
+                            // The `setAll` method was called from a Server Component.
+                            // This can be ignored if you have middleware refreshing
+                            // user sessions.
+                        }
+                    },
+                },
+            }
         );
         const { data: { user }, error } = await supabaseServer.auth.getUser();
         authUser = user ? { id: user.id, email: user.email } : null;
@@ -94,7 +111,24 @@ export async function POST(req: Request) {
         const supabaseServer = createServerClient(
             supabaseUrl,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            { cookies: { getAll() { return cookieStore.getAll(); }, setAll() { } } }
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch {
+                            // The `setAll` method was called from a Server Component.
+                            // This can be ignored if you have middleware refreshing
+                            // user sessions.
+                        }
+                    },
+                },
+            }
         );
         const { data: { user } } = await supabaseServer.auth.getUser();
         authUser = user ? { id: user.id, email: user.email } : null;
