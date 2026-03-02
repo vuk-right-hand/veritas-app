@@ -1,8 +1,22 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { cookies } from 'next/headers';
+
+// SECURITY: Resolves the authenticated caller's user_id from the Supabase session.
+// Used to gate all mutating actions — never trust a client-supplied userId.
+async function getCallerUserId(): Promise<string | null> {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id ?? null;
+}
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -200,6 +214,12 @@ export async function getCreatorsByChannelUrls(channelUrls: string[]) {
 
 export async function updateCreatorLinks(creatorId: string, links: any[], description?: string) {
     try {
+        // SECURITY PATCH C3: Verify caller owns this creator profile
+        const callerUserId = await getCallerUserId();
+        if (!callerUserId) {
+            return { success: false, error: 'Unauthorized: must be logged in' };
+        }
+
         // First, get the creator to find their channel_url and user_id
         const { data: creator, error: creatorError } = await supabaseAdmin
             .from('creators')
@@ -209,6 +229,10 @@ export async function updateCreatorLinks(creatorId: string, links: any[], descri
 
         if (creatorError || !creator) {
             throw new Error('Creator not found');
+        }
+
+        if (creator.user_id !== callerUserId) {
+            return { success: false, error: 'Forbidden: you do not own this creator profile' };
         }
 
         // Update the creator's links and description
@@ -239,6 +263,19 @@ export async function updateCreatorLinks(creatorId: string, links: any[], descri
 
 export async function updateVideoLinks(videoId: string, links: any[]) {
     try {
+        // SECURITY PATCH C3: Same ownership check as updateVideoTakeaways
+        const callerUserId = await getCallerUserId();
+        if (!callerUserId) {
+            return { success: false, error: 'Unauthorized: must be logged in' };
+        }
+        const { data: creator } = await supabaseAdmin
+            .from('creators').select('channel_url').eq('user_id', callerUserId).single();
+        const { data: video } = await supabaseAdmin
+            .from('videos').select('channel_url').eq('id', videoId).single();
+        if (!creator || !video || creator.channel_url !== video.channel_url) {
+            return { success: false, error: 'Forbidden: video does not belong to your channel' };
+        }
+
         const { error } = await supabaseAdmin
             .from('videos')
             .update({ custom_links: links })
@@ -310,6 +347,17 @@ export async function getOpportunityGaps() {
 
 export async function updateCreatorAvatar(creatorId: string, avatarUrl: string) {
     try {
+        // SECURITY PATCH C3: Verify caller owns this creator profile
+        const callerUserId = await getCallerUserId();
+        if (!callerUserId) {
+            return { success: false, error: 'Unauthorized: must be logged in' };
+        }
+        const { data: creator } = await supabaseAdmin
+            .from('creators').select('user_id').eq('id', creatorId).single();
+        if (!creator || creator.user_id !== callerUserId) {
+            return { success: false, error: 'Forbidden: you do not own this creator profile' };
+        }
+
         const { error } = await supabaseAdmin
             .from('creators')
             .update({ avatar_url: avatarUrl })
@@ -326,6 +374,20 @@ export async function updateCreatorAvatar(creatorId: string, avatarUrl: string) 
 
 export async function updateVideoTakeaways(videoId: string, takeaways: string[]) {
     try {
+        // SECURITY PATCH C3: Verify the caller owns a creator profile whose channel_url
+        // matches this video's channel_url. Prevents cross-creator video tampering.
+        const callerUserId = await getCallerUserId();
+        if (!callerUserId) {
+            return { success: false, error: 'Unauthorized: must be logged in' };
+        }
+        const { data: creator } = await supabaseAdmin
+            .from('creators').select('channel_url').eq('user_id', callerUserId).single();
+        const { data: video } = await supabaseAdmin
+            .from('videos').select('channel_url').eq('id', videoId).single();
+        if (!creator || !video || creator.channel_url !== video.channel_url) {
+            return { success: false, error: 'Forbidden: video does not belong to your channel' };
+        }
+
         const { error } = await supabaseAdmin
             .from('videos')
             .update({ takeaways })
@@ -344,28 +406,41 @@ export async function checkIsCreator() {
     noStore();
     try {
         const cookieStore = await cookies();
-        const missionId = cookieStore.get('veritas_user')?.value;
 
-        if (!missionId) {
-            return { isCreator: false };
+        // SECURITY PATCH H2: Check Supabase auth session FIRST (mirrors getCurrentUserProfile logic).
+        // The old version only checked the viewer cookie, missing newly-upgraded creators who
+        // have a Supabase session but haven't reloaded their veritas_user cookie mapping.
+        let resolvedUserId: string | null = null;
+
+        const supabaseSsr = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+            { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+        );
+        const { data: authData } = await supabaseSsr.auth.getUser();
+        if (authData?.user?.id) {
+            resolvedUserId = authData.user.id;
         }
 
-        // Get User ID from mission
-        const { data: mission } = await supabaseAdmin
-            .from('user_missions')
-            .select('user_id')
-            .eq('id', missionId)
-            .single();
-
-        if (!mission || !mission.user_id) {
-            return { isCreator: false };
+        // Fallback: viewer cookie path
+        if (!resolvedUserId) {
+            const missionId = cookieStore.get('veritas_user')?.value;
+            if (missionId) {
+                const { data: mission } = await supabaseAdmin
+                    .from('user_missions')
+                    .select('user_id')
+                    .eq('id', missionId)
+                    .single();
+                if (mission?.user_id) resolvedUserId = mission.user_id;
+            }
         }
 
-        // Check if creator profile exists
+        if (!resolvedUserId) return { isCreator: false };
+
         const { data: creator } = await supabaseAdmin
             .from('creators')
             .select('id')
-            .eq('user_id', mission.user_id)
+            .eq('user_id', resolvedUserId)
             .limit(1)
             .single();
 

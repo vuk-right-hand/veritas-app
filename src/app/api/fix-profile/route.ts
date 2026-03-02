@@ -9,8 +9,18 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
  * GET /api/fix-profile
  * Backfills a profiles row for an existing auth user identified by their mission cookie or email.
  * Also recomputes skills_matrix from quiz_attempts if the profile exists but skills_matrix is empty.
+ *
+ * SECURITY: Requires x-admin-secret header matching ADMIN_SECRET env var.
+ * This endpoint runs with service role — it must never be public.
  */
 export async function GET(req: Request) {
+    // SECURITY PATCH C2: Admin-only gate
+    const adminSecret = process.env.ADMIN_SECRET;
+    const callerSecret = req.headers.get('x-admin-secret');
+    if (!adminSecret || callerSecret !== adminSecret) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const { searchParams } = new URL(req.url);
         const missionId = searchParams.get('mission');

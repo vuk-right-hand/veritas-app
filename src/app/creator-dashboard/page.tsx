@@ -1,7 +1,6 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import CreatorDashboardClient from './CreatorDashboardClient';
 import { getCreatorStats } from '../actions/creator-actions';
@@ -33,38 +32,22 @@ export default async function CreatorDashboard() {
     let creatorProfile = null;
     let videos: any[] = [];
 
-    if (user) {
-        const res = await getCreatorStats(user.id);
-        if (res.success) {
-            stats = res.stats;
-            creatorProfile = res.creator;
-            videos = res.videos || [];
-        }
-    } else {
-        // Fallback for Demo/Test: If no user, fetch the first creator for DEMO purposes
-        // This allows verification of UI without full auth flow if cookies are missing
-        const { data: demoCreator } = await createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key').from('creators').select('*').limit(1).single();
-        if (demoCreator) {
-            const res = await getCreatorStats(demoCreator.user_id);
-            if (res.success) {
-                stats = res.stats;
-                creatorProfile = res.creator;
-                videos = res.videos || [];
-            }
-        }
+    if (!user) {
+        // SECURITY PATCH H1: No unauthenticated access — hard redirect.
+        // The old demo fallback fetched the first creator's real data and rendered it
+        // for any anonymous visitor. Removed entirely.
+        redirect('/claim-channel');
     }
 
-    if (!user || !creatorProfile) {
-        // If we are here, either not logged in or no creator profile.
-        // We should probably show a "Not Authorized" or Login screen.
-        // But for this task, I will mock the data if not found, 
-        // OR simple return a "Please Log In" UI.
-        // Returning a basic message for now.
-        // Update: The user says "They have a perfect flow to ... log inside".
-        // I'll assume it works.
+    const res = await getCreatorStats(user.id);
+    if (res.success) {
+        stats = res.stats;
+        creatorProfile = res.creator;
+        videos = res.videos || [];
+    }
 
-        // Let's return a "Loading..." or redirect.
-        // redirect('/claim-channel');
+    if (!creatorProfile) {
+        redirect('/claim-channel');
     }
 
     return (

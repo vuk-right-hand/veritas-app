@@ -202,8 +202,11 @@ export async function verifyChannelOwnership(email: string, channelUrl: string, 
         return { success: false, message: "Could not fetch channel details. Please check the URL." };
     }
 
-    // 3. Verify Token in Description (or anywhere in the raw HTML payload for robustness)
-    if (description.includes(token) || (rawHtml && rawHtml.includes(token))) {
+    // 3. Verify Token in Description only.
+    // SECURITY PATCH M2: Removed rawHtml fallback. Scanning the entire page HTML is too
+    // permissive — the token could match text in recommended channels, JS bundles, or
+    // metadata from unrelated sources. The description meta tag is the correct, scoped check.
+    if (description.includes(token)) {
         // Mark as verified in DB
         await supabase
             .from('verification_requests')
