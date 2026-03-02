@@ -45,33 +45,36 @@ export async function finalizeChannelClaim(
 
         let userId = "";
 
-        // 1. Check if user exists or create new one
-        // We use admin.createUser which handles both cases (returns error if exists)
-        // Actually, listUsers is safer to check existence first to avoid error handling mess
-        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        // 1. Check if user exists or create new one.
+        // SECURITY PATCH C4: Try-create pattern instead of listUsers() which is O(n).
+        // The JS admin SDK has no getUserByEmail — so we attempt createUser first.
+        // If the user already exists Supabase returns an error; we then look them up
+        // via user_missions (which stores email) as a reliable O(1) fallback.
+        const { data: newUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true
+        });
 
-        if (listError) throw new Error("Failed to check user existence: " + listError.message);
-
-        const existingUser = users.find(u => u.email === email);
-
-        if (existingUser) {
-            console.log(`[Authorization] Found existing user: ${existingUser.id}`);
-            userId = existingUser.id;
-            // Note: We are NOT updating the password for safety. User must login with existing credentials.
-            // But for this flow, we assume they are claiming. 
-            // In a real app complexity, we'd force login. Here we proceed with linking.
+        if (!createError && newUserData?.user) {
+            console.log(`[Authorization] Created new user: ${newUserData.user.id}`);
+            userId = newUserData.user.id;
         } else {
-            console.log(`[Authorization] Creating new user for ${email}`);
-            const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-                email,
-                password,
-                email_confirm: true // Auto-confirm for this flow as they verified channel
-            });
+            // User likely already exists — look up via user_missions by email
+            const { data: missionData } = await supabaseAdmin
+                .from('user_missions')
+                .select('user_id')
+                .eq('email', email)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
 
-            if (createError) throw new Error("Failed to create user: " + createError.message);
-            if (!newUser.user) throw new Error("User creation failed unexpectedly.");
-
-            userId = newUser.user.id;
+            if (missionData?.user_id) {
+                console.log(`[Authorization] Found existing user via mission: ${missionData.user_id}`);
+                userId = missionData.user_id;
+            } else {
+                throw new Error(createError?.message || "Failed to create or locate user account.");
+            }
         }
 
         // 2. Link User to Channel in 'creators' table
@@ -154,9 +157,13 @@ export async function viewerLogin(email: string, password: string) {
         }
 
         // Set cookie to establish session
+        // SECURITY PATCH M1: Added secure + sameSite to prevent transmission over HTTP
+        // and mitigate CSRF. Vercel enforces HTTPS but the cookie policy must also enforce it.
         cookieStore.set('veritas_user', mission.id, {
             path: '/',
             httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
             maxAge: 60 * 60 * 24 * 7 // 7 days
         });
 
@@ -288,6 +295,12 @@ export async function claimChannelForExistingUser(
             console.error("[Authorization] Insert Error:", insertError);
             throw new Error("Failed to create creator profile: " + insertError.message);
         }
+
+        // SECURITY PATCH H2: Bust the Next.js cache so the UserContext and
+        // creator-dashboard route reflect the new creator role immediately without
+        // requiring a hard reload. Without this, the server component cache keeps
+        // the user in a ghost non-creator state after upgrade.
+        revalidatePath('/', 'layout');
 
         return { success: true, message: "Channel successfully linked to your account!" };
 
