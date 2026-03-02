@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { getAiModel } from '@/lib/gemini';
 
+export const maxDuration = 60; // Prevent Vercel hobby tier timeouts
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);

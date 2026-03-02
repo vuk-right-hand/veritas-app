@@ -356,22 +356,8 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         setIsPostingComment(false);
     };
 
-    // --- Custom Event Listener for QuizPanel ---
-    // Listen for the custom event dispatched by QuizPanel when an unauthenticated
-    // user attempts to start a quiz or clicks the desktop CTA.
-    useEffect(() => {
-        const handleRequireProfile = () => {
-            setShowProfileRequiredModal(true);
-        };
-
-        window.addEventListener('requireProfile', handleRequireProfile);
-
-        return () => {
-            window.removeEventListener('requireProfile', handleRequireProfile);
-        };
-    }, []);
-
-    // --- End Custom Event Listener ---
+    // Removed global 'requireProfile' event listener. 
+    // VideoCard now passes an onRequireProfile prop directly to QuizPanel to show the login modal natively.
 
     const handleFullscreen = async () => {
         if (!videoContainerRef.current) return;
@@ -771,7 +757,13 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                     <X className="w-4 h-4" />
                                                                 </button>
                                                                 <div className="w-full h-full overflow-y-auto no-scrollbar">
-                                                                    <QuizPanel videoId={videoId} takeaways={takeaways} autoStart={true} onClose={() => setShowQuizOverlay(false)} />
+                                                                    <QuizPanel
+                                                                        videoId={videoId}
+                                                                        takeaways={takeaways}
+                                                                        autoStart={true}
+                                                                        onClose={() => setShowQuizOverlay(false)}
+                                                                        onRequireProfile={() => setShowProfileRequiredModal(true)}
+                                                                    />
                                                                 </div>
                                                             </motion.div>
                                                         )}
@@ -1176,6 +1168,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                     takeaways={takeaways}
                                                     onOpenOverlay={() => setShowQuizOverlay(true)}
                                                     mobileStartSignal={mobileStartSignal}
+                                                    onRequireProfile={() => setShowProfileRequiredModal(true)}
                                                 />
                                             </div>
                                         )}
@@ -1208,13 +1201,14 @@ type QuizQuestion = {
 
 type QuizState = 'cta' | 'loading' | 'active' | 'feedback' | 'complete' | 'no-questions';
 
-function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobileStartSignal }: {
+function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobileStartSignal, onRequireProfile }: {
     videoId: string;
     takeaways: string[];
     autoStart?: boolean;
     onClose?: () => void;
     onOpenOverlay?: () => void;
     mobileStartSignal?: number;
+    onRequireProfile?: () => void;
 }) {
     const [quizState, setQuizState] = useState<QuizState>(autoStart ? 'loading' : 'cta');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -1258,9 +1252,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
 
     const handleStartQuiz = async () => {
         if (!userProfile) {
-            // Signal to parent VideoCard to show modal
-            const customEvent = new CustomEvent('requireProfile');
-            window.dispatchEvent(customEvent);
+            if (onRequireProfile) onRequireProfile();
             return;
         }
 
@@ -1377,9 +1369,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
     // On desktop: clicking CTA opens overlay instead of staying in panel
     const handleDesktopCta = () => {
         if (!userProfile) {
-            // Signal to parent VideoCard to show modal
-            const customEvent = new CustomEvent('requireProfile');
-            window.dispatchEvent(customEvent);
+            if (onRequireProfile) onRequireProfile();
             return;
         }
 

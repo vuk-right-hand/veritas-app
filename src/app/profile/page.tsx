@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getMyMission } from '../actions/video-actions';
 import { updateProfile, updateProfileAvatar, updateUserPassword } from '../actions/profile-actions';
+import { logoutUser } from '../actions/auth-actions';
 import { supabase } from '@/lib/supabaseClient';
 import BottomNav from '@/components/BottomNav';
 import SkillProgressCard from '@/components/SkillProgressCard';
@@ -51,6 +52,7 @@ export default function Profile() {
     const [showCustomGoal, setShowCustomGoal] = useState(false);
     const [showCustomStruggle, setShowCustomStruggle] = useState(false);
     const [showResetPassword, setShowResetPassword] = useState(false);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     // Tab state
     const [activeTab, setActiveTab] = useState<'profile' | 'proof-of-work'>('profile');
@@ -84,8 +86,10 @@ export default function Profile() {
                         setShowCustomStruggle(true);
                     }
                 } else {
-                    // No mission found, redirect to onboarding to create one
-                    router.push('/onboarding');
+                    // No session found — show error, do NOT redirect to onboarding.
+                    // Redirecting here can fire again mid-save when state updates
+                    // cause the router reference to change and re-trigger this effect.
+                    setError("No active session found. Please log in again.");
                 }
             } catch (e) {
                 console.error("Failed to load profile", e);
@@ -106,7 +110,8 @@ export default function Profile() {
             }
         };
         loadSkills();
-    }, [router]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleGoalSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = e.target.value;
@@ -265,6 +270,13 @@ export default function Profile() {
             setError(result.message || "Failed to update profile.");
         }
         setSaving(false);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logoutUser();
+        } catch (e) { }
+        window.location.href = '/dashboard';
     };
 
     if (loading) {
@@ -529,6 +541,16 @@ export default function Profile() {
                                                 </>
                                             )}
                                         </button>
+
+                                        <div className="text-center mt-4">
+                                            <button
+                                                onClick={() => setShowLogoutModal(true)}
+                                                className="text-[13px] text-gray-500 hover:text-white transition-colors"
+                                            >
+                                                Log out
+                                            </button>
+                                        </div>
+
                                         <p className="text-center text-xs text-gray-500 mt-4">
                                             Updating your goal will refresh your video feed to match your new direction.
                                         </p>
@@ -562,6 +584,49 @@ export default function Profile() {
                     </motion.div>
                 </div>
             </div>
+
+            {/* Logout Confirmation Modal */}
+            <AnimatePresence>
+                {showLogoutModal && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowLogoutModal(false)}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+                        />
+
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 50 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 50 }}
+                            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-[90%] max-w-sm bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-6 text-center"
+                        >
+                            <h2 className="text-2xl font-bold text-white mb-3">Please confirm...</h2>
+                            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                                This will re-customize your feed and lock most of the features on the platform.
+                            </p>
+
+                            <button
+                                onClick={handleLogout}
+                                className="w-full py-4 px-6 bg-white hover:bg-gray-200 text-black font-bold rounded-xl transition-all transform active:scale-95"
+                            >
+                                Log out
+                            </button>
+                            <button
+                                onClick={() => setShowLogoutModal(false)}
+                                className="mt-4 text-sm text-gray-500 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
             <BottomNav />
         </>
     );

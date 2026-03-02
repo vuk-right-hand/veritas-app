@@ -11,9 +11,22 @@ export default function BottomNav() {
     const pathname = usePathname();
     const [isCreator, setIsCreator] = useState<boolean | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
 
     useEffect(() => {
         checkIsCreator().then(res => setIsCreator(res.isCreator));
+
+        const handleOpenLogin = (e: Event) => {
+            const customEvent = e as CustomEvent<{ view?: 'choice' | 'login' }>;
+            if (customEvent.detail?.view) {
+                setAuthModalDefaultView(customEvent.detail.view);
+            } else {
+                setAuthModalDefaultView('choice');
+            }
+            setShowAuthModal(true);
+        };
+        window.addEventListener('open-login-modal', handleOpenLogin);
+        return () => window.removeEventListener('open-login-modal', handleOpenLogin);
     }, []);
 
     const isFeedActive = pathname === '/dashboard';
@@ -85,7 +98,11 @@ export default function BottomNav() {
                 </Link>
             </div>
 
-            <AuthChoiceModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+            <AuthChoiceModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                defaultView={authModalDefaultView}
+            />
         </nav>
     );
 }

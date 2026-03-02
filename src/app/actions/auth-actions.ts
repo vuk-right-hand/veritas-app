@@ -309,3 +309,35 @@ export async function claimChannelForExistingUser(
         return { success: false, message: error.message || "An unexpected error occurred." };
     }
 }
+
+export async function logoutUser() {
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+                    } catch {
+                        // Ignored
+                    }
+                },
+            },
+        }
+    );
+
+    try {
+        await supabase.auth.signOut();
+        try {
+            cookieStore.delete('veritas_user');
+        } catch (e) { }
+
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, message: e.message || "An unexpected error occurred." };
+    }
+}

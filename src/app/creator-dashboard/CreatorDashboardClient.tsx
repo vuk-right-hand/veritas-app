@@ -660,7 +660,7 @@ export default function CreatorDashboardClient({
                             >
                                 <h2 className="text-xl font-bold mb-4 text-white">Update All Videos?</h2>
                                 <p className="text-gray-300 mb-6 leading-relaxed">
-                                    This will update the description inside all of your videos on Veritas. Your channel links will be added to every video you've submitted.
+                                    This will update the description and/or links inside ALL of your videos on the platform.
                                 </p>
                                 <div className="flex justify-end gap-3">
                                     <button

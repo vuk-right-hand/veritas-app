@@ -9,11 +9,12 @@ import { useRouter } from 'next/navigation';
 interface AuthChoiceModalProps {
     isOpen: boolean;
     onClose: () => void;
+    defaultView?: 'choice' | 'login';
 }
 
-export default function AuthChoiceModal({ isOpen, onClose }: AuthChoiceModalProps) {
+export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice' }: AuthChoiceModalProps) {
     const router = useRouter();
-    const [view, setView] = useState<'choice' | 'login'>('choice');
+    const [view, setView] = useState<'choice' | 'login'>(defaultView);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -22,12 +23,14 @@ export default function AuthChoiceModal({ isOpen, onClose }: AuthChoiceModalProp
     // Reset state when opening/closing
     React.useEffect(() => {
         if (!isOpen) {
-            setView('choice');
+            setView(defaultView);
             setEmail("");
             setPassword("");
             setError("");
+        } else {
+            setView(defaultView);
         }
-    }, [isOpen]);
+    }, [isOpen, defaultView]);
 
     const handleClaimClick = () => {
         router.push('/claim-channel');

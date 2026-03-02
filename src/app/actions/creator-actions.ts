@@ -33,16 +33,18 @@ export async function getCreatorStats(userId: string) {
     noStore();
     try {
         // 1. Get Creator Profile to find channel_url/id (Support multiple channels by getting latest)
+        // maybeSingle() returns { data: null, error: null } when no rows exist,
+        // avoiding the PGRST116 error that single() throws for empty results.
         const { data: creator, error: creatorError } = await supabaseAdmin
             .from('creators')
             .select('id, channel_url, links, description, channel_name, human_score, avatar_url')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
         if (creatorError || !creator) {
-            console.error("Creator not found:", creatorError);
+            if (creatorError) console.error("Creator query error:", creatorError);
             return { success: false, error: "Creator profile not found" };
         }
 

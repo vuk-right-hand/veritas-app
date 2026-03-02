@@ -73,18 +73,25 @@ export async function saveMission(formData: { goal: string; struggle: string; na
 
     console.log(`✅ Mission Created: ${mission.id}`);
 
-    // 4. SMART Curation
-    const curationResult = await curateFeedForMission(mission.id, formData.goal, formData.struggle);
-    if (!curationResult.success) {
-        console.warn("⚠️ Initial curation warning:", curationResult.message);
-    }
-
-    // 5. Set Session Cookie
+    // 4. Set Session Cookie FIRST so the user has a valid session even if curation fails.
     cookieStore.set('veritas_user', mission.id, {
         path: '/',
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7 // 7 days
     });
+
+    // 5. SMART Curation — non-fatal. If Gemini is unavailable the user still lands on the
+    // feed and will see generic verified videos until curation runs on next login.
+    try {
+        const curationResult = await curateFeedForMission(mission.id, formData.goal, formData.struggle);
+        if (!curationResult.success) {
+            console.warn("⚠️ Initial curation warning:", curationResult.message);
+        }
+    } catch (curationErr) {
+        console.warn("⚠️ Initial curation threw — proceeding without curated feed:", curationErr);
+    }
 
     return { success: true, missionId: mission.id };
 }

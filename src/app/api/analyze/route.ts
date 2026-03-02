@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { getAiModel, generateEmbedding } from '@/lib/gemini';
 import { fetchVideoMeta, saveVideoAnalysis } from '@/lib/video-service';
 
+export const maxDuration = 60; // Max duration for Vercel Hobby tier
+
 // Service role client for writing video_tags (bypasses RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';

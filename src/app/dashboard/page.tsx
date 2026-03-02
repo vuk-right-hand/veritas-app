@@ -35,6 +35,7 @@ function getTemporalFilterValue(label: string): '14' | '28' | '60' | 'evergreen'
 export default function Dashboard() {
     const [activeTab, setActiveTab] = useState('Evergreen');
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
 
     // Suggestion State
     const [suggestionUrl, setSuggestionUrl] = useState("");
@@ -71,7 +72,23 @@ export default function Dashboard() {
             setIsScrolled(scrolledPast);
         };
         window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
+
+        // Listen for the custom event to open the AuthModal (from ProfileRequiredModal)
+        const handleOpenLogin = (e: Event) => {
+            const customEvent = e as CustomEvent<{ view?: 'choice' | 'login' }>;
+            if (customEvent.detail?.view) {
+                setAuthModalDefaultView(customEvent.detail.view);
+            } else {
+                setAuthModalDefaultView('choice');
+            }
+            setShowAuthModal(true);
+        };
+        window.addEventListener('open-login-modal', handleOpenLogin);
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('open-login-modal', handleOpenLogin);
+        };
     }, []);
 
     // Track video views for install prompt trigger
@@ -89,6 +106,17 @@ export default function Dashboard() {
 
         // 1. Check for Active Mission (Zero Distraction Rule)
         const mission = await getMyMission();
+
+        // Always sync name/avatar from mission so the top-right display
+        // reflects the latest saved profile regardless of curation state.
+        if (mission) {
+            if (mission.userDetails?.name) {
+                setUserName(mission.userDetails.name);
+            }
+            if (mission.userDetails?.avatar_url) {
+                setAvatarUrl(mission.userDetails.avatar_url);
+            }
+        }
 
         let finalVideos: any[] = [];
         const temporalFilter = getTemporalFilterValue(filterLabel);
@@ -125,28 +153,24 @@ export default function Dashboard() {
             }));
 
             finalVideos = curated;
-
-            if (mission.userDetails?.name) {
-                setUserName(mission.userDetails.name);
-            }
-            if (mission.userDetails?.avatar_url) {
-                setAvatarUrl(mission.userDetails.avatar_url);
-            }
         }
 
         // 2. Smart Fallback: If filtered/curated list is small (< 10), fill with generic verified videos
         // This ensures "Approved" videos appear even if not yet curated for this specific mission
         if (finalVideos.length < 10) {
             const temporalFilter = getTemporalFilterValue(filterLabel);
-            const verified = await getVerifiedVideos(temporalFilter, 12, 0);
+            // Fetch only 6 — exactly one above-the-fold row on desktop (3-col grid × 2 rows).
+            // A background prefetch immediately loads the next 6 so scrolling feels instant.
+            const verified = await getVerifiedVideos(temporalFilter, 6, 0);
 
             if (verified && verified.length > 0) {
                 // Fetch channel-level data (descriptions + links) from creators table
                 const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
                 const creatorMap = await getCreatorsByChannelUrls(channelUrls);
 
-                const formattedVerified = verified.map(v => {
-                    const creator = creatorMap[v.channel_url] || null;
+                // Reusable formatter — used for both initial and background batches
+                const formatVideoBatch = (vids: any[], crMap: Record<string, any>) => vids.map(v => {
+                    const creator = crMap[v.channel_url] || null;
                     return {
                         id: v.id,
                         title: v.title,
@@ -166,14 +190,40 @@ export default function Dashboard() {
                     };
                 });
 
+                const formattedVerified = formatVideoBatch(verified, creatorMap);
+
                 // Dedup: Filter out videos already in finalVideos
                 const existingIds = new Set(finalVideos.map((v: any) => v.id));
                 const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
 
                 finalVideos = [...finalVideos, ...toAdd];
 
-                setStandardVideoOffset(verified.length);
-                if (verified.length < 12) setHasMore(false);
+                const initialOffset = verified.length;
+                if (verified.length < 6) {
+                    // Fewer than a full batch — nothing more to load
+                    setHasMore(false);
+                    setStandardVideoOffset(initialOffset);
+                } else {
+                    // Reserve the next 6 slots immediately so scroll pagination doesn't overlap
+                    // with the background prefetch that's about to fire
+                    setStandardVideoOffset(initialOffset + 6);
+                    // Background prefetch: silently load the next 6 while the user reads the first 6.
+                    // No loading spinner shown — videos just appear in the grid when ready.
+                    getVerifiedVideos(temporalFilter, 6, initialOffset).then(async (bg) => {
+                        if (!bg || bg.length === 0) { setHasMore(false); return; }
+                        const bgUrls = bg.map((v: any) => v.channel_url).filter(Boolean);
+                        const bgCreatorMap = await getCreatorsByChannelUrls(bgUrls);
+                        const bgFormatted = formatVideoBatch(bg, bgCreatorMap);
+                        setVideos(prev => {
+                            const seen = new Set(prev.map((v: any) => v.id));
+                            return [...prev, ...bgFormatted.filter((v: any) => !seen.has(v.id))];
+                        });
+                        if (bg.length < 6) {
+                            setHasMore(false);
+                            setStandardVideoOffset(initialOffset + bg.length);
+                        }
+                    });
+                }
             } else {
                 setHasMore(false);
             }
@@ -204,7 +254,7 @@ export default function Dashboard() {
         setIsLoadingMore(true);
         try {
             const temporalFilter = getTemporalFilterValue(activeTab);
-            const limit = 6;
+            const limit = 3;
             const verified = await getVerifiedVideos(temporalFilter, limit, standardVideoOffset);
 
             if (verified && verified.length > 0) {
@@ -258,7 +308,7 @@ export default function Dashboard() {
                     loadMoreVideos();
                 }
             },
-            { threshold: 0.1 }
+            { rootMargin: '500px 0px', threshold: 0 }
         );
 
         if (loadMoreRef.current) observer.observe(loadMoreRef.current);
@@ -376,7 +426,11 @@ export default function Dashboard() {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-red-500/30 font-sans">
-            <AuthChoiceModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+            <AuthChoiceModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                defaultView={authModalDefaultView}
+            />
             <InstallPrompt videoViewCount={videoViewCount} />
 
             {/* ========== NAVBAR ========== */}

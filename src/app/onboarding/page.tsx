@@ -117,9 +117,9 @@ export default function Onboarding() {
                     {step < 3 && (
                         <div className="mb-6">
                             <p className="text-sm text-gray-400">
-                                Already on Veritas?{' '}
+                                Have a profile?{' '}
                                 <Link href="/login" className="text-red-400 hover:text-red-300 transition-colors font-medium">
-                                    Login
+                                    Sign in.
                                 </Link>
                             </p>
                         </div>
