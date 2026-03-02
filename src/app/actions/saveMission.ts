@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { generateEmbedding } from '@/lib/gemini';
 import { curateFeedForMission } from './curation-actions';
@@ -91,7 +92,29 @@ export async function saveMission(formData: { goal: string; struggle: string; na
         maxAge: 60 * 60 * 24 * 7 // 7 days
     });
 
-    // 5. SMART Curation — non-fatal. If Gemini is unavailable the user still lands on the
+    // 5. Also establish a Supabase auth session in cookies so the /claim-channel bypass
+    // detection (getAuthenticatedUserId via SSR) works when this user later upgrades to creator.
+    // Non-fatal: if sign-in fails the veritas_user cookie above still provides viewer access.
+    try {
+        const supabaseSsr = createServerClient(
+            supabaseUrl!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    getAll: () => cookieStore.getAll(),
+                    setAll: (cs) => cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+                }
+            }
+        );
+        await supabaseSsr.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password || 'TemporaryPassword123!'
+        });
+    } catch (signInErr) {
+        console.warn('[saveMission] Auth session not set (non-fatal):', signInErr);
+    }
+
+    // 6. SMART Curation — non-fatal. If Gemini is unavailable the user still lands on the
     // feed and will see generic verified videos until curation runs on next login.
     try {
         const curationResult = await curateFeedForMission(mission.id, formData.goal, formData.struggle);

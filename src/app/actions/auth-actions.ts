@@ -79,6 +79,9 @@ export async function finalizeChannelClaim(
             if (missionData?.user_id) {
                 console.log(`[Authorization] Found existing user via mission: ${missionData.user_id}`);
                 userId = missionData.user_id;
+                // Sync the new password the user just entered so creatorLogin() can succeed.
+                // Without this, creatorLogin() would try the new password against the old one and fail silently.
+                await supabaseAdmin.auth.admin.updateUserById(userId, { password });
             } else {
                 throw new Error(createError?.message || "Failed to create or locate user account.");
             }
@@ -92,7 +95,7 @@ export async function finalizeChannelClaim(
         // We will query by URL since we stored it.
 
         // Check if creator profile exists for this channel
-        const { data: existingCreator, error: fetchError } = await supabaseAdmin
+        const { data: existingCreator } = await supabaseAdmin
             .from('creators')
             .select('id, user_id')
             .eq('channel_url', channelInfo.url)
@@ -133,13 +136,49 @@ export async function finalizeChannelClaim(
     }
 }
 
+export async function getAuthenticatedUserId(): Promise<string | null> {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch { }
+                },
+            },
+        }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id ?? null;
+}
+
 export async function viewerLogin(email: string, password: string) {
     const cookieStore = await cookies();
 
-    // Use anon key for sign in to verify credentials securely
-    const supabaseAnon = createClient(
+    // Use SSR cookie-persisting client so the Supabase auth session is stored in
+    // HTTP cookies. Without this, the session lives only in-memory and the
+    // /claim-channel bypass (which reads SSR cookies) never detects the session.
+    const supabaseAnon = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key'
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch { }
+                },
+            },
+        }
     );
 
     try {

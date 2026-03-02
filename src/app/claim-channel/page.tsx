@@ -9,7 +9,6 @@ import { ArrowLeft, CheckCircle2, Youtube, Zap, AlertCircle, Copy } from 'lucide
 // Original was in src/app/creator-dashboard/page.tsx, now in src/app/claim-channel/page.tsx
 // Paths to actions should remain ../actions/video-actions which is correct relative to src/app/claim-channel
 import { getChannelMetadata, verifyChannelOwnership } from '../actions/video-actions';
-import { supabase } from '../../lib/supabaseClient';
 
 export default function ClaimChannelPage() {
     const router = useRouter(); // For redirection
@@ -133,13 +132,15 @@ export default function ClaimChannelPage() {
                 setError(""); // Ensure error doesn't bleed into next step
 
                 // --- BYPASS LOGIC ---
-                const { data: { session } } = await supabase.auth.getSession();
+                // Use a server action (SSR cookie client) instead of the browser anon client.
+                // The browser client reads localStorage which is never populated by our
+                // server-side sign-in flows — the SSR client reads HTTP cookies correctly.
+                const { getAuthenticatedUserId, claimChannelForExistingUser } = await import('../actions/auth-actions');
+                const existingUserId = await getAuthenticatedUserId();
 
-                if (session && session.user) {
+                if (existingUserId) {
                     setStep(3); // Go to step 3 to show loading/success State
                     setClaimStatus('loading');
-
-                    const { claimChannelForExistingUser } = await import('../actions/auth-actions');
                     const bypassResult = await claimChannelForExistingUser(email, {
                         url: channelUrl,
                         title: channelName,
