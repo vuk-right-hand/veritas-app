@@ -6,8 +6,15 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 // Initialize Supabase Admin Client (Service Role)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error(
+        '[auth-actions] Missing env vars: NEXT_PUBLIC_SUPABASE_URL and/or ' +
+        'SUPABASE_SERVICE_ROLE_KEY. Add them in Vercel → Settings → Environment Variables.'
+    );
+}
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
@@ -145,15 +152,23 @@ export async function viewerLogin(email: string, password: string) {
             return { success: false, message: "Invalid email or password." };
         }
 
-        // Find existing mission to sync feed
-        const { data: mission, error: missionError } = await supabaseAdmin
+        // Find existing mission to sync feed — .limit(1) avoids PGRST116 if user has
+        // zero missions or multiple partial registrations (.single() would throw for both).
+        const { data: missions, error: missionError } = await supabaseAdmin
             .from('user_missions')
             .select('id')
             .eq('user_id', data.user.id)
-            .single();
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        if (missionError || !mission) {
-            return { success: false, message: "No profile found for this user." };
+        const mission = missions?.[0] ?? null;
+
+        if (missionError) {
+            console.error('[viewerLogin] Mission lookup error:', missionError);
+            return { success: false, message: "Could not load your profile. Please try again." };
+        }
+        if (!mission) {
+            return { success: false, message: "No profile found. Please complete onboarding first." };
         }
 
         // Set cookie to establish session

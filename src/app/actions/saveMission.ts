@@ -5,8 +5,16 @@ import { cookies } from 'next/headers';
 import { generateEmbedding } from '@/lib/gemini';
 import { curateFeedForMission } from './curation-actions';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+        '[saveMission] Missing env vars: NEXT_PUBLIC_SUPABASE_URL and/or ' +
+        'SUPABASE_SERVICE_ROLE_KEY. Add them in Vercel → Settings → Environment Variables.'
+    );
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function saveMission(formData: { goal: string; struggle: string; name: string; email: string; password?: string }) {
@@ -25,14 +33,15 @@ export async function saveMission(formData: { goal: string; struggle: string; na
     let userId = authUser?.user?.id;
 
     if (authError) {
-        console.log('⚠️ Auth User might already exist:', authError.message);
-        if (authError.message.includes('already registered')) {
-            return { success: false, message: "User already exists. Please login." };
+        console.error('[saveMission] createUser error:', authError.message);
+        if (authError.message.toLowerCase().includes('already registered')) {
+            return { success: false, message: "An account with this email already exists. Please log in." };
         }
+        return { success: false, message: `Registration failed: ${authError.message}` };
     }
 
     if (!userId) {
-        return { success: false, message: "Could not create user." };
+        return { success: false, message: "Could not create user account. Please try again." };
     }
 
     // 2. CRITICAL: Ensure a profile row exists for this user.
