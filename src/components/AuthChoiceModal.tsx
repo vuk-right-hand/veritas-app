@@ -14,7 +14,7 @@ interface AuthChoiceModalProps {
 
 export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice' }: AuthChoiceModalProps) {
     const router = useRouter();
-    const [view, setView] = useState<'choice' | 'login'>(defaultView);
+    const [view, setView] = useState<'choice' | 'login' | 'redirecting'>(defaultView);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -49,9 +49,11 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                 setError(result.message || "Invalid credentials.");
                 setIsLoading(false);
             } else {
-                // Success
+                // Keep modal open — shows redirecting state until the new page loads.
+                // Without this the modal closes instantly and the user stares at the
+                // feed for 4-5 seconds while the dashboard Server Component fetches data.
+                setView('redirecting');
                 router.push('/creator-dashboard');
-                onClose();
             }
         } catch (err) {
             setError("An unexpected error occurred.");
@@ -89,7 +91,20 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
 
                         <div className="p-8">
                             <AnimatePresence mode='wait'>
-                                {view === 'choice' ? (
+                                {view === 'redirecting' ? (
+                                    <motion.div
+                                        key="redirecting"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="flex flex-col items-center justify-center py-10 gap-5 text-center"
+                                    >
+                                        <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-white animate-spin" />
+                                        <div>
+                                            <h2 className="text-xl font-bold text-white">Assembling your dashboard</h2>
+                                            <p className="text-sm text-gray-500 mt-1">Just a moment...</p>
+                                        </div>
+                                    </motion.div>
+                                ) : view === 'choice' ? (
                                     <motion.div
                                         key="choice"
                                         initial={{ opacity: 0, x: -20 }}
