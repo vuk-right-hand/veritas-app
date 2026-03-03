@@ -209,7 +209,7 @@ export async function verifyChannelOwnership(email: string, channelUrl: string, 
     // is safe here because the token (VERITAS-XXXXXXXX format) is already bound to a
     // specific email + channel_url pair in verification_requests, so matching it anywhere
     // on the claimed channel's page is sufficient proof of write access.
-    if (description.includes(token) || rawHtml.includes(token)) {
+    if (description.includes(token) || rawHtml?.includes(token)) {
         // Mark as verified in DB
         await supabase
             .from('verification_requests')
