@@ -35,6 +35,9 @@ export default function ClaimChannelPage() {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [claimStatus, setClaimStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    // True when an existing logged-in user is going through the bypass path.
+    // Hides the password form so it never flashes on screen during auto-claim.
+    const [bypassMode, setBypassMode] = useState(false);
 
     // Step 1: Handle initial submit (URL + Email)
     const handleStartClaim = async (e: React.FormEvent) => {
@@ -139,7 +142,8 @@ export default function ClaimChannelPage() {
                 const existingUserId = await getAuthenticatedUserId();
 
                 if (existingUserId) {
-                    setStep(3); // Go to step 3 to show loading/success State
+                    setBypassMode(true); // Hide password form — existing user doesn't need to set one
+                    setStep(3);
                     setClaimStatus('loading');
                     const bypassResult = await claimChannelForExistingUser(email, {
                         url: channelUrl,
@@ -290,7 +294,7 @@ export default function ClaimChannelPage() {
                             </motion.div>
                         )}
 
-                        {step === 3 && claimStatus !== 'success' && (
+                        {step === 3 && claimStatus !== 'success' && !bypassMode && (
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
