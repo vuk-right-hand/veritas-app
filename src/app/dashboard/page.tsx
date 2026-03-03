@@ -152,7 +152,7 @@ export default function Dashboard() {
         let finalVideos: any[] = [];
 
         // ── CURATED PATH: user has goals/obstacles → show their personalised feed ──
-        if ((mission?.mission_curations?.length ?? 0) > 0) {
+        if (mission && (mission.mission_curations?.length ?? 0) > 0) {
             let curations = mission.mission_curations.filter((c: any) => c.videos?.status === 'verified');
 
             if (temporalFilter !== 'evergreen') {
