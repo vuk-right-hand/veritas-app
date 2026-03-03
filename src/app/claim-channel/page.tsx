@@ -1,30 +1,35 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Added for redirect
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, CheckCircle2, Youtube, Zap, AlertCircle, Copy } from 'lucide-react';
-// Relative imports might break if not adjusted, checking path
-// Original was in src/app/creator-dashboard/page.tsx, now in src/app/claim-channel/page.tsx
-// Paths to actions should remain ../actions/video-actions which is correct relative to src/app/claim-channel
+import { ArrowLeft, CheckCircle2, Youtube, Zap, AlertCircle, Copy, Eye, EyeOff, Shield, Mail, Clock } from 'lucide-react';
 import { getChannelMetadata, verifyChannelOwnership } from '../actions/video-actions';
+import { savePendingClaim } from '../actions/pending-data-actions';
+import { OAuthButtons } from '@/components/OAuthButtons';
 
-export default function ClaimChannelPage() {
-    const router = useRouter(); // For redirection
+export default function ClaimChannelPageWrapper() {
+    return (
+        <Suspense>
+            <ClaimChannelPage />
+        </Suspense>
+    );
+}
 
-    // State
-    // Removed isClaimed, using redirect instead
+function ClaimChannelPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
-    // Claim Flow State
-    const [step, setStep] = useState<1 | 2 | 3>(1);
+    // Step flow: 1=URL, 2=method choice, '2a'=email+token, 3=password
+    const [step, setStep] = useState<1 | 2 | '2a' | 3>(1);
     const [channelUrl, setChannelUrl] = useState("");
     const [email, setEmail] = useState("");
     const [channelName, setChannelName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
-    // Verification State
+    // Verification State (email/token path)
     const [verificationToken, setVerificationToken] = useState("");
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const [timeLeft, setTimeLeft] = useState(45);
@@ -33,37 +38,67 @@ export default function ClaimChannelPage() {
 
     // Password State
     const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [claimStatus, setClaimStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-    // True when an existing logged-in user is going through the bypass path.
-    // Hides the password form so it never flashes on screen during auto-claim.
     const [bypassMode, setBypassMode] = useState(false);
 
-    // Step 1: Handle initial submit (URL + Email)
+    // Callback error display
+    const callbackError = searchParams.get('error');
+
+    const getCallbackErrorMessage = () => {
+        switch (callbackError) {
+            case 'channel_mismatch':
+                return 'The Google account selected does not match the channel URL provided. Please try again with the correct account.';
+            case 'missing_youtube_access':
+                return 'Could not access your YouTube data. Please try again and grant YouTube permissions.';
+            case 'no_youtube_channels':
+                return 'No YouTube channels found on this Google account.';
+            case 'session_expired':
+                return 'Your session expired. Please start the claim process again.';
+            case 'claim_failed':
+                return searchParams.get('message') || 'Failed to claim channel. Please try again.';
+            case 'youtube_api_failed':
+                return 'Could not verify your YouTube channel. Please try the manual token method instead.';
+            default:
+                return callbackError ? 'Something went wrong. Please try again.' : null;
+        }
+    };
+
+    const callbackErrorMsg = getCallbackErrorMessage();
+
+    // Step 1: Handle URL submit
     const handleStartClaim = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError("");
 
         try {
-            // Fetch channel metadata to confirm it exists and get name
             const { title, success } = await getChannelMetadata(channelUrl);
-
             if (success) {
                 setChannelName(title);
                 setStep(2);
             } else {
                 setError("Could not find channel. Please check the URL.");
             }
-        } catch (err) {
+        } catch {
             setError("An error occurred. Please try again.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Step 2: Generate Token
+    // Save pending claim + trigger Google OAuth
+    const handleGoogleVerify = async () => {
+        await savePendingClaim(channelUrl, channelName);
+        // OAuthButtons handles the redirect
+    };
+
+    // Step 2a: Generate Token (email/token path)
     const generateToken = async () => {
+        if (!email.trim()) {
+            setError("Please enter your email address.");
+            return;
+        }
         setIsLoading(true);
         setError("");
         try {
@@ -105,9 +140,8 @@ export default function ClaimChannelPage() {
         }
     };
 
-    // Step 2: Start Verification Process
     const startVerification = () => {
-        setError(""); // Clear any previous errors on retry
+        setError("");
         setIsTimerRunning(true);
         setTimeLeft(45);
     };
@@ -120,7 +154,6 @@ export default function ClaimChannelPage() {
                 setTimeLeft((prev) => prev - 1);
             }, 1000);
         } else if (isTimerRunning && timeLeft === 0) {
-            // Timer finished, run verification
             setIsTimerRunning(false);
             performVerification();
         }
@@ -132,17 +165,13 @@ export default function ClaimChannelPage() {
         try {
             const result = await verifyChannelOwnership(email, channelUrl, verificationToken);
             if (result.success) {
-                setError(""); // Ensure error doesn't bleed into next step
+                setError("");
 
-                // --- BYPASS LOGIC ---
-                // Use a server action (SSR cookie client) instead of the browser anon client.
-                // The browser client reads localStorage which is never populated by our
-                // server-side sign-in flows — the SSR client reads HTTP cookies correctly.
                 const { getAuthenticatedUserId, claimChannelForExistingUser } = await import('../actions/auth-actions');
                 const existingUserId = await getAuthenticatedUserId();
 
                 if (existingUserId) {
-                    setBypassMode(true); // Hide password form — existing user doesn't need to set one
+                    setBypassMode(true);
                     setStep(3);
                     setClaimStatus('loading');
                     const bypassResult = await claimChannelForExistingUser(email, {
@@ -159,28 +188,20 @@ export default function ClaimChannelPage() {
                         setError(bypassResult.message);
                     }
                 } else {
-                    setStep(3); // 3 = Password Set for new users
+                    setStep(3);
                 }
             } else {
                 setError("Verification failed. We couldn't find the token in your channel description. Please try again.");
-                setIsTimerRunning(false); // Reset to allow retry
+                setIsTimerRunning(false);
             }
-        } catch (err) {
+        } catch {
             setError("Verification failed due to an error. Please try again.");
         } finally {
             setIsVerifying(false);
         }
     };
 
-
-
-    // ... (imports)
-
     const handleFinalizeClaim = async () => {
-        if (password !== confirmPassword) {
-            setError("Passwords do not match.");
-            return;
-        }
         if (password.length < 6) {
             setError("Password must be at least 6 characters.");
             return;
@@ -190,7 +211,6 @@ export default function ClaimChannelPage() {
         setClaimStatus('loading');
 
         try {
-            // Dynamically import to avoid server action issues in client component if checking types strict
             const { finalizeChannelClaim, creatorLogin } = await import('../actions/auth-actions');
 
             const result = await finalizeChannelClaim(email, password, {
@@ -200,17 +220,14 @@ export default function ClaimChannelPage() {
             });
 
             if (result.success) {
-                // Sign In the user immediately using the Server Action to establish a secure cookie session
                 const loginResult = await creatorLogin(email, password);
-
                 if (!loginResult.success) {
                     console.error("Auto-login failed:", loginResult.message);
                 }
 
                 setClaimStatus('success');
-                // Auto-redirect after 3 seconds
                 setTimeout(() => {
-                    router.push('/creator-dashboard'); // Redirect to dashboard
+                    router.push('/creator-dashboard');
                 }, 3000);
             } else {
                 setClaimStatus('error');
@@ -243,31 +260,39 @@ export default function ClaimChannelPage() {
             <main className="pt-32 pb-20 px-8 max-w-[1200px] mx-auto min-h-[80vh] flex flex-col justify-center">
 
                 <AnimatePresence mode='wait'>
-                    {/* STATE 1: UNCLAIMED (Claim Flow) */}
                     <motion.div
-                        key="unclaimed"
+                        key="claim-flow"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                         className="w-full max-w-2xl mx-auto text-center"
                     >
-                        {step !== 3 && (
+                        {/* Header — show on steps 1 and 2 */}
+                        {(step === 1 || step === 2) && (
                             <>
                                 <div className="mb-8 inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-900/10 border border-red-500/20 shadow-[0_0_40px_rgba(220,38,38,0.1)]">
                                     <Youtube className="w-10 h-10 text-red-500" />
                                 </div>
 
                                 <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 mb-6">
-                                    Claim Your Authority.
+                                    Claim Your Channel
                                 </h1>
 
                                 <p className="text-lg text-gray-400 mb-12 leading-relaxed">
-                                    Veritas aggregates only the highest quality, human-verified content.
-                                    <br />Claim your channel to manage your presence and see who's watching.
+                                    Manage your videos, links and offers... And get the latest &quot;content-gaps&quot; from our in-house data.
                                 </p>
                             </>
                         )}
 
+                        {/* Callback error banner */}
+                        {callbackErrorMsg && (step === 1 || step === 2) && (
+                            <div className="mb-6 max-w-lg mx-auto p-4 rounded-xl bg-red-900/20 border border-red-500/30 text-red-300 text-sm text-left flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                                <span>{callbackErrorMsg}</span>
+                            </div>
+                        )}
+
+                        {/* SUCCESS STATE */}
                         {step === 3 && claimStatus === 'success' && (
                             <motion.div
                                 initial={{ scale: 0.9, opacity: 0 }}
@@ -294,6 +319,7 @@ export default function ClaimChannelPage() {
                             </motion.div>
                         )}
 
+                        {/* STEP 3: PASSWORD (email/token path only, not bypass) */}
                         {step === 3 && claimStatus !== 'success' && !bypassMode && (
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
@@ -311,23 +337,22 @@ export default function ClaimChannelPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div>
+                                    <div className="relative">
                                         <input
-                                            type="password"
+                                            type={showPassword ? "text" : "password"}
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="Password"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
+                                            placeholder="Password (min. 6 characters)"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 pr-12 text-white focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleFinalizeClaim()}
                                         />
-                                    </div>
-                                    <div>
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            placeholder="Re-type password"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
-                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
                                     </div>
 
                                     {error && (
@@ -345,8 +370,8 @@ export default function ClaimChannelPage() {
                             </motion.div>
                         )}
 
-                        {step === 1 ? (
-                            /* STEP 1: URL & Email Input */
+                        {/* STEP 1: CHANNEL URL */}
+                        {step === 1 && (
                             <form onSubmit={handleStartClaim} className="relative max-w-lg mx-auto flex flex-col gap-4">
                                 <div className="relative group">
                                     <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -355,16 +380,6 @@ export default function ClaimChannelPage() {
                                         value={channelUrl}
                                         onChange={(e) => setChannelUrl(e.target.value)}
                                         placeholder="Paste your YouTube Channel URL..."
-                                        className="w-full bg-[#151515] border border-white/10 rounded-full py-4 px-8 text-white focus:outline-none focus:border-red-500/50 focus:bg-[#1a1a1a] transition-all relative z-10 placeholder:text-gray-600 text-center shadow-2xl"
-                                        required
-                                    />
-                                </div>
-                                <div className="relative group">
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="Enter your email address..."
                                         className="w-full bg-[#151515] border border-white/10 rounded-full py-4 px-8 text-white focus:outline-none focus:border-red-500/50 focus:bg-[#1a1a1a] transition-all relative z-10 placeholder:text-gray-600 text-center shadow-2xl"
                                         required
                                     />
@@ -389,14 +404,76 @@ export default function ClaimChannelPage() {
                                         </>
                                     ) : (
                                         <>
-                                            <span>Verify & Claim</span>
+                                            <span>Next</span>
                                             <CheckCircle2 className="w-5 h-5" />
                                         </>
                                     )}
                                 </button>
                             </form>
-                        ) : step === 2 ? (
-                            /* STEP 2: Token Verification */
+                        )}
+
+                        {/* STEP 2: VERIFICATION METHOD CHOICE */}
+                        {step === 2 && (
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="max-w-lg mx-auto space-y-4"
+                            >
+                                <div className="text-left mb-6">
+                                    <p className="text-gray-400 text-sm">
+                                        Claiming <strong className="text-white">{channelName}</strong>
+                                    </p>
+                                </div>
+
+                                {/* Google Option */}
+                                <div className="bg-[#111] p-6 rounded-2xl border border-white/10 space-y-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Shield className="w-5 h-5 text-green-400" />
+                                        <h3 className="font-semibold text-white">Instant Verification</h3>
+                                    </div>
+                                    <p className="text-gray-400 text-sm">
+                                        Google verifies you own this channel automatically. No tokens, no waiting.
+                                    </p>
+                                    <OAuthButtons
+                                        flow="claim"
+                                        extraScopes={['https://www.googleapis.com/auth/youtube.readonly']}
+                                        onBeforeRedirect={handleGoogleVerify}
+                                    />
+                                </div>
+
+                                {/* Divider */}
+                                <div className="relative flex items-center my-2">
+                                    <div className="flex-1 h-px bg-white/10" />
+                                    <span className="px-4 text-sm text-gray-500">or</span>
+                                    <div className="flex-1 h-px bg-white/10" />
+                                </div>
+
+                                {/* Email & Token Option */}
+                                <button
+                                    onClick={() => setStep('2a')}
+                                    className="w-full bg-[#111] p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-all text-left group"
+                                >
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Mail className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" />
+                                        <h3 className="font-semibold text-white">Email & Token</h3>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                        <Clock className="w-4 h-4" />
+                                        <span>Takes ~90 seconds to complete</span>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => { setStep(1); setError(""); }}
+                                    className="mt-4 text-sm text-gray-500 hover:text-white transition-colors"
+                                >
+                                    Back
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* STEP 2a: EMAIL + TOKEN VERIFICATION */}
+                        {step === '2a' && (
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -405,17 +482,31 @@ export default function ClaimChannelPage() {
                                 <div className="mb-6 text-left">
                                     <h3 className="text-xl font-bold text-white mb-2">Verify Ownership</h3>
                                     <p className="text-gray-400 text-sm leading-relaxed">
-                                        IMPORTANT: To ensure that you are the actual owner of <strong className="text-white">{channelName}</strong>, we need to verify that you have "Write Access" to the channel.
+                                        To verify you own <strong className="text-white">{channelName}</strong>, we&apos;ll generate a unique token for you to paste in your channel description.
                                     </p>
                                 </div>
+
+                                {/* Email input */}
+                                {!verificationToken && (
+                                    <div className="space-y-4 mb-6">
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="Enter your email address..."
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-all placeholder:text-gray-600"
+                                        />
+                                    </div>
+                                )}
 
                                 {!verificationToken ? (
                                     <button
                                         onClick={generateToken}
-                                        className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                        disabled={isLoading}
+                                        className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         <Zap className="w-4 h-4" />
-                                        Generate Verification Token
+                                        {isLoading ? 'Generating...' : 'Generate Verification Token'}
                                     </button>
                                 ) : (
                                     <div className="space-y-6">
@@ -435,11 +526,11 @@ export default function ClaimChannelPage() {
                                             </div>
                                         </div>
 
-                                        <p className="text-gray-400 text-sm mb-4">Paste this token into your channel's description.</p>
+                                        <p className="text-gray-400 text-sm mb-4">Paste this token into your channel&apos;s description.</p>
 
                                         <div className="text-sm text-gray-500 text-left space-y-2">
-                                            <p><strong className="text-gray-300">Desktop:</strong> Channel Dashboard {'>'} Customization {'>'} Basic Info {'>'} Description</p>
-                                            <p><strong className="text-gray-300">Mobile:</strong> Profile Icon {'>'} View Channel {'>'} Edit Channel (Pencil) {'>'} Description</p>
+                                            <p><strong className="text-gray-300">Desktop:</strong> Channel Dashboard {'>'} Customization {'>'} Basic Info {'>'} Description <strong className="text-red-500">{'>'} save/publish</strong></p>
+                                            <p><strong className="text-gray-300">Mobile:</strong> Profile Icon {'>'} View Channel {'>'} Edit Channel (Pencil) {'>'} Description <strong className="text-red-500">{'>'} save/publish</strong></p>
                                         </div>
 
                                         {!isTimerRunning ? (
@@ -464,7 +555,7 @@ export default function ClaimChannelPage() {
                                                 </div>
                                                 <p className="text-sm text-gray-500">
                                                     Verifying your channel... <br />
-                                                    <span className="text-xs opacity-70">Give it 30 seconds to allow YouTube to update</span>
+                                                    <span className="text-xs opacity-70">To prevent race-conditioning hacks allow YouTube 45 seconds to update</span>
                                                 </p>
                                                 <div className="mt-4 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
                                                     <motion.div
@@ -479,12 +570,18 @@ export default function ClaimChannelPage() {
                                     </div>
                                 )}
 
+                                {!verificationToken && (
+                                    <button
+                                        onClick={() => { setStep(2); setError(""); }}
+                                        className="mt-4 text-sm text-gray-500 hover:text-white transition-colors"
+                                    >
+                                        Back
+                                    </button>
+                                )}
                             </motion.div>
-                        ) : null}
+                        )}
 
-                        <p className="mt-8 text-xs text-gray-600">
-                            By claiming, you agree to our anti-AI content policy.
-                        </p>
+
                     </motion.div>
                 </AnimatePresence>
 

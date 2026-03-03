@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { cookies } from 'next/headers';
+import { slugify } from '@/lib/utils';
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -293,39 +294,50 @@ export async function suggestVideo(videoUrl: string) {
     }
 
     // 4. Insert new Pending Video
-    const { error: insertError } = await supabase
-        .from('videos')
-        .insert({
-            id: videoId,
-            title: metadata.title,
-            description: metadata.description,
-            channel_title: metadata.author_name,
-            channel_id: parsedChannelId,
-            channel_url: metadata.author_url,
-            published_at: metadata.published_at,
-            status: 'pending',
-            human_score: 50,
-            suggestion_count: 1
-        });
+    let generatedSlug = slugify(metadata.title).substring(0, 100);
+    let insertSuccess = false;
 
-    if (insertError) {
-        console.error("Insert Error:", insertError);
-        // Fallback: Try inserting without new columns if it failed
-        if (insertError.message.includes("column")) {
-            // Retry without description/channel info if schema is old
-            const { error: retryError } = await supabase
-                .from('videos')
-                .insert({
-                    id: videoId,
-                    title: metadata.title,
-                    status: 'pending',
-                    human_score: 50,
-                    suggestion_count: 1
-                });
-            if (retryError) return { success: false, message: "Failed to submit video. " + retryError.message };
-        } else {
-            return { success: false, message: "Failed to submit video. " + insertError.message };
+    while (!insertSuccess) {
+        const { error: insertError } = await supabase
+            .from('videos')
+            .insert({
+                id: videoId,
+                slug: generatedSlug,
+                title: metadata.title,
+                description: metadata.description,
+                channel_title: metadata.author_name,
+                channel_id: parsedChannelId,
+                channel_url: metadata.author_url,
+                published_at: metadata.published_at,
+                status: 'pending',
+                human_score: 50,
+                suggestion_count: 1
+            });
+
+        if (insertError) {
+            if (insertError.code === '23505' && insertError.message.includes('slug')) {
+                generatedSlug = `${slugify(metadata.title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
+                continue;
+            }
+            console.error("Insert Error:", insertError);
+            // Fallback: Try inserting without new columns if it failed
+            if (insertError.message.includes("column")) {
+                const { error: retryError } = await supabase
+                    .from('videos')
+                    .insert({
+                        id: videoId,
+                        slug: generatedSlug,
+                        title: metadata.title,
+                        status: 'pending',
+                        human_score: 50,
+                        suggestion_count: 1
+                    });
+                if (retryError) return { success: false, message: "Failed to submit video. " + retryError.message };
+            } else {
+                return { success: false, message: "Failed to submit video. " + insertError.message };
+            }
         }
+        insertSuccess = true;
     }
 
     revalidatePath('/founder-meeting');
@@ -408,6 +420,19 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: videoUrl })
         }).catch(err => console.error('[moderateVideo] Analysis trigger error:', err));
+
+        // Revalidate slug routes if video data is attached
+        if (data && data.length > 0 && data[0].slug) {
+            // Sniper approach: revalidate only this specific video's page
+            revalidatePath(`/v/${data[0].slug}`);
+            if (data[0].channel_url) {
+                // Find associated creator and revalidate their specific page
+                const { data: creator } = await supabase.from('creators').select('slug').eq('channel_url', data[0].channel_url).single()
+                if (creator && creator.slug) {
+                    revalidatePath(`/c/${creator.slug}`);
+                }
+            }
+        }
     }
 
     revalidatePath('/dashboard');
@@ -707,13 +732,18 @@ export async function postComment(videoId: string, text: string, userName = 'Com
 
 export async function updateVideoDescription(videoId: string, description: string) {
     try {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('videos')
             .update({ custom_description: description })
-            .eq('id', videoId);
+            .eq('id', videoId)
+            .select('slug')
+            .single();
 
         if (error) throw error;
         revalidatePath('/creator-dashboard');
+        if (data && data.slug) {
+            revalidatePath(`/v/${data.slug}`);
+        }
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };

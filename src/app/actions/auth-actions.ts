@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
+import { slugify } from '@/lib/utils';
 
 // Initialize Supabase Admin Client (Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -110,22 +111,35 @@ export async function finalizeChannelClaim(
             return { success: true, message: "Channel already linked to this account." };
         }
 
-        // 3. Create Creator Profile
-        const { error: insertError } = await supabaseAdmin
-            .from('creators')
-            .insert({
-                user_id: userId,
-                channel_url: channelInfo.url,
-                channel_name: channelInfo.title,
-                channel_id: channelInfo.url, // Ideally should be Youtube ID, using URL as fallback unique key for now
-                verification_token: channelInfo.token,
-                is_verified: true,
-                human_score: 100 // Default or fetch real score
-            });
+        // 3. Create Creator Profile - Slug Generation & Collision Trap
+        let generatedSlug = slugify(channelInfo.title).substring(0, 100);
+        let insertSuccess = false;
 
-        if (insertError) {
-            console.error("[Authorization] Insert Error:", insertError);
-            throw new Error("Failed to create creator profile: " + insertError.message);
+        while (!insertSuccess) {
+            const { error: insertError } = await supabaseAdmin
+                .from('creators')
+                .insert({
+                    user_id: userId,
+                    slug: generatedSlug,
+                    channel_url: channelInfo.url,
+                    channel_name: channelInfo.title,
+                    channel_id: channelInfo.url, // Ideally should be Youtube ID, using URL as fallback unique key for now
+                    verification_token: channelInfo.token,
+                    is_verified: true,
+                    human_score: 100 // Default or fetch real score
+                });
+
+            if (insertError) {
+                // Postgres Unique Constraint Violation is 23505
+                if (insertError.code === '23505' && insertError.message.includes('slug')) {
+                    // Append random string and retry
+                    generatedSlug = `${slugify(channelInfo.title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
+                    continue;
+                }
+                console.error("[Authorization] Insert Error:", insertError);
+                throw new Error("Failed to create creator profile: " + insertError.message);
+            }
+            insertSuccess = true;
         }
 
         return { success: true, message: "Channel claimed successfully! You can now log in." };
@@ -344,22 +358,34 @@ export async function claimChannelForExistingUser(
         }
 
         // 4. Create Creator Profile
-        const { error: insertError } = await supabaseAdmin
-            .from('creators')
-            .insert({
-                user_id: userId,
-                public_contact_email: email, // The user-provided contact email
-                channel_url: channelInfo.url,
-                channel_name: channelInfo.title,
-                channel_id: channelInfo.url, // Fallback
-                verification_token: channelInfo.token,
-                is_verified: true,
-                human_score: 100 // Default
-            });
+        let generatedSlug = slugify(channelInfo.title).substring(0, 100);
+        let insertSuccess = false;
 
-        if (insertError) {
-            console.error("[Authorization] Insert Error:", insertError);
-            throw new Error("Failed to create creator profile: " + insertError.message);
+        while (!insertSuccess) {
+            const { error: insertError } = await supabaseAdmin
+                .from('creators')
+                .insert({
+                    user_id: userId,
+                    slug: generatedSlug,
+                    public_contact_email: email, // The user-provided contact email
+                    channel_url: channelInfo.url,
+                    channel_name: channelInfo.title,
+                    channel_id: channelInfo.url, // Fallback
+                    verification_token: channelInfo.token,
+                    is_verified: true,
+                    human_score: 100 // Default
+                });
+
+            if (insertError) {
+                // Postgres Unique Constraint Violation is 23505
+                if (insertError.code === '23505' && insertError.message.includes('slug')) {
+                    generatedSlug = `${slugify(channelInfo.title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
+                    continue;
+                }
+                console.error("[Authorization] Insert Error:", insertError);
+                throw new Error("Failed to create creator profile: " + insertError.message);
+            }
+            insertSuccess = true;
         }
 
         // SECURITY PATCH H2: Bust the Next.js cache so the UserContext and

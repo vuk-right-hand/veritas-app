@@ -1,18 +1,40 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Mail, Lock, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { viewerLogin } from '../actions/auth-actions';
+import { OAuthButtons } from '@/components/OAuthButtons';
 
-export default function LoginPage() {
+export default function LoginPageWrapper() {
+    return (
+        <Suspense>
+            <LoginPage />
+        </Suspense>
+    );
+}
+
+function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // Display OAuth callback errors
+    const callbackError = searchParams.get('error');
+    const callbackErrorMsg = callbackError === 'exchange_failed'
+        ? 'Authentication failed. Please try again.'
+        : callbackError === 'account_exists'
+            ? 'An account with this email already exists. Try a different sign-in method.'
+            : callbackError === 'no_code'
+                ? 'Authentication was cancelled. Please try again.'
+                : callbackError
+                    ? 'Something went wrong. Please try again.'
+                    : null;
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,6 +74,24 @@ export default function LoginPage() {
                         </div>
                         <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome Back</h1>
                         <p className="text-sm md:text-base text-gray-400">Log in to sync your profile and feed.</p>
+                    </div>
+
+                    {/* Callback error banner */}
+                    {callbackErrorMsg && (
+                        <div className="mb-4 p-3 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            {callbackErrorMsg}
+                        </div>
+                    )}
+
+                    {/* OAuth Buttons */}
+                    <OAuthButtons flow="login" className="mb-4" />
+
+                    {/* Divider */}
+                    <div className="relative flex items-center mb-4">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="px-4 text-sm text-gray-500">or</span>
+                        <div className="flex-1 h-px bg-white/10" />
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-4">

@@ -1,14 +1,25 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Target, Zap } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ArrowRight, CheckCircle2, Target, Zap, Eye, EyeOff, Mail } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { saveMission } from '../actions/saveMission';
+import { savePendingMission } from '../actions/pending-data-actions';
+import { OAuthButtons } from '@/components/OAuthButtons';
 
-export default function Onboarding() {
+export default function OnboardingWrapper() {
+    return (
+        <Suspense>
+            <Onboarding />
+        </Suspense>
+    );
+}
+
+function Onboarding() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -17,13 +28,16 @@ export default function Onboarding() {
         name: '',
         email: '',
         password: '',
-        confirmPassword: ''
     });
 
     const [customGoal, setCustomGoal] = useState('');
     const [customStruggle, setCustomStruggle] = useState('');
-
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+
+    // Display OAuth callback errors
+    const callbackError = searchParams.get('error');
+    const callbackProvider = searchParams.get('provider');
 
     const GOALS = [
         "Make $10,000/m Online",
@@ -59,16 +73,12 @@ export default function Onboarding() {
 
     const handleNext = async () => {
         setError('');
-        if (step < 3) {
+        if (step < 4) {
             setStep(step + 1);
         } else {
-            // Validation
-            if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.confirmPassword) {
+            // Step 4 validation (email path)
+            if (!formData.name.trim() || !formData.email.trim() || !formData.password) {
                 setError('Please fill in all fields to continue.');
-                return;
-            }
-            if (formData.password !== formData.confirmPassword) {
-                setError('Passwords do not match.');
                 return;
             }
             if (formData.password.length < 6) {
@@ -76,15 +86,12 @@ export default function Onboarding() {
                 return;
             }
 
-            // Final Submit
             setLoading(true);
             const finalData = {
                 ...formData,
                 goal: formData.goal === "Other" ? customGoal : formData.goal,
                 struggle: formData.struggle === "Other" ? customStruggle : formData.struggle
             };
-
-            console.log("Saving Profile:", finalData);
 
             try {
                 const result = await saveMission(finalData);
@@ -102,9 +109,35 @@ export default function Onboarding() {
         }
     };
 
+    /** Persist goal/struggle to cookie before OAuth redirect */
+    const handleBeforeOAuthRedirect = async () => {
+        const goal = formData.goal === "Other" ? customGoal : formData.goal;
+        const struggle = formData.struggle === "Other" ? customStruggle : formData.struggle;
+        await savePendingMission(goal, struggle);
+    };
+
+    const getCallbackErrorMessage = () => {
+        switch (callbackError) {
+            case 'no_email':
+                return callbackProvider === 'github'
+                    ? 'Your GitHub email is private. Please make it public in GitHub Settings → Emails, or sign up with email instead.'
+                    : 'Could not retrieve your email. Please try again or use email sign-up.';
+            case 'session_expired':
+                return 'Your session expired. Please select your goal and obstacle again.';
+            case 'mission_failed':
+                return 'Failed to save your profile. Please try again.';
+            case 'exchange_failed':
+                return 'Authentication failed. Please try again.';
+            default:
+                return callbackError ? 'Something went wrong. Please try again.' : null;
+        }
+    };
+
+    const callbackErrorMsg = getCallbackErrorMessage();
+
     return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
-            {/* Background Ambience - Red/Dark Theme */}
+            {/* Background Ambience */}
             <div className="absolute top-[-20%] left-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-900/10 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-red-950/20 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
 
@@ -128,7 +161,7 @@ export default function Onboarding() {
                         <img src="/veritas-heart.svg" alt="Veritas" className="w-12 h-12 object-contain animate-heartbeat fill-red-600" />
                     </div>
                     <h1 className="text-3xl md:text-4xl font-bold mb-2 tracking-tight text-white">Customize Your Feed</h1>
-                    <p className="text-gray-400 text-base md:text-lg">Let's curate the perfect content diet for you.</p>
+                    <p className="text-gray-400 text-base md:text-lg">Let&apos;s curate the perfect content diet for you.</p>
                 </motion.div>
 
                 {/* Card */}
@@ -138,7 +171,14 @@ export default function Onboarding() {
                     animate={{ height: 'auto' }}
                 >
                     {/* Progress Bar */}
-                    <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-red-600 to-red-900 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
+                    <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-red-600 to-red-900 transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }} />
+
+                    {/* Callback error banner */}
+                    {callbackErrorMsg && step <= 3 && (
+                        <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-300 text-sm">
+                            {callbackErrorMsg}
+                        </div>
+                    )}
 
                     {/* STEP 1: GOAL */}
                     {step === 1 && (
@@ -241,7 +281,7 @@ export default function Onboarding() {
                         </motion.div>
                     )}
 
-                    {/* STEP 3: CONTACT */}
+                    {/* STEP 3: AUTH METHOD */}
                     {step === 3 && (
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
@@ -250,7 +290,47 @@ export default function Onboarding() {
                             key="step3"
                         >
                             <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                                <span className="text-red-500">03.</span> Claim your Veritas profile:
+                                <span className="text-red-500">03.</span> How would you like to sign up?
+                            </h2>
+
+                            <OAuthButtons
+                                flow="onboarding"
+                                onBeforeRedirect={handleBeforeOAuthRedirect}
+                            />
+
+                            {/* Divider */}
+                            <div className="relative flex items-center my-6">
+                                <div className="flex-1 h-px bg-white/10" />
+                                <span className="px-4 text-sm text-gray-500">or</span>
+                                <div className="flex-1 h-px bg-white/10" />
+                            </div>
+
+                            {/* Email option */}
+                            <button
+                                onClick={() => setStep(4)}
+                                className="w-full text-left p-4 rounded-xl border bg-[#1a1a1a] border-white/5 hover:bg-[#202020] hover:border-red-500/30 transition-all group flex items-center justify-between"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Mail className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" />
+                                    <span className="font-medium text-gray-200 group-hover:text-white">Continue with Email</span>
+                                </div>
+                                <ArrowRight className="w-4 h-4 text-white/0 group-hover:text-red-500 transition-all transform -translate-x-2 group-hover:translate-x-0 opacity-0 group-hover:opacity-100" />
+                            </button>
+
+                            <button onClick={() => setStep(2)} className="mt-6 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+                        </motion.div>
+                    )}
+
+                    {/* STEP 4: EMAIL REGISTRATION */}
+                    {step === 4 && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            key="step4"
+                        >
+                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                                <span className="text-red-500">04.</span> Claim your Veritas profile:
                             </h2>
                             <div className="mt-4 space-y-4">
                                 <div>
@@ -275,24 +355,23 @@ export default function Onboarding() {
                                 </div>
                                 <div>
                                     <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Password</label>
-                                    <input
-                                        type="password"
-                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
-                                        placeholder="Create a password (min. 6 characters)"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm Password</label>
-                                    <input
-                                        type="password"
-                                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
-                                        placeholder="Re-type your password"
-                                        value={formData.confirmPassword}
-                                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleNext()}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-4 pr-12 text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-gray-600"
+                                            placeholder="Create a password (min. 6 characters)"
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleNext()}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {error && (
@@ -308,7 +387,7 @@ export default function Onboarding() {
                                 >
                                     {loading ? 'Analyzing...' : 'Build My Feed'} <CheckCircle2 className="w-5 h-5" />
                                 </button>
-                                <button onClick={() => setStep(2)} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+                                <button onClick={() => setStep(3)} className="w-full text-center mt-4 text-sm text-gray-500 hover:text-white transition-colors">Back</button>
 
                                 <div className="text-center mt-4 pt-4 border-t border-white/10">
                                     <p className="text-sm text-gray-400">
