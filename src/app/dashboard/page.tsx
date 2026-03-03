@@ -9,7 +9,7 @@ import ProblemSolver from '@/components/ProblemSolver';
 import AuthChoiceModal from '@/components/AuthChoiceModal';
 import BottomNav from '@/components/BottomNav';
 import InstallPrompt from '@/components/InstallPrompt';
-import { suggestVideo, getVerifiedVideos, getMyMission } from '@/app/actions/video-actions';
+import { suggestVideo, getInitialFeedData, getVerifiedVideosWithCreators } from '@/app/actions/video-actions';
 import { getCreatorsByChannelUrls } from '@/app/actions/creator-actions';
 import { getAuthenticatedUserId } from '@/app/actions/auth-actions';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
@@ -25,6 +25,30 @@ const TABS = [
     { id: 'Last 69 days', label: 'Last 69 days', icon: Flame },
     { id: 'Evergreen', label: 'Evergreen', icon: InfinityIcon },
 ];
+
+// Skeleton card shown while the initial feed loads — matches VideoCard collapsed height
+function VideoCardSkeleton() {
+    return (
+        <div className="rounded-2xl bg-white/[0.04] border border-white/[0.08] overflow-hidden">
+            <div className="aspect-video bg-white/[0.08] animate-pulse" />
+            <div className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                    <div className="w-10 h-5 rounded-full bg-white/10 animate-pulse" />
+                    <div className="h-3 w-20 rounded bg-white/[0.07] animate-pulse" />
+                </div>
+                <div className="space-y-1.5">
+                    <div className="h-4 bg-white/10 rounded animate-pulse" />
+                    <div className="h-4 bg-white/10 rounded animate-pulse w-4/5" />
+                </div>
+                <div className="space-y-2 pt-1">
+                    <div className="h-3 bg-white/[0.06] rounded animate-pulse" />
+                    <div className="h-3 bg-white/[0.06] rounded animate-pulse w-5/6" />
+                    <div className="h-3 bg-white/[0.06] rounded animate-pulse w-3/4" />
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // Convert UI filter labels to API parameter values
 function getTemporalFilterValue(label: string): '14' | '28' | '60' | 'evergreen' {
@@ -49,6 +73,9 @@ export default function Dashboard() {
     // Video Feed State
     const [videos, setVideos] = useState<any[]>([]);
     const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
+
+    // Feed loading state — true until first batch of videos is ready
+    const [isLoading, setIsLoading] = useState(true);
 
     // Pagination State
     const [standardVideoOffset, setStandardVideoOffset] = useState(0);
@@ -107,141 +134,110 @@ export default function Dashboard() {
         // Reset pagination on new load
         setStandardVideoOffset(0);
         setHasMore(true);
+        setIsLoading(true);
 
-        // 1. Check for Active Mission (Zero Distraction Rule)
-        const mission = await getMyMission();
-
-        // Also check authentication status
-        const userId = await getAuthenticatedUserId();
-        setIsLoggedIn(!!userId);
-
-        // Always sync name/avatar from mission so the top-right display
-        // reflects the latest saved profile regardless of curation state.
-        if (mission) {
-            if (mission.userDetails?.name) {
-                setUserName(mission.userDetails.name);
-            }
-            if (mission.userDetails?.avatar_url) {
-                setAvatarUrl(mission.userDetails.avatar_url);
-            }
-        }
-
-        let finalVideos: any[] = [];
         const temporalFilter = getTemporalFilterValue(filterLabel);
 
-        if (mission && mission.mission_curations && mission.mission_curations.length > 0) {
-            console.log("Found Active Mission:", mission.goal);
+        // 🚀 ONE server-action call (replaces 3 serial calls).
+        // Internally fires mission + verified queries in parallel, then batches creator lookup.
+        const [feedData, userId] = await Promise.all([
+            getInitialFeedData(temporalFilter),
+            getAuthenticatedUserId(),
+        ]);
 
-            // Filter Mission Videos by Time and Status
+        setIsLoggedIn(!!userId);
+
+        const { mission, verified, creatorMap } = feedData;
+
+        let finalVideos: any[] = [];
+
+        // ── CURATED PATH: user has goals/obstacles → show their personalised feed ──
+        if (mission?.mission_curations?.length > 0) {
             let curations = mission.mission_curations.filter((c: any) => c.videos?.status === 'verified');
 
             if (temporalFilter !== 'evergreen') {
-                const days = parseInt(temporalFilter);
                 const cutoff = new Date();
-                cutoff.setDate(cutoff.getDate() - days);
-
+                cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
                 curations = curations.filter((c: any) => {
-                    const dateStr = c.videos.published_at || c.videos.created_at;
-                    if (!dateStr) return false;
-                    return new Date(dateStr) >= cutoff;
+                    const dateStr = c.videos?.published_at || c.videos?.created_at;
+                    return dateStr && new Date(dateStr) >= cutoff;
                 });
             }
 
-            const curated = curations.map((c: any) => ({
-                id: c.videos.id,
-                title: c.videos.title,
-                humanScore: c.videos.human_score || 99,
-                category: c.videos.category_tag || 'Mission',
-                channelTitle: c.videos.channel_title || 'Human Expert',
-                channelUrl: c.videos.channel_url || '',
-                publishedAt: c.videos.published_at || c.videos.created_at, // Fallback to created_at
-                takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`],
-                // Add a flag to distinguish curated videos
-                isCurated: true
-            }));
-
-            finalVideos = curated;
+            finalVideos = curations.map((c: any) => {
+                const creator = creatorMap[c.videos?.channel_url] || null;
+                return {
+                    id: c.videos.id,
+                    title: c.videos.title,
+                    humanScore: c.videos.human_score || 99,
+                    category: c.videos.category_tag || 'Mission',
+                    channelTitle: c.videos.channel_title || 'Human Expert',
+                    channelUrl: c.videos.channel_url || '',
+                    publishedAt: c.videos.published_at || c.videos.created_at,
+                    takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`],
+                    customDescription: c.videos.custom_description || undefined,
+                    customLinks: c.videos.custom_links || undefined,
+                    channelDescription: creator?.description || undefined,
+                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                    isChannelClaimed: !!creator,
+                    isCurated: true,
+                };
+            });
         }
 
-        // 2. Smart Fallback: If filtered/curated list is small (< 10), fill with generic verified videos
-        // This ensures "Approved" videos appear even if not yet curated for this specific mission
-        if (finalVideos.length < 10) {
-            const temporalFilter = getTemporalFilterValue(filterLabel);
-            // Fetch only 6 — exactly one above-the-fold row on desktop (3-col grid × 2 rows).
-            // A background prefetch immediately loads the next 6 so scrolling feels instant.
-            const verified = await getVerifiedVideos(temporalFilter, 6, 0);
+        // ── GENERIC PATH: zero curations for this filter → use verified pool ──────
+        // KEY FIX: Only backfill if we have NO curated videos.
+        // Previously mixed curated + generic which caused the "reassembly" flash.
+        if (finalVideos.length === 0) {
+            const formatBatch = (vids: any[]) => vids.map(v => {
+                const creator = creatorMap[v.channel_url] || null;
+                return {
+                    id: v.id,
+                    title: v.title,
+                    humanScore: v.human_score || 0,
+                    category: v.category_tag || 'Community',
+                    customDescription: v.custom_description || undefined,
+                    customLinks: v.custom_links || undefined,
+                    channelTitle: v.channel_title || 'Community Creator',
+                    channelUrl: v.channel_url || '',
+                    publishedAt: v.published_at || v.created_at,
+                    takeaways: v.summary_points || ['Analysis pending...', 'Watch to find out.'],
+                    channelDescription: creator?.description || undefined,
+                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                    isChannelClaimed: !!creator,
+                    isCurated: false,
+                };
+            });
 
-            if (verified && verified.length > 0) {
-                // Fetch channel-level data (descriptions + links) from creators table
-                const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
-                const creatorMap = await getCreatorsByChannelUrls(channelUrls);
+            finalVideos = formatBatch(verified);
 
-                // Reusable formatter — used for both initial and background batches
-                const formatVideoBatch = (vids: any[], crMap: Record<string, any>) => vids.map(v => {
-                    const creator = crMap[v.channel_url] || null;
-                    return {
-                        id: v.id,
-                        title: v.title,
-                        humanScore: v.human_score || 0,
-                        category: v.category_tag || 'Community',
-                        customDescription: v.custom_description || undefined,
-                        customLinks: v.custom_links || undefined,
-                        channelTitle: v.channel_title || 'Community Creator',
-                        channelUrl: v.channel_url || '',
-                        publishedAt: v.published_at || v.created_at,
-                        takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
-                        // Channel-level data from creators table
-                        channelDescription: creator?.description || undefined,
-                        channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
-                        isChannelClaimed: !!creator,
-                        isCurated: false
-                    };
-                });
-
-                const formattedVerified = formatVideoBatch(verified, creatorMap);
-
-                // Dedup: Filter out videos already in finalVideos
-                const existingIds = new Set(finalVideos.map((v: any) => v.id));
-                const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
-
-                finalVideos = [...finalVideos, ...toAdd];
-
-                const initialOffset = verified.length;
-                if (verified.length < 6) {
-                    // Fewer than a full batch — nothing more to load
-                    setHasMore(false);
-                    setStandardVideoOffset(initialOffset);
-                } else {
-                    // Reserve the next 6 slots immediately so scroll pagination doesn't overlap
-                    // with the background prefetch that's about to fire
-                    setStandardVideoOffset(initialOffset + 6);
-                    // Background prefetch: silently load the next 6 while the user reads the first 6.
-                    // No loading spinner shown — videos just appear in the grid when ready.
-                    getVerifiedVideos(temporalFilter, 6, initialOffset).then(async (bg) => {
-                        if (!bg || bg.length === 0) { setHasMore(false); return; }
-                        const bgUrls = bg.map((v: any) => v.channel_url).filter(Boolean);
-                        const bgCreatorMap = await getCreatorsByChannelUrls(bgUrls);
-                        const bgFormatted = formatVideoBatch(bg, bgCreatorMap);
-                        setVideos(prev => {
-                            const seen = new Set(prev.map((v: any) => v.id));
-                            return [...prev, ...bgFormatted.filter((v: any) => !seen.has(v.id))];
-                        });
-                        if (bg.length < 6) {
-                            setHasMore(false);
-                            setStandardVideoOffset(initialOffset + bg.length);
-                        }
-                    });
-                }
-            } else {
+            const initialOffset = verified.length;
+            if (verified.length < 6) {
                 setHasMore(false);
+                setStandardVideoOffset(initialOffset);
+            } else {
+                // Reserve next 6 slots then silently prefetch them
+                setStandardVideoOffset(initialOffset + 6);
+                getVerifiedVideosWithCreators(temporalFilter, 6, initialOffset).then((bg) => {
+                    if (!bg.length) { setHasMore(false); return; }
+                    setVideos(prev => {
+                        const seen = new Set(prev.map((v: any) => v.id));
+                        return [...prev, ...bg.filter((v: any) => !seen.has(v.id))];
+                    });
+                    if (bg.length < 6) {
+                        setHasMore(false);
+                        setStandardVideoOffset(initialOffset + bg.length);
+                    }
+                });
             }
         } else {
-            // Already enough initial videos, next scroll load starts at 0 offset for extra feed
+            // Curated content present — scroll pagination will pull generic pool
             setStandardVideoOffset(0);
             setHasMore(true);
         }
 
         setVideos(finalVideos);
+        setIsLoading(false);
     }, []);
 
     // Listen for feed-reset event dispatched by the BottomNav Feed tab
@@ -257,53 +253,26 @@ export default function Dashboard() {
     }, [activeTab, loadVideos]);
 
     const loadMoreVideos = React.useCallback(async () => {
-        if (isLoadingMore || !hasMore || currentSearchQuery) return; // Don't paginate during search
+        if (isLoadingMore || !hasMore || currentSearchQuery) return;
 
         setIsLoadingMore(true);
         try {
             const temporalFilter = getTemporalFilterValue(activeTab);
-            const limit = 3;
-            const verified = await getVerifiedVideos(temporalFilter, limit, standardVideoOffset);
+            // Single server action — fetches videos + creators in one call
+            const batch = await getVerifiedVideosWithCreators(temporalFilter, 3, standardVideoOffset);
 
-            if (verified && verified.length > 0) {
-                const channelUrls = verified.map(v => v.channel_url).filter(Boolean);
-                const creatorMap = await getCreatorsByChannelUrls(channelUrls);
-
-                const formattedVerified = verified.map(v => {
-                    const creator = creatorMap[v.channel_url] || null;
-                    return {
-                        id: v.id,
-                        title: v.title,
-                        humanScore: v.human_score || 0,
-                        category: v.category_tag || 'Community',
-                        customDescription: v.custom_description || undefined,
-                        customLinks: v.custom_links || undefined,
-                        channelTitle: v.channel_title || 'Community Creator',
-                        channelUrl: v.channel_url || '',
-                        publishedAt: v.published_at || v.created_at,
-                        takeaways: v.summary_points || ["Analysis pending...", "Watch to find out."],
-                        channelDescription: creator?.description || undefined,
-                        channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
-                        isChannelClaimed: !!creator,
-                        isCurated: false
-                    };
-                });
-
+            if (batch.length > 0) {
                 setVideos(prev => {
-                    const existingIds = new Set(prev.map(v => v.id));
-                    const toAdd = formattedVerified.filter(v => !existingIds.has(v.id));
-                    return [...prev, ...toAdd];
+                    const seen = new Set(prev.map((v: any) => v.id));
+                    return [...prev, ...batch.filter((v: any) => !seen.has(v.id))];
                 });
-
-                setStandardVideoOffset(prev => prev + verified.length);
-                if (verified.length < limit) {
-                    setHasMore(false);
-                }
+                setStandardVideoOffset(prev => prev + batch.length);
+                if (batch.length < 3) setHasMore(false);
             } else {
                 setHasMore(false);
             }
         } catch (error) {
-            console.error("Error loading more videos:", error);
+            console.error('Error loading more videos:', error);
         } finally {
             setIsLoadingMore(false);
         }
@@ -962,29 +931,44 @@ export default function Dashboard() {
 
 
                 {/* Video Grid - 3 Columns */}
-                < div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8" >
-                    {
-                        videos.map((video) => (
-                            <VideoCard
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
+                    {isLoading ? (
+                        // Show 3 skeleton cards above the fold while data loads
+                        Array.from({ length: 3 }).map((_, i) => <VideoCardSkeleton key={i} />)
+                    ) : (
+                        videos.map((video, index) => (
+                            <motion.div
                                 key={video.id}
-                                videoId={video.id}
-                                title={video.title}
-                                humanScore={video.humanScore}
-                                takeaways={video.takeaways}
-                                channelTitle={video.channelTitle}
-                                channelUrl={video.channelUrl}
-                                customDescription={video.customDescription}
-                                customLinks={video.customLinks}
-                                channelDescription={video.channelDescription}
-                                channelLinks={video.channelLinks}
-                                isChannelClaimed={video.isChannelClaimed}
-                                publishedAt={video.publishedAt}
-                                onQuizStart={() => { }}
-                                onVideoView={() => setVideoViewCount(c => c + 1)}
-                            />
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{
+                                    // First 3 cards cascade in instantly; cards 4-6 follow quickly;
+                                    // any subsequent scroll-loaded cards just fade in with no delay.
+                                    delay: index < 6 ? index * 0.05 : 0,
+                                    duration: 0.2,
+                                    ease: 'easeOut',
+                                }}
+                            >
+                                <VideoCard
+                                    videoId={video.id}
+                                    title={video.title}
+                                    humanScore={video.humanScore}
+                                    takeaways={video.takeaways}
+                                    channelTitle={video.channelTitle}
+                                    channelUrl={video.channelUrl}
+                                    customDescription={video.customDescription}
+                                    customLinks={video.customLinks}
+                                    channelDescription={video.channelDescription}
+                                    channelLinks={video.channelLinks}
+                                    isChannelClaimed={video.isChannelClaimed}
+                                    publishedAt={video.publishedAt}
+                                    onQuizStart={() => { }}
+                                    onVideoView={() => setVideoViewCount(c => c + 1)}
+                                />
+                            </motion.div>
                         ))
-                    }
-                </div >
+                    )}
+                </div>
 
                 {/* Infinite Scroll Loader */}
                 {!currentSearchQuery && hasMore && (

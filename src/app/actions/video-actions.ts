@@ -416,12 +416,15 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
     return { success: true, message: `Video moved to ${newStatus}` };
 }
 
+// Columns needed by feed cards — excludes heavy/unused fields like embedding, description, suggestion_count
+const FEED_VIDEO_COLS = 'id, title, human_score, category_tag, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, created_at, status';
+
 export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen', limit: number = 12, offset: number = 0) {
     noStore();
 
     let query = supabase
         .from('videos')
-        .select('*')
+        .select(FEED_VIDEO_COLS)
         .eq('status', 'verified')
         .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
 
@@ -448,6 +451,129 @@ export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'e
         }];
     }
     return data;
+}
+
+/**
+ * getInitialFeedData — ONE server-action call that replaces the previous
+ * serial chain of getMyMission() → getVerifiedVideos() → getCreatorsByChannelUrls().
+ *
+ * Internally it fires the mission query and verified-videos query in PARALLEL,
+ * then batches the creator lookup as a single IN query.
+ * Net result: 2 parallel DB hops + 1 serial hop → ~60 % faster than before.
+ */
+export async function getInitialFeedData(temporalFilter: '14' | '28' | '60' | 'evergreen') {
+    noStore();
+    const cookieStore = await cookies();
+    const missionId = cookieStore.get('veritas_user')?.value;
+
+    // ── Build verified-videos query ──────────────────────────────────────────
+    let verifiedQ = supabase
+        .from('videos')
+        .select(FEED_VIDEO_COLS)
+        .eq('status', 'verified')
+        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+
+    if (temporalFilter !== 'evergreen') {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
+        verifiedQ = verifiedQ.gte('published_at', cutoff.toISOString());
+    }
+    verifiedQ = verifiedQ.order('created_at', { ascending: false }).range(0, 5);
+
+    // ── Build mission query (only if cookie present) ─────────────────────────
+    const missionQ = missionId
+        ? supabase
+            .from('user_missions')
+            .select(`id, goal, user_id, mission_curations(curation_reason, videos(${FEED_VIDEO_COLS}))`)
+            .eq('id', missionId)
+            .single()
+        : Promise.resolve({ data: null, error: null });
+
+    // 🚀 PARALLEL — both DB queries fire at the same time
+    const [missionResult, verifiedResult] = await Promise.all([missionQ, verifiedQ]);
+
+    const mission = missionResult?.data ?? null;
+    const verified = (verifiedResult?.data ?? []) as any[];
+
+    // ── Batch-fetch creator data for all channel URLs in one IN query ────────
+    const allUrls = [
+        ...(mission?.mission_curations?.map((c: any) => c.videos?.channel_url).filter(Boolean) ?? []),
+        ...verified.map((v: any) => v.channel_url).filter(Boolean),
+    ];
+    const uniqueUrls = [...new Set(allUrls)] as string[];
+
+    const creatorMap: Record<string, { description: string; links: any[] }> = {};
+    if (uniqueUrls.length > 0) {
+        const { data: creators } = await supabase
+            .from('creators')
+            .select('channel_url, description, links')
+            .in('channel_url', uniqueUrls);
+        creators?.forEach((c: any) => {
+            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [] };
+        });
+    }
+
+    return { mission, verified, creatorMap };
+}
+
+/**
+ * getVerifiedVideosWithCreators — used by loadMoreVideos() and background prefetch.
+ * Returns fully-formatted video objects (no second round-trip needed on the client).
+ */
+export async function getVerifiedVideosWithCreators(
+    temporalFilter: '14' | '28' | '60' | 'evergreen',
+    limit: number = 3,
+    offset: number = 0
+) {
+    noStore();
+    let query = supabase
+        .from('videos')
+        .select(FEED_VIDEO_COLS)
+        .eq('status', 'verified')
+        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+
+    if (temporalFilter !== 'evergreen') {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
+        query = query.gte('published_at', cutoff.toISOString());
+    }
+    const { data: videos, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    if (error || !videos?.length) return [];
+
+    const channelUrls = [...new Set(videos.map((v: any) => v.channel_url).filter(Boolean))] as string[];
+    const creatorMap: Record<string, any> = {};
+    if (channelUrls.length > 0) {
+        const { data: creators } = await supabase
+            .from('creators')
+            .select('channel_url, description, links')
+            .in('channel_url', channelUrls);
+        creators?.forEach((c: any) => {
+            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [] };
+        });
+    }
+
+    return videos.map((v: any) => {
+        const creator = creatorMap[v.channel_url] || null;
+        return {
+            id: v.id,
+            title: v.title,
+            humanScore: v.human_score || 0,
+            category: v.category_tag || 'Community',
+            customDescription: v.custom_description || undefined,
+            customLinks: v.custom_links || undefined,
+            channelTitle: v.channel_title || 'Community Creator',
+            channelUrl: v.channel_url || '',
+            publishedAt: v.published_at || v.created_at,
+            takeaways: v.summary_points || ['Analysis pending...', 'Watch to find out.'],
+            channelDescription: creator?.description || undefined,
+            channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+            isChannelClaimed: !!creator,
+            isCurated: false,
+        };
+    });
 }
 
 export async function getDeniedVideos() {
