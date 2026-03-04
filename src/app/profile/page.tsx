@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, User, Target, Zap, Save, CheckCircle2, Lock, Brain, Trophy } from 'lucide-react';
+import { ArrowLeft, User, Target, Zap, Save, CheckCircle2, Lock, Brain, Trophy, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getMyMission } from '../actions/video-actions';
@@ -42,7 +42,7 @@ export default function Profile() {
     });
 
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -224,12 +224,7 @@ export default function Profile() {
         setError('');
         setSuccessMessage('');
 
-        if (password || confirmPassword) {
-            if (password !== confirmPassword) {
-                setError("Passwords do not match.");
-                setSaving(false);
-                return;
-            }
+        if (password) {
             if (password.length < 6) {
                 setError("Password must be at least 6 characters.");
                 setSaving(false);
@@ -244,7 +239,6 @@ export default function Profile() {
             }
 
             setPassword('');
-            setConfirmPassword('');
         }
 
         const finalGoal = formData.goal === 'Other...' ? customGoal : formData.goal;
@@ -432,23 +426,22 @@ export default function Profile() {
                                                 >
                                                     <div>
                                                         <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">New Password</label>
-                                                        <input
-                                                            type="password"
-                                                            value={password}
-                                                            onChange={(e) => setPassword(e.target.value)}
-                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                                            placeholder="Enter new password"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Confirm New Password</label>
-                                                        <input
-                                                            type="password"
-                                                            value={confirmPassword}
-                                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
-                                                            placeholder="Re-type your new password"
-                                                        />
+                                                        <div className="relative">
+                                                            <input
+                                                                type={showNewPassword ? "text" : "password"}
+                                                                value={password}
+                                                                onChange={(e) => setPassword(e.target.value)}
+                                                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 px-4 pr-12 text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600"
+                                                                placeholder="Enter new password"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                                            >
+                                                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </motion.div>
                                             )}

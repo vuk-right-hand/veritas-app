@@ -13,6 +13,7 @@ import { suggestVideo, getInitialFeedData, getVerifiedVideosWithCreators } from 
 import { getCreatorsByChannelUrls } from '@/app/actions/creator-actions';
 import { getAuthenticatedUserId } from '@/app/actions/auth-actions';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
+import { useUser } from '@/components/UserContext';
 
 
 // Mock Data for V1
@@ -125,8 +126,9 @@ export default function Dashboard() {
     // Track video views for install prompt trigger
     const [videoViewCount, setVideoViewCount] = useState(0);
 
-    // User Profile State
-    const [userName, setUserName] = useState<string>('');
+    // User Profile State — name sourced from UserContext (populated by getCurrentUserProfile)
+    const { userProfile } = useUser();
+    const userName = userProfile?.name || '';
     const [avatarUrl, setAvatarUrl] = useState<string>('');
 
     // Load videos with temporal filter
@@ -181,6 +183,8 @@ export default function Dashboard() {
                     channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
                     isChannelClaimed: !!creator,
                     isCurated: true,
+                    slug: c.videos.slug || null,
+                    creatorSlug: creator?.slug || null,
                 };
             });
         }
@@ -206,6 +210,8 @@ export default function Dashboard() {
                     channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
                     isChannelClaimed: !!creator,
                     isCurated: false,
+                    slug: v.slug || null,
+                    creatorSlug: creator?.slug || null,
                 };
             });
 
@@ -330,6 +336,8 @@ export default function Dashboard() {
                             channelDescription: creator?.description || undefined,
                             channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
                             isChannelClaimed: !!creator,
+                            slug: r.slug || null,
+                            creatorSlug: creator?.slug || null,
                         };
                     });
                     setVideos(mapped);
@@ -365,6 +373,8 @@ export default function Dashboard() {
                 channelDescription: creator?.description || undefined,
                 channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
                 isChannelClaimed: !!creator,
+                slug: r.slug || null,
+                creatorSlug: creator?.slug || null,
             };
         });
         setVideos(mapped);
@@ -962,6 +972,8 @@ export default function Dashboard() {
                                     channelLinks={video.channelLinks}
                                     isChannelClaimed={video.isChannelClaimed}
                                     publishedAt={video.publishedAt}
+                                    slug={video.slug}
+                                    creatorSlug={video.creatorSlug}
                                     onQuizStart={() => { }}
                                     onVideoView={() => setVideoViewCount(c => c + 1)}
                                 />

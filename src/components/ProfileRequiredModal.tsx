@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UserPlus } from 'lucide-react';
+import { X, UserPlus, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { OAuthButtons } from '@/components/OAuthButtons';
 
 interface ProfileRequiredModalProps {
     isOpen: boolean;
@@ -13,6 +14,22 @@ interface ProfileRequiredModalProps {
 
 export default function ProfileRequiredModal({ isOpen, onClose, source = 'default' }: ProfileRequiredModalProps) {
     const router = useRouter();
+
+    React.useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+            // Also prevent mobile Safari bounce
+            document.documentElement.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        }
+
+        return () => {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
+    }, [isOpen]);
 
     const handleLoginClick = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -30,20 +47,23 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                    onClick={onClose}
-                >
+                <>
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm"
+                        onClick={onClose}
+                    />
+
                     {/* Modal */}
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        initial={{ scale: 0.95, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking content
-                        className="bg-[#111] border border-red-900/50 w-full max-w-sm rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-hidden relative"
+                        exit={{ scale: 0.95, opacity: 0, y: 50 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full md:max-w-sm bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto max-h-[85vh] md:max-h-[90dvh] overscroll-contain pb-safe"
                     >
                         {/* Header Accent */}
                         <div className="h-1 w-full bg-gradient-to-r from-red-600 to-red-900" />
@@ -72,7 +92,17 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                 </>
                             )}
 
-                            {/* Action Buttons */}
+                            {/* OAuth Buttons */}
+                            <OAuthButtons flow="login" className="mb-3" />
+
+                            {/* Divider */}
+                            <div className="relative flex items-center mb-3">
+                                <div className="flex-1 h-px bg-white/10" />
+                                <span className="px-3 text-xs text-gray-500">or</span>
+                                <div className="flex-1 h-px bg-white/10" />
+                            </div>
+
+                            {/* Email Login */}
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -80,9 +110,10 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     onClose();
                                     router.push('/login');
                                 }}
-                                className="w-full py-3 px-6 bg-white hover:bg-gray-200 text-black font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-3"
+                                className="w-full py-3 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-3"
                             >
-                                Login
+                                <Mail className="w-4 h-4" />
+                                Login with email
                             </button>
 
                             <button
@@ -92,13 +123,13 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     onClose();
                                     router.push('/onboarding');
                                 }}
-                                className="w-full py-3 px-6 bg-red-600 hover:bg-red-500 text-black font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
+                                className="w-full py-3 px-6 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
                             >
                                 Claim profile
                             </button>
                         </div>
                     </motion.div>
-                </motion.div>
+                </>
             )}
         </AnimatePresence>
     );

@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Youtube, LogIn, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { X, Youtube, LogIn, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { creatorLogin } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
+import { OAuthButtons } from '@/components/OAuthButtons';
 
 interface AuthChoiceModalProps {
     isOpen: boolean;
@@ -17,6 +18,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
     const [view, setView] = useState<'choice' | 'login' | 'redirecting'>(defaultView);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -29,7 +31,20 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
             setError("");
         } else {
             setView(defaultView);
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
         }
+
+        // Handle body scroll locking
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+        }
+
+        return () => {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
     }, [isOpen, defaultView]);
 
     const handleClaimClick = () => {
@@ -79,7 +94,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                         initial={{ scale: 0.95, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 50 }}
-                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[101] w-full max-w-md bg-[#111] border border-white/10 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-y-auto max-h-[85vh] pb-safe"
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[101] w-full max-w-md bg-[#111] border border-white/10 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-y-auto max-h-[90dvh] pb-safe"
                     >
                         {/* Close Button */}
                         <button
@@ -166,6 +181,16 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                             <p className="text-sm text-gray-400">Enter your credentials to continue.</p>
                                         </div>
 
+                                        {/* OAuth */}
+                                        <OAuthButtons flow="creator-login" />
+
+                                        {/* Divider */}
+                                        <div className="relative flex items-center my-4">
+                                            <div className="flex-1 h-px bg-white/10" />
+                                            <span className="px-3 text-xs text-gray-500">or</span>
+                                            <div className="flex-1 h-px bg-white/10" />
+                                        </div>
+
                                         <form onSubmit={handleLogin} className="space-y-4">
                                             <div className="space-y-2">
                                                 <div className="relative">
@@ -182,13 +207,20 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                                 <div className="relative">
                                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                                     <input
-                                                        type="password"
+                                                        type={showPassword ? "text" : "password"}
                                                         value={password}
                                                         onChange={(e) => setPassword(e.target.value)}
                                                         placeholder="Password"
-                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
+                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-3 pl-10 pr-10 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
                                                         required
                                                     />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowPassword(!showPassword)}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                                    >
+                                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                    </button>
                                                 </div>
                                             </div>
 

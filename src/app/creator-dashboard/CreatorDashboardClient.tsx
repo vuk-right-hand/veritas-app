@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, CheckCircle2, Youtube, BarChart3, Users, Zap, Search, Plus, ExternalLink, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import ShareButton from '@/components/ShareButton';
 import { updateCreatorLinks, updateVideoLinks, updateCreatorAvatar, updateVideoTakeaways } from '../actions/creator-actions'; // We need to export suggestVideo from creator-actions or import from video-actions
 
 // Import from video actions for suggestion as it was there? 
@@ -28,6 +29,7 @@ interface VideoType {
     custom_links?: LinkType[];
     analytics_views?: number; // passed from server stats
     takeaways?: string[];
+    slug?: string;
 }
 
 interface CreatorStats {
@@ -56,6 +58,7 @@ interface CreatorProfile {
     links: LinkType[];
     description?: string;
     avatar_url?: string;
+    slug?: string;
 }
 
 export default function CreatorDashboardClient({
@@ -263,6 +266,13 @@ export default function CreatorDashboardClient({
                         </div>
                     </div >
                     <div className="flex gap-3">
+                        {creator.slug && (
+                            <ShareButton
+                                path={`/c/${creator.slug}`}
+                                label="Share Channel"
+                                size="md"
+                            />
+                        )}
                         {activeTab === 'home' && (
                             <button
                                 onClick={() => {
@@ -458,6 +468,9 @@ export default function CreatorDashboardClient({
                                                 <div className="text-xs text-gray-500">Views</div>
                                                 <div className="text-sm font-bold text-white">{video.views_count || 0}</div>
                                             </div>
+                                            {video.slug && (
+                                                <ShareButton path={`/v/${video.slug}`} />
+                                            )}
                                             <button
                                                 onClick={() => {
                                                     const existing = video.takeaways || ['', '', ''];

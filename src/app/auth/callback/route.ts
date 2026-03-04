@@ -7,7 +7,7 @@ import { getPendingMission, clearPendingMission, getPendingClaim, clearPendingCl
 export async function GET(request: NextRequest) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
-    const flow = searchParams.get('flow') as 'onboarding' | 'claim' | 'login' | null;
+    const flow = searchParams.get('flow') as 'onboarding' | 'claim' | 'login' | 'creator-login' | null;
 
     if (!code) {
         return NextResponse.redirect(new URL('/login?error=no_code', origin));
@@ -56,22 +56,35 @@ export async function GET(request: NextRequest) {
     }
 
     // --- Route based on flow type ---
+    let destinationResponse: NextResponse;
+
     try {
         if (flow === 'onboarding') {
-            return await handleOnboarding(userId, email, name, origin);
+            destinationResponse = await handleOnboarding(userId, email, name, origin);
+        } else if (flow === 'claim') {
+            destinationResponse = await handleClaim(userId, email, name, session.provider_token, origin);
+        } else if (flow === 'creator-login') {
+            destinationResponse = NextResponse.redirect(new URL('/creator-dashboard', origin));
+        } else {
+            // Default: login flow (viewer → /dashboard)
+            destinationResponse = await handleLogin(userId, origin);
         }
-
-        if (flow === 'claim') {
-            return await handleClaim(userId, email, name, session.provider_token, origin);
-        }
-
-        // Default: login flow
-        return await handleLogin(userId, origin);
-
     } catch (err) {
         console.error('[auth/callback] Unexpected error:', err);
-        return NextResponse.redirect(new URL('/login?error=callback_error', origin));
+        destinationResponse = NextResponse.redirect(new URL('/login?error=callback_error', origin));
     }
+
+    // Critical Next.js 14 App Router Bug Fix:
+    // `cookies().set()` during route handlers DOES NOT automatically attach
+    // `Set-Cookie` headers to `NextResponse.redirect()` responses.
+    // We must explicitly retrieve the mutated cookies and attach them to the outgoing response.
+    const allCookies = cookieStore.getAll();
+    allCookies.forEach(c => {
+        // @ts-ignore - The types for NextJS cookie options are slightly annoying
+        destinationResponse.cookies.set(c.name, c.value, { ...c });
+    });
+
+    return destinationResponse;
 }
 
 // -------------------------------------------------------------------

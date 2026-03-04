@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         // 4. Search Database using pgvector HNSW Index and RPC
         const queryArgs: any = {
             query_embedding: embedding,
-            match_threshold: 0.5,
+            match_threshold: 0.85,
             match_count: 5
         };
 

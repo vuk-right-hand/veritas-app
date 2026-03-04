@@ -421,12 +421,45 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
             body: JSON.stringify({ url: videoUrl })
         }).catch(err => console.error('[moderateVideo] Analysis trigger error:', err));
 
+        // Shadow Profile: auto-create creator row if one doesn't exist for this channel
+        if (data && data.length > 0 && data[0].channel_url && data[0].channel_title) {
+            const { data: existingCreator } = await supabase
+                .from('creators')
+                .select('id, slug')
+                .eq('channel_url', data[0].channel_url)
+                .maybeSingle();
+
+            if (!existingCreator) {
+                // Create shadow profile (no user_id — unclaimed)
+                let creatorSlug = slugify(data[0].channel_title);
+                let slugInserted = false;
+                while (!slugInserted) {
+                    const { error: insertErr } = await supabase
+                        .from('creators')
+                        .insert({
+                            channel_name: data[0].channel_title,
+                            channel_url: data[0].channel_url,
+                            channel_id: null,
+                            slug: creatorSlug,
+                            is_verified: true,
+                            human_score: 50,
+                        });
+                    if (insertErr) {
+                        if (insertErr.code === '23505' && insertErr.message.includes('slug')) {
+                            creatorSlug = `${slugify(data[0].channel_title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
+                            continue;
+                        }
+                        console.error('[moderateVideo] Shadow profile insert error:', insertErr);
+                    }
+                    slugInserted = true;
+                }
+            }
+        }
+
         // Revalidate slug routes if video data is attached
         if (data && data.length > 0 && data[0].slug) {
-            // Sniper approach: revalidate only this specific video's page
             revalidatePath(`/v/${data[0].slug}`);
             if (data[0].channel_url) {
-                // Find associated creator and revalidate their specific page
                 const { data: creator } = await supabase.from('creators').select('slug').eq('channel_url', data[0].channel_url).single()
                 if (creator && creator.slug) {
                     revalidatePath(`/c/${creator.slug}`);
@@ -442,7 +475,7 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
 }
 
 // Columns needed by feed cards — excludes heavy/unused fields like embedding, description, suggestion_count
-const FEED_VIDEO_COLS = 'id, title, human_score, category_tag, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, created_at, status';
+const FEED_VIDEO_COLS = 'id, title, human_score, category_tag, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, created_at, status, slug';
 
 export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen', limit: number = 12, offset: number = 0) {
     noStore();
@@ -527,14 +560,14 @@ export async function getInitialFeedData(temporalFilter: '14' | '28' | '60' | 'e
     ];
     const uniqueUrls = [...new Set(allUrls)] as string[];
 
-    const creatorMap: Record<string, { description: string; links: any[] }> = {};
+    const creatorMap: Record<string, { description: string; links: any[]; slug: string | null }> = {};
     if (uniqueUrls.length > 0) {
         const { data: creators } = await supabase
             .from('creators')
-            .select('channel_url, description, links')
+            .select('channel_url, description, links, slug')
             .in('channel_url', uniqueUrls);
         creators?.forEach((c: any) => {
-            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [] };
+            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [], slug: c.slug || null };
         });
     }
 
@@ -573,10 +606,10 @@ export async function getVerifiedVideosWithCreators(
     if (channelUrls.length > 0) {
         const { data: creators } = await supabase
             .from('creators')
-            .select('channel_url, description, links')
+            .select('channel_url, description, links, slug')
             .in('channel_url', channelUrls);
         creators?.forEach((c: any) => {
-            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [] };
+            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [], slug: c.slug || null };
         });
     }
 
@@ -597,6 +630,8 @@ export async function getVerifiedVideosWithCreators(
             channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
             isChannelClaimed: !!creator,
             isCurated: false,
+            slug: v.slug || null,
+            creatorSlug: creator?.slug || null,
         };
     });
 }

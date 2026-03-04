@@ -3,7 +3,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
+import ShareButton from '@/components/ShareButton';
 import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
 import { getQuizQuestions, getUserIdFromMission, getCurrentUserId } from '@/app/actions/quiz-actions';
 import { useUser } from '@/components/UserContext';
@@ -24,10 +27,15 @@ interface VideoCardProps {
     isChannelClaimed?: boolean; // Whether the creator has claimed this channel
     onQuizStart?: () => void;
     onVideoView?: () => void;
+    slug?: string;           // Video slug for share URL (/v/[slug])
+    creatorSlug?: string;    // Creator slug for internal channel link (/c/[slug])
+    autoOpen?: boolean;      // Open modal immediately on mount (used by /v/[slug] page)
+    onClose?: () => void;    // Called when modal closes (used for redirect on /v/[slug])
 }
 
-export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView }: VideoCardProps) {
+export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView, slug, creatorSlug, autoOpen, onClose }: VideoCardProps) {
     const { userProfile, isLoading: isUserLoading } = useUser();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
@@ -68,6 +76,17 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
     const [showMobileControls, setShowMobileControls] = useState(false);
     const mobileControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Auto-open modal on mount (for /v/[slug] standalone page)
+    useEffect(() => {
+        if (autoOpen) setIsOpen(true);
+    }, [autoOpen]);
+
+    // Close handler — redirects to /dashboard when used as standalone page
+    const handleClose = useCallback(() => {
+        setIsOpen(false);
+        if (onClose) onClose();
+    }, [onClose]);
 
     // Swipe-down-to-close gesture state
     const swipeTouchStartYRef = useRef<number>(0);
@@ -189,7 +208,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                     }
                     setIsFullscreen(false);
                 } else {
-                    setIsOpen(false);
+                    handleClose();
                 }
             }
         };
@@ -478,16 +497,14 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                     {/* Channel & Date - Feed View */}
                     <div className="flex items-center gap-2 mb-4 text-[10px] text-gray-500 font-medium">
-                        {channelUrl ? (
-                            <a
-                                href={channelUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                        {creatorSlug ? (
+                            <Link
+                                href={`/c/${creatorSlug}`}
                                 onClick={(e) => e.stopPropagation()}
                                 className="hover:text-red-400 transition-colors uppercase tracking-wider"
                             >
                                 {channelTitle || 'Unknown Channel'}
-                            </a>
+                            </Link>
                         ) : (
                             <span className="uppercase tracking-wider">{channelTitle || 'Unknown Channel'}</span>
                         )}
@@ -527,7 +544,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                onClick={() => setIsOpen(false)}
+                                onClick={() => handleClose()}
                                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                             />
 
@@ -585,7 +602,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                 }}
                                 onTouchEnd={() => {
                                     if (swipeDragY > 120) {
-                                        setIsOpen(false);
+                                        handleClose();
                                     }
                                     setSwipeDragY(0);
                                     swipeTouchStartYRef.current = -1;
@@ -605,7 +622,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                 {/* Close Button - Internal Top Right (Hidden in Fullscreen) */}
                                 {!isFullscreen && (
                                     <button
-                                        onClick={() => setIsOpen(false)}
+                                        onClick={() => handleClose()}
                                         className="absolute top-6 right-6 z-50 p-2 rounded-full bg-black/40 hover:bg-white/10 border border-white/5 text-gray-300 hover:text-white transition-colors"
                                     >
                                         <X className="w-5 h-5" />
@@ -951,13 +968,14 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center justify-between">
                                                     <h3 className="text-2xl font-bold text-white leading-tight">{title}</h3>
+                                                    {slug && <ShareButton path={`/v/${slug}`} />}
                                                 </div>
 
                                                 <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-2">
-                                                    {channelUrl ? (
-                                                        <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="hover:text-red-400 transition-colors uppercase tracking-wider">
+                                                    {creatorSlug ? (
+                                                        <Link href={`/c/${creatorSlug}`} className="hover:text-red-400 transition-colors uppercase tracking-wider">
                                                             {channelTitle || 'Unknown Channel'}
-                                                        </a>
+                                                        </Link>
                                                     ) : (
                                                         <span className="uppercase tracking-wider">{channelTitle || 'Unknown Channel'}</span>
                                                     )}

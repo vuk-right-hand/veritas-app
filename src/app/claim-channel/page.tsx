@@ -382,6 +382,7 @@ function ClaimChannelPage() {
                                         placeholder="Paste your YouTube Channel URL..."
                                         className="w-full bg-[#151515] border border-white/10 rounded-full py-4 px-8 text-white focus:outline-none focus:border-red-500/50 focus:bg-[#1a1a1a] transition-all relative z-10 placeholder:text-gray-600 text-center shadow-2xl"
                                         required
+                                        suppressHydrationWarning
                                     />
                                 </div>
 

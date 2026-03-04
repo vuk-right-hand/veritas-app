@@ -133,8 +133,8 @@ export async function finalizeOAuthChannelClaim(
 }
 
 /**
- * Called from auth/callback for login flow.
- * Finds existing mission for OAuth user and sets veritas_user cookie.
+ * Called from auth/callback for the viewer login flow.
+ * Creator login uses the separate 'creator-login' flow which bypasses this entirely.
  */
 export async function establishOAuthViewerSession(
     userId: string
@@ -162,7 +162,7 @@ export async function establishOAuthViewerSession(
         return { success: true, destination: '/dashboard' };
     }
 
-    // Check for creator (no mission but has a channel)
+    // Fallback: creator with no mission row
     const { data: creator } = await supabaseAdmin
         .from('creators')
         .select('id')

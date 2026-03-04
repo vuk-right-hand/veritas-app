@@ -2,7 +2,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 
-type OAuthFlow = 'onboarding' | 'claim' | 'login';
+type OAuthFlow = 'onboarding' | 'claim' | 'login' | 'creator-login';
 
 interface OAuthButtonsProps {
     flow: OAuthFlow;
@@ -32,7 +32,7 @@ export function OAuthButtons({ flow, extraScopes = [], onBeforeRedirect, classNa
             options: {
                 redirectTo,
                 scopes,
-                queryParams: provider === 'google' ? {
+                queryParams: provider === 'google' && flow === 'claim' ? {
                     access_type: 'offline',
                     prompt: 'consent',
                 } : undefined

@@ -54,7 +54,7 @@ export async function getCreatorStats(userId: string) {
         // avoiding the PGRST116 error that single() throws for empty results.
         const { data: creator, error: creatorError } = await supabaseAdmin
             .from('creators')
-            .select('id, channel_url, links, description, channel_name, human_score, avatar_url')
+            .select('id, channel_url, links, description, channel_name, human_score, avatar_url, slug')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -79,7 +79,7 @@ export async function getCreatorStats(userId: string) {
         // Let's fetch all videos by this creator to get their IDs
         const { data: videos, error: videoError } = await supabaseAdmin
             .from('videos')
-            .select('id, title, status, human_score, custom_links, published_at, custom_description, takeaways, summary_points')
+            .select('id, title, status, human_score, custom_links, published_at, custom_description, takeaways, summary_points, slug')
             .eq('channel_url', creator.channel_url);
 
         if (videoError) {
@@ -207,7 +207,7 @@ export async function getCreatorsByChannelUrls(channelUrls: string[]) {
 
         const { data: creators, error } = await supabaseAdmin
             .from('creators')
-            .select('channel_url, description, links')
+            .select('channel_url, description, links, slug')
             .in('channel_url', uniqueUrls);
 
         if (error) {
@@ -215,12 +215,13 @@ export async function getCreatorsByChannelUrls(channelUrls: string[]) {
             return {};
         }
 
-        // Return as a map: channelUrl -> { description, links }
-        const creatorMap: Record<string, { description: string; links: any[] }> = {};
+        // Return as a map: channelUrl -> { description, links, slug }
+        const creatorMap: Record<string, { description: string; links: any[]; slug: string | null }> = {};
         creators?.forEach((c: any) => {
             creatorMap[c.channel_url] = {
                 description: c.description || '',
-                links: c.links || []
+                links: c.links || [],
+                slug: c.slug || null
             };
         });
 

@@ -2,17 +2,19 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import VideoCard from '@/components/VideoCard';
-import { ShieldCheck } from 'lucide-react';
+import ShareButton from '@/components/ShareButton';
+import { ShieldCheck, ExternalLink } from 'lucide-react';
 
 export const revalidate = 60; // Cache invalidation
 
 export async function generateMetadata(
-    { params }: { params: { slug: string } }
+    { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
+    const { slug } = await params;
     const { data: creator } = await supabaseAdmin
         .from('creators')
         .select('channel_name, description, avatar_url')
-        .eq('slug', params.slug)
+        .eq('slug', slug)
         .single();
 
     if (!creator) {
@@ -32,8 +34,8 @@ export async function generateMetadata(
     };
 }
 
-export default async function CreatorPage({ params }: { params: { slug: string } }) {
-    const { slug } = params;
+export default async function CreatorPage({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug } = await params;
 
     // Fetch creator
     const { data: creator } = await supabaseAdmin
@@ -89,13 +91,33 @@ export default async function CreatorPage({ params }: { params: { slug: string }
                             <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">{creator.description}</p>
                         )}
 
+                        {/* Share + YouTube Exit */}
+                        <div className="flex flex-wrap items-center gap-3 mt-4">
+                            <ShareButton path={`/c/${slug}`} label="Share" size="md" />
+                            {creator.channel_url && (
+                                <a
+                                    href={creator.channel_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 transition-all text-xs font-medium"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    Subscribe on YouTube
+                                </a>
+                            )}
+                        </div>
+
+                        {/* Claim CTA Banner — unclaimed profiles */}
                         {!creator.user_id && (
-                            <div className="mt-4 inline-block">
+                            <div className="mt-6 p-5 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl">
+                                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
+                                    Are you <span className="text-white font-bold">{creator.channel_name}</span>? Claim your channel to promote your offers and get our in-house data on content gaps.
+                                </p>
                                 <a
                                     href="/claim-channel"
-                                    className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-full font-bold transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center"
+                                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-full font-bold text-sm transition-all shadow-lg shadow-red-500/20 active:scale-95"
                                 >
-                                    Claim Profile
+                                    Claim Your Channel
                                 </a>
                             </div>
                         )}
@@ -128,6 +150,8 @@ export default async function CreatorPage({ params }: { params: { slug: string }
                                     channelDescription={creator.description}
                                     channelLinks={creator.links}
                                     isChannelClaimed={!!creator.user_id}
+                                    slug={v.slug}
+                                    creatorSlug={creator.slug}
                                 />
                             ))}
                         </div>
