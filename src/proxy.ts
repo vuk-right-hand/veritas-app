@@ -59,6 +59,7 @@ export async function proxy(request: NextRequest) {
         pathname === '/onboarding'
 
     const isPublicPage =
+        pathname === '/dashboard' ||
         pathname.startsWith('/v/') ||
         pathname.startsWith('/c/')
 

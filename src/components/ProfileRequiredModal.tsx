@@ -63,12 +63,12 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 50 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full md:max-w-sm bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto max-h-[85vh] md:max-h-[90dvh] overscroll-contain pb-safe"
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full max-w-md md:max-w-[480px] bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto max-h-[85vh] md:max-h-[100vh] overscroll-contain pb-safe"
                     >
                         {/* Header Accent */}
                         <div className="h-1 w-full bg-gradient-to-r from-red-600 to-red-900" />
 
-                        <div className="p-8 text-center relative pointer-events-auto">
+                        <div className="p-6 md:px-8 md:py-6 text-center relative pointer-events-auto">
                             {/* Close Button */}
                             <button
                                 onClick={handleClose}
@@ -78,15 +78,15 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                             </button>
 
                             {/* Icon */}
-                            <div className="mx-auto w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
-                                <UserPlus className="w-8 h-8" />
+                            <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4 md:mb-5 border border-red-500/20">
+                                <UserPlus className="w-6 h-6 md:w-8 md:h-8" />
                             </div>
 
                             {/* Conditional Content */}
                             {source !== 'profile' && (
                                 <>
-                                    <h2 className="text-2xl font-bold text-white mb-3">Unlock All Features!</h2>
-                                    <p className="text-gray-400 mb-8 leading-relaxed">
+                                    <h2 className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3">Unlock All Features!</h2>
+                                    <p className="text-sm md:text-base text-gray-400 mb-6 md:mb-5 leading-relaxed">
                                         Customize the feed and claim your profile in 30 seconds.
                                     </p>
                                 </>

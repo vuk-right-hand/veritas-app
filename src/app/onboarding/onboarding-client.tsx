@@ -10,6 +10,7 @@ import { saveMission } from '../actions/saveMission';
 import { savePendingMission } from '../actions/pending-data-actions';
 import { saveMissionForOAuthUser } from '../actions/oauth-actions';
 import { OAuthButtons } from '@/components/OAuthButtons';
+import Footer from '@/components/Footer';
 
 interface OnboardingProps {
     oauthUser: { id: string; email: string; name: string } | null;
@@ -448,6 +449,8 @@ export default function Onboarding({ oauthUser }: OnboardingProps) {
                     )}
 
                 </motion.div>
+
+                <Footer />
             </div>
         </div>
     );

@@ -402,6 +402,108 @@ export async function claimChannelForExistingUser(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Password Reset (verifyOtp flow — no PKCE code_verifier dependency)
+// ---------------------------------------------------------------------------
+
+export async function sendPasswordReset(email: string) {
+    try {
+        // Use the admin client (not SSR) to trigger the recovery email.
+        // This avoids the PKCE code_verifier cookie problem entirely — SSR
+        // clients store a code_verifier that expires before the user clicks
+        // the email link, causing exchangeCodeForSession to fail.
+        //
+        // Instead, the Supabase Recovery email template links directly to
+        // /auth/confirm?token_hash={{.TokenHash}}&type=recovery&next=/update-password
+        // and that route uses verifyOtp() — no code_verifier needed.
+        //
+        // No `redirectTo` needed since the email template handles routing.
+        await supabaseAdmin.auth.resetPasswordForEmail(email);
+    } catch (err) {
+        // Catastrophic failure (network, Supabase outage)
+        console.error('[sendPasswordReset] Unexpected error:', err);
+        return { success: false, message: 'Something went wrong. Please try again later.' };
+    }
+
+    // Anti-enumeration: always return the same generic message regardless of
+    // whether the email exists, Supabase rate-limited us, or anything else.
+    // Only a 500-level catastrophic failure surfaces an error above.
+    return {
+        success: true,
+        message: 'If an account exists for this email, a password reset link has been sent.',
+    };
+}
+
+export async function updatePasswordFromReset(newPassword: string) {
+    if (!newPassword || newPassword.length < 6) {
+        return { success: false, message: 'Password must be at least 6 characters.' };
+    }
+
+    const cookieStore = await cookies();
+
+    // SSR client — session cookie was set by /auth/callback code exchange
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll() },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch { }
+                },
+            },
+        }
+    );
+
+    try {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+        // Supabase rejects if the new password is identical to the current one.
+        // From the user's perspective this is still a success — their password is what they want.
+        const isSamePasswordError =
+            !!error &&
+            (error.message.toLowerCase().includes('same password') ||
+             error.message.toLowerCase().includes('different from the old') ||
+             error.message.toLowerCase().includes('should be different'));
+
+        if (error && !isSamePasswordError) {
+            console.error('[updatePasswordFromReset] updateUser error:', error.message);
+            return { success: false, message: 'Failed to update password. Your reset link may have expired.' };
+        }
+
+        // Establish veritas_user cookie so the dashboard loads correctly
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data: missions } = await supabaseAdmin
+                .from('user_missions')
+                .select('id')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            const mission = missions?.[0] ?? null;
+            if (mission) {
+                cookieStore.set('veritas_user', mission.id, {
+                    path: '/',
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    maxAge: 60 * 60 * 24 * 7
+                });
+            }
+        }
+
+        return { success: true, message: 'Password updated successfully.' };
+    } catch (e: any) {
+        console.error('[updatePasswordFromReset] Unexpected error:', e);
+        return { success: false, message: 'An unexpected error occurred.' };
+    }
+}
+
 export async function logoutUser() {
     const cookieStore = await cookies();
 

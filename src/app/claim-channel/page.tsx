@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Youtube, Zap, AlertCircle, Copy, Eye, EyeOff, 
 import { getChannelMetadata, verifyChannelOwnership } from '../actions/video-actions';
 import { savePendingClaim } from '../actions/pending-data-actions';
 import { OAuthButtons } from '@/components/OAuthButtons';
+import Footer from '@/components/Footer';
 
 export default function ClaimChannelPageWrapper() {
     return (
@@ -587,6 +588,10 @@ function ClaimChannelPage() {
                 </AnimatePresence>
 
             </main>
+
+            <div className="max-w-[1200px] mx-auto px-8">
+                <Footer />
+            </div>
         </div>
     );
 }

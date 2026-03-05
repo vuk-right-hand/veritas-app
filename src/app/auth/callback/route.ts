@@ -66,8 +66,15 @@ export async function GET(request: NextRequest) {
         } else if (flow === 'creator-login') {
             destinationResponse = NextResponse.redirect(new URL('/creator-dashboard', origin));
         } else {
-            // Default: login flow (viewer → /dashboard)
-            destinationResponse = await handleLogin(userId, origin);
+            // Check for `next` param (used by password reset flow)
+            const next = searchParams.get('next');
+            if (next && next.startsWith('/')) {
+                // Redirect to the requested page (session is now established)
+                destinationResponse = NextResponse.redirect(new URL(next, origin));
+            } else {
+                // Default: login flow (viewer → /dashboard)
+                destinationResponse = await handleLogin(userId, origin);
+            }
         }
     } catch (err) {
         console.error('[auth/callback] Unexpected error:', err);

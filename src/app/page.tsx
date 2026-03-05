@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -43,8 +44,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="absolute bottom-10 text-xs text-gray-600 font-mono">
-        Powered by Supadata & Gemini Flash 1.5
+      <div className="absolute bottom-6">
+        <Footer />
       </div>
     </main>
   );

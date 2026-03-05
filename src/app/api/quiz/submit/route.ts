@@ -114,6 +114,18 @@ OUTPUT FORMAT:
             });
 
         if (attemptError) {
+            // SILENT ANTI-CHEAT LOCK: Trap the unique constraint violation
+            if (attemptError.code === '23505') {
+                console.log(`🛡️ Anti-Cheat: User ${user_id} attempted duplicate quiz for video ${video_id}. Trapping silently.`);
+                // We return "success" to the frontend so they don't suspect anything, but we skip the points award.
+                return NextResponse.json({
+                    success: true,
+                    passed,
+                    confidence,
+                    feedback,
+                });
+            }
+
             console.error('❌ Failed to save quiz attempt:', attemptError);
         }
 
