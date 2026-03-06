@@ -60,6 +60,8 @@ export async function proxy(request: NextRequest) {
 
     const isPublicPage =
         pathname === '/dashboard' ||
+        pathname === '/building-feed' ||
+        pathname === '/guest-loading' ||
         pathname === '/claim-channel' ||
         pathname === '/founder-meeting' ||
         pathname === '/privacy' ||
@@ -72,6 +74,26 @@ export async function proxy(request: NextRequest) {
     // ─────────────────────────────────────────────────────
     // 5. BOUNCER LOGIC
     // ─────────────────────────────────────────────────────
+
+    // Rule 0: Labor illusion gate — only /dashboard
+    if (pathname === '/dashboard') {
+        const veritasUser = request.cookies.get('veritas_user')?.value
+        if (veritasUser) {
+            // Known user — 7-day weekly drop
+            if (!request.cookies.get('user_welcomed_weekly')?.value) {
+                const url = request.nextUrl.clone()
+                url.pathname = '/building-feed'
+                return NextResponse.redirect(url)
+            }
+        } else {
+            // Guest — 24-hour hook
+            if (!request.cookies.get('guest_welcomed')?.value) {
+                const url = request.nextUrl.clone()
+                url.pathname = '/guest-loading'
+                return NextResponse.redirect(url)
+            }
+        }
+    }
 
     // Rule 1: Logged-in user hitting auth pages → Dashboard
     if (user && isAuthPage) {

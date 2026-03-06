@@ -32,6 +32,9 @@ export default function ProblemSolver({ onSearchResults, onClear, activeFilter }
         e.preventDefault();
         if (!query.trim()) return;
 
+        // Dismiss mobile keyboard immediately
+        inputRef.current?.blur();
+
         setShowSuggestions(false);
 
         // Log the search

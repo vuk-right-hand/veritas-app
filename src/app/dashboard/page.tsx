@@ -3,16 +3,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity as InfinityIcon, Lightbulb } from 'lucide-react';
+import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity as InfinityIcon, Lightbulb, Youtube } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
 import AuthChoiceModal from '@/components/AuthChoiceModal';
 import BottomNav from '@/components/BottomNav';
 import InstallPrompt from '@/components/InstallPrompt';
 import { suggestVideo, getInitialFeedData, getVerifiedVideosWithCreators } from '@/app/actions/video-actions';
-import { getCreatorsByChannelUrls } from '@/app/actions/creator-actions';
+import { getCreatorsByChannelUrls, checkIsCreator } from '@/app/actions/creator-actions';
 import { getAuthenticatedUserId } from '@/app/actions/auth-actions';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
+import ZeroStateSearch from '@/components/ZeroStateSearch';
 import { useUser } from '@/components/UserContext';
 
 
@@ -64,6 +65,7 @@ export default function Dashboard() {
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+    const [isCreator, setIsCreator] = useState<boolean | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
 
     // Suggestion State
@@ -73,7 +75,10 @@ export default function Dashboard() {
 
     // Video Feed State
     const [videos, setVideos] = useState<any[]>([]);
+    const [feedVideos, setFeedVideos] = useState<any[]>([]); // preserved regular feed for zero-state
     const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
+    const [isZeroState, setIsZeroState] = useState(false); // true when search returned 0 results
+    const [priorityRequested, setPriorityRequested] = useState(false); // disable button after submission
 
     // Feed loading state — true until first batch of videos is ready
     const [isLoading, setIsLoading] = useState(true);
@@ -117,6 +122,8 @@ export default function Dashboard() {
         };
         window.addEventListener('open-login-modal', handleOpenLogin);
 
+        checkIsCreator().then(res => setIsCreator(res.isCreator));
+
         return () => {
             window.removeEventListener('scroll', handleScroll);
             window.removeEventListener('open-login-modal', handleOpenLogin);
@@ -127,9 +134,10 @@ export default function Dashboard() {
     const [videoViewCount, setVideoViewCount] = useState(0);
 
     // User Profile State — name sourced from UserContext (populated by getCurrentUserProfile)
+    // Gate on isLoggedIn so stale veritas_user cookies don't show avatar/name for guests
     const { userProfile } = useUser();
-    const userName = userProfile?.name || '';
-    const avatarUrl = userProfile?.avatar_url || '';
+    const userName = isLoggedIn ? (userProfile?.name || '') : '';
+    const avatarUrl = isLoggedIn ? (userProfile?.avatar_url || '') : '';
 
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {
@@ -243,6 +251,7 @@ export default function Dashboard() {
         }
 
         setVideos(finalVideos);
+        setFeedVideos(finalVideos); // snapshot for zero-state fallback
         setIsLoading(false);
     }, []);
 
@@ -250,6 +259,8 @@ export default function Dashboard() {
     useEffect(() => {
         const onResetFeed = () => {
             setCurrentSearchQuery('');
+            setIsZeroState(false);
+            setPriorityRequested(false);
             setShowMobileSearch(false);
             setMobileSearchQuery('');
             loadVideos(activeTab);
@@ -353,6 +364,16 @@ export default function Dashboard() {
     const handleSearchResults = async (results: any[], searchQuery: string) => {
         // Track the search query
         setCurrentSearchQuery(searchQuery);
+        setPriorityRequested(false); // reset for new search
+
+        // Zero-state: no matches — show priority request block + keep regular feed
+        if (results.length === 0) {
+            setIsZeroState(true);
+            setVideos(feedVideos);
+            return;
+        }
+
+        setIsZeroState(false);
 
         // Map API search results to VideoCard props
         // Fetch channel data for search results
@@ -383,6 +404,8 @@ export default function Dashboard() {
     const handleClearSearch = () => {
         // Clear search query
         setCurrentSearchQuery('');
+        setIsZeroState(false);
+        setPriorityRequested(false);
         // Reset to current feed based on active tab/filter
         loadVideos(activeTab);
     };
@@ -437,12 +460,22 @@ export default function Dashboard() {
 
                         {/* Creator Dashboard Link */}
                         <div>
-                            <button
-                                onClick={() => setShowAuthModal(true)}
-                                className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2 hover:bg-white/5 rounded-lg"
-                            >
-                                Claim Channel / Dashboard
-                            </button>
+                            {isCreator === true ? (
+                                <Link
+                                    href="/creator-dashboard"
+                                    className="flex items-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors px-4 py-2 hover:bg-red-500/10 rounded-lg border border-red-500/20"
+                                >
+                                    <Youtube className="w-4 h-4" />
+                                    Creator
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={() => setShowAuthModal(true)}
+                                    className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2 hover:bg-white/5 rounded-lg"
+                                >
+                                    Claim Channel / Dashboard
+                                </button>
+                            )}
                         </div>
 
                         {/* Profile / Stats Area */}
@@ -940,6 +973,17 @@ export default function Dashboard() {
                 </div>
 
 
+                {/* Zero-State Search Block */}
+                {isZeroState && currentSearchQuery && !isLoading && (
+                    <ZeroStateSearch
+                        searchQuery={currentSearchQuery}
+                        isAuthenticated={isLoggedIn === true}
+                        requested={priorityRequested}
+                        onRequestClick={() => setShowProfileModal(true)}
+                        onRequestSuccess={() => setPriorityRequested(true)}
+                    />
+                )}
+
                 {/* Video Grid - 3 Columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
                     {isLoading ? (
@@ -1000,7 +1044,6 @@ export default function Dashboard() {
             <ProfileRequiredModal
                 isOpen={showProfileModal}
                 onClose={() => setShowProfileModal(false)}
-                source="profile"
             />
             < BottomNav />
         </div >

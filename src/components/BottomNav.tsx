@@ -12,12 +12,13 @@ import { useUser } from '@/components/UserContext';
 export default function BottomNav() {
     const pathname = usePathname();
     const { userProfile } = useUser();
-    const avatarUrl = userProfile?.avatar_url || '';
     const [isCreator, setIsCreator] = useState<boolean | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    // Gate avatar on real auth session — stale veritas_user cookie can populate userProfile for guests
+    const avatarUrl = isLoggedIn ? (userProfile?.avatar_url || '') : '';
 
     useEffect(() => {
         checkIsCreator().then(res => setIsCreator(res.isCreator));
@@ -126,7 +127,6 @@ export default function BottomNav() {
             <ProfileRequiredModal
                 isOpen={showProfileModal}
                 onClose={() => setShowProfileModal(false)}
-                source="profile"
             />
         </nav>
     );
