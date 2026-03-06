@@ -129,7 +129,7 @@ export default function Dashboard() {
     // User Profile State — name sourced from UserContext (populated by getCurrentUserProfile)
     const { userProfile } = useUser();
     const userName = userProfile?.name || '';
-    const [avatarUrl, setAvatarUrl] = useState<string>('');
+    const avatarUrl = userProfile?.avatar_url || '';
 
     // Load videos with temporal filter
     const loadVideos = React.useCallback(async (filterLabel: string) => {

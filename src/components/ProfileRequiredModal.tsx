@@ -63,12 +63,12 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 50 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full max-w-md md:max-w-[480px] bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto max-h-[85vh] md:max-h-[100vh] overscroll-contain pb-safe"
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full md:max-w-sm bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none overscroll-contain pb-safe"
                     >
                         {/* Header Accent */}
                         <div className="h-1 w-full bg-gradient-to-r from-red-600 to-red-900" />
 
-                        <div className="p-6 md:px-8 md:py-6 text-center relative pointer-events-auto">
+                        <div className="p-6 text-center relative pointer-events-auto">
                             {/* Close Button */}
                             <button
                                 onClick={handleClose}
@@ -78,25 +78,25 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                             </button>
 
                             {/* Icon */}
-                            <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4 md:mb-5 border border-red-500/20">
-                                <UserPlus className="w-6 h-6 md:w-8 md:h-8" />
+                            <div className="mx-auto w-12 h-12 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+                                <UserPlus className="w-6 h-6" />
                             </div>
 
                             {/* Conditional Content */}
                             {source !== 'profile' && (
                                 <>
-                                    <h2 className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3">Unlock All Features!</h2>
-                                    <p className="text-sm md:text-base text-gray-400 mb-6 md:mb-5 leading-relaxed">
+                                    <h2 className="text-xl font-bold text-white mb-2">Unlock All Features!</h2>
+                                    <p className="text-gray-400 mb-4 text-sm leading-relaxed">
                                         Customize the feed and claim your profile in 30 seconds.
                                     </p>
                                 </>
                             )}
 
                             {/* OAuth Buttons */}
-                            <OAuthButtons flow="login" className="mb-3" />
+                            <OAuthButtons flow="login" size="sm" className="mb-3" />
 
                             {/* Divider */}
-                            <div className="relative flex items-center mb-3">
+                            <div className="relative flex items-center mb-2">
                                 <div className="flex-1 h-px bg-white/10" />
                                 <span className="px-3 text-xs text-gray-500">or</span>
                                 <div className="flex-1 h-px bg-white/10" />
@@ -110,7 +110,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     onClose();
                                     router.push('/login');
                                 }}
-                                className="w-full py-3 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-3"
+                                className="w-full py-2.5 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-2"
                             >
                                 <Mail className="w-4 h-4" />
                                 Login with email
@@ -123,7 +123,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     onClose();
                                     router.push('/onboarding');
                                 }}
-                                className="w-full py-3 px-6 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
+                                className="w-full py-2.5 px-6 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
                             >
                                 Claim profile
                             </button>

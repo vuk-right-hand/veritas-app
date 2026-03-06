@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Terms of Service — Veritas",
-  description: "Terms and conditions for using the Veritas platform.",
+  title: "Terms of Service — Vibe Coders HQ",
+  description: "Terms and conditions for using the Vibe Coders HQ platform.",
 };
 
 export default function TermsPage() {
@@ -36,7 +36,7 @@ export default function TermsPage() {
               1. The Platform Model (Curation, Not Hosting)
             </h2>
             <p className="text-gray-400 leading-relaxed mb-4">
-              Veritas operates as an educational curation layer. We do not host,
+              Vibe Coders HQ operates as an educational curation layer. We do not host,
               store, or own the video content displayed on the platform. All
               videos are embedded using standard public protocols (such as the
               YouTube iframe API).
@@ -56,7 +56,7 @@ export default function TermsPage() {
                 Because we do not host the videos, we cannot guarantee their
                 permanent availability. If a creator removes or restricts a
                 video on the host platform, it will simultaneously become
-                unavailable on Veritas.
+                unavailable on Vibe Coders HQ.
               </li>
             </ul>
           </section>
@@ -64,10 +64,10 @@ export default function TermsPage() {
           {/* Section 2 */}
           <section className="bg-[#0f0f0f] border border-white/5 rounded-2xl p-6 md:p-10">
             <h2 className="text-xl font-bold text-white mb-4">
-              2. Veritas Intellectual Property
+              2. Vibe Coders HQ Intellectual Property
             </h2>
             <p className="text-gray-400 leading-relaxed">
-              While we do not own the embedded videos, Veritas retains all
+              While we do not own the embedded videos, Vibe Coders HQ retains all
               rights, title, and interest in the platform&apos;s proprietary
               architecture. This includes our custom quizzes, the &ldquo;Proof
               of Work&rdquo; scoring logic, user interfaces, branding, and the
@@ -81,7 +81,7 @@ export default function TermsPage() {
               3. Acceptable Use and Anti-Cheating
             </h2>
             <p className="text-gray-400 leading-relaxed mb-4">
-              Veritas is designed to verify actual human learning. To maintain
+              Vibe Coders HQ is designed to verify actual human learning. To maintain
               the integrity of our platform and the &ldquo;Mythical&rdquo;
               status economy, you agree to the following strict constraints:
             </p>

@@ -4,13 +4,23 @@ import { cookies } from 'next/headers';
 import { saveMissionForOAuthUser, finalizeOAuthChannelClaim, establishOAuthViewerSession } from '../../actions/oauth-actions';
 import { getPendingMission, clearPendingMission, getPendingClaim, clearPendingClaim } from '../../actions/pending-data-actions';
 
+function errorDest(flow: string | null, errorParam: string, origin: string): URL {
+    if (flow === 'claim' || flow === 'creator-login') {
+        return new URL(`/claim-channel?error=${errorParam}`, origin);
+    }
+    if (flow === 'onboarding') {
+        return new URL(`/onboarding?error=${errorParam}`, origin);
+    }
+    return new URL(`/login?error=${errorParam}`, origin);
+}
+
 export async function GET(request: NextRequest) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
     const flow = searchParams.get('flow') as 'onboarding' | 'claim' | 'login' | 'creator-login' | null;
 
     if (!code) {
-        return NextResponse.redirect(new URL('/login?error=no_code', origin));
+        return NextResponse.redirect(errorDest(flow, 'no_code', origin));
     }
 
     // Build SSR client with cookie persistence
@@ -37,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (error || !session) {
         console.error('[auth/callback] Code exchange failed:', error?.message);
-        return NextResponse.redirect(new URL('/login?error=exchange_failed', origin));
+        return NextResponse.redirect(errorDest(flow, 'exchange_failed', origin));
     }
 
     const user = session.user;
@@ -78,7 +88,7 @@ export async function GET(request: NextRequest) {
         }
     } catch (err) {
         console.error('[auth/callback] Unexpected error:', err);
-        destinationResponse = NextResponse.redirect(new URL('/login?error=callback_error', origin));
+        destinationResponse = NextResponse.redirect(errorDest(flow, 'callback_error', origin));
     }
 
     // Critical Next.js 14 App Router Bug Fix:

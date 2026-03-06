@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Privacy Policy — Veritas",
-  description: "How Veritas collects, uses, and protects your data.",
+  title: "Privacy Policy — Vibe Coders HQ",
+  description: "How Vibe Coders HQ collects, uses, and protects your data.",
 };
 
 export default function PrivacyPage() {
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
               1. What We Build and What We Collect
             </h2>
             <p className="text-gray-400 leading-relaxed mb-4">
-              Veritas is a curated educational platform. To provide you with
+              Vibe Coders HQ is a curated educational platform. To provide you with
               personalized learning curriculums and our Proof of Work
               verification, we collect the following information:
             </p>
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
                 <span className="text-white font-semibold">
                   AI &amp; Search:
                 </span>{" "}
-                OpenAI (for generating quiz feedback and powering our vector
+                Gemini (for generating quiz feedback and powering our vector
                 search engine).
               </li>
             </ul>

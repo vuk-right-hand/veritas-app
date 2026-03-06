@@ -7,9 +7,12 @@ import { Home, User, Sparkles, Youtube } from 'lucide-react';
 import AuthChoiceModal from './AuthChoiceModal';
 import ProfileRequiredModal from './ProfileRequiredModal';
 import { checkIsCreator } from '@/app/actions/creator-actions';
+import { useUser } from '@/components/UserContext';
 
 export default function BottomNav() {
     const pathname = usePathname();
+    const { userProfile } = useUser();
+    const avatarUrl = userProfile?.avatar_url || '';
     const [isCreator, setIsCreator] = useState<boolean | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
@@ -77,13 +80,13 @@ export default function BottomNav() {
                         )}
                     </Link>
                 ) : (
-                    <button
-                        onClick={() => setShowAuthModal(true)}
+                    <Link
+                        href="/claim-channel"
                         className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors text-white/90 active:scale-95`}
                     >
                         <Sparkles className={`w-6 h-6 ${isCreator === null ? 'opacity-0' : 'animate-pulse text-white/80'}`} />
                         <span className={`text-[10px] font-bold tracking-widest uppercase shadow-sm ${isCreator === null ? 'opacity-0' : ''}`}>Claim channel</span>
-                    </button>
+                    </Link>
                 )}
 
                 {/* Profile Tab */}
@@ -100,8 +103,14 @@ export default function BottomNav() {
                         : 'text-gray-500 active:text-gray-300'
                         }`}
                 >
-                    <User className={`w-6 h-6 ${isProfileActive ? 'text-red-500' : ''}`} />
-                    <span className="text-[10px] font-semibold tracking-wide">Profile</span>
+                    <div className="relative flex flex-col items-center justify-center">
+                        {avatarUrl ? (
+                            <img src={avatarUrl} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${isProfileActive ? 'ring-2 ring-offset-2 ring-offset-black ring-red-500' : ''}`} />
+                        ) : (
+                            <User className={`w-6 h-6 ${isProfileActive ? 'text-red-500' : ''}`} />
+                        )}
+                    </div>
+                    <span className="text-[10px] font-semibold tracking-wide mt-1">Profile</span>
                     {isProfileActive && (
                         <div className="absolute bottom-1 w-1 h-1 rounded-full bg-red-500" />
                     )}

@@ -60,8 +60,14 @@ export async function proxy(request: NextRequest) {
 
     const isPublicPage =
         pathname === '/dashboard' ||
+        pathname === '/claim-channel' ||
+        pathname === '/founder-meeting' ||
+        pathname === '/privacy' ||
+        pathname === '/terms' ||
+        pathname === '/update-password' ||
         pathname.startsWith('/v/') ||
-        pathname.startsWith('/c/')
+        pathname.startsWith('/c/') ||
+        pathname.startsWith('/api/')
 
     // ─────────────────────────────────────────────────────
     // 5. BOUNCER LOGIC

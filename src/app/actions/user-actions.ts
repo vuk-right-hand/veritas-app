@@ -21,6 +21,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 export type UserProfile = {
     id: string;
     name: string;
+    avatar_url?: string;
 };
 
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
@@ -107,7 +108,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
             }
         }
 
-        // Fallback 3: Profiles
+    // Fallback 3: Profiles
         if (!resolvedName) {
             const { data: profile } = await supabaseAdmin
                 .from('profiles')
@@ -123,9 +124,20 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
         // If no name resolved, treat as no profile
         if (!resolvedName) return null;
 
+        let avatarUrl: string | undefined;
+        try {
+            const { data: adminUser } = await supabaseAdmin.auth.admin.getUserById(rawUserId);
+            if (adminUser?.user?.user_metadata?.avatar_url) {
+                avatarUrl = adminUser.user.user_metadata.avatar_url;
+            }
+        } catch (err) {
+            console.error('Error fetching avatar url', err);
+        }
+
         return {
             id: rawUserId,
-            name: resolvedName
+            name: resolvedName,
+            avatar_url: avatarUrl
         };
 
     } catch (e) {

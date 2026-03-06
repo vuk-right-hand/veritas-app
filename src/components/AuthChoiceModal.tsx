@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Youtube, LogIn, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { X, Youtube, LogIn, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { creatorLogin, sendPasswordReset } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
 import { OAuthButtons } from '@/components/OAuthButtons';
@@ -21,12 +21,10 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
-
-    // Forgot password state
     const [showForgotModal, setShowForgotModal] = useState(false);
-    const [resetEmail, setResetEmail] = useState('');
+    const [resetEmail, setResetEmail] = useState("");
     const [resetStatus, setResetStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
-    const [resetError, setResetError] = useState('');
+    const [resetError, setResetError] = useState("");
 
     // Reset state when opening/closing
     React.useEffect(() => {
@@ -35,10 +33,6 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
             setEmail("");
             setPassword("");
             setError("");
-            setShowForgotModal(false);
-            setResetEmail('');
-            setResetStatus('idle');
-            setResetError('');
         } else {
             setView(defaultView);
             document.body.style.overflow = '';
@@ -115,11 +109,12 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                         className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
                     />
 
+                    {/* Modal Content */}
                     <motion.div
                         initial={{ scale: 0.95, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 50 }}
-                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[101] w-full max-w-md md:max-w-[480px] bg-[#111] border border-white/10 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-y-auto md:overflow-hidden max-h-[98dvh] md:max-h-[90vh] pb-safe"
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[101] w-full max-w-md bg-[#111] border border-white/10 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-y-auto md:overflow-visible max-h-[90dvh] md:max-h-none pb-safe"
                     >
                         {/* Close Button */}
                         <button
@@ -129,7 +124,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                             <X className="w-5 h-5" />
                         </button>
 
-                        <div className="p-6 text-center relative pointer-events-auto">
+                        <div className="p-6">
                             <AnimatePresence mode='wait'>
                                 {view === 'redirecting' ? (
                                     <motion.div
@@ -158,24 +153,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                         </div>
 
                                         <div className="space-y-4">
-                                            {/* Logic: Login Button (Top) */}
-                                            <button
-                                                onClick={() => setView('login')}
-                                                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all flex items-center justify-between group"
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-blue-900/20 flex items-center justify-center text-blue-400">
-                                                        <LogIn className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <div className="font-bold text-white group-hover:text-blue-300 transition-colors">Log In</div>
-                                                        <div className="text-xs text-gray-500">Access your dashboard</div>
-                                                    </div>
-                                                </div>
-                                                <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
-                                            </button>
-
-                                            {/* Logic: Claim Button (Bottom) */}
+                                            {/* Primary: Claim Channel (Top) */}
                                             <button
                                                 onClick={handleClaimClick}
                                                 className="w-full p-4 rounded-xl bg-gradient-to-r from-red-900/10 to-transparent border border-red-500/20 hover:border-red-500/40 transition-all flex items-center justify-between group"
@@ -191,6 +169,23 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                                 </div>
                                                 <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
                                             </button>
+
+                                            {/* Secondary: Log In (Bottom) */}
+                                            <button
+                                                onClick={() => setView('login')}
+                                                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all flex items-center justify-between group"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-blue-900/20 flex items-center justify-center text-blue-400">
+                                                        <LogIn className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <div className="font-bold text-white group-hover:text-blue-300 transition-colors">Log In</div>
+                                                        <div className="text-xs text-gray-500">Already a creator? Access your dashboard</div>
+                                                    </div>
+                                                </div>
+                                                <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+                                            </button>
                                         </div>
                                     </motion.div>
                                 ) : (
@@ -199,24 +194,24 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                         initial={{ opacity: 0, x: 20 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         exit={{ opacity: 0, x: 20 }}
-                                        className="space-y-4"
+                                        className="space-y-3"
                                     >
                                         <div className="text-center">
-                                            <h2 className="text-xl font-bold text-white mb-1">Welcome Back</h2>
+                                            <h2 className="text-lg font-bold text-white mb-0.5">Welcome Back</h2>
                                             <p className="text-xs text-gray-400">Enter your credentials to continue.</p>
                                         </div>
 
                                         {/* OAuth */}
-                                        <OAuthButtons flow="creator-login" />
+                                        <OAuthButtons flow="creator-login" size="sm" />
 
                                         {/* Divider */}
-                                        <div className="relative flex items-center my-3">
+                                        <div className="relative flex items-center">
                                             <div className="flex-1 h-px bg-white/10" />
                                             <span className="px-3 text-xs text-gray-500">or</span>
                                             <div className="flex-1 h-px bg-white/10" />
                                         </div>
 
-                                        <form onSubmit={handleLogin} className="space-y-3">
+                                        <form onSubmit={handleLogin} className="space-y-2.5">
                                             <div className="space-y-2">
                                                 <div className="relative">
                                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -225,7 +220,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                                         value={email}
                                                         onChange={(e) => setEmail(e.target.value)}
                                                         placeholder="Email address"
-                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
+                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
                                                         required
                                                     />
                                                 </div>
@@ -236,7 +231,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                                         value={password}
                                                         onChange={(e) => setPassword(e.target.value)}
                                                         placeholder="Password"
-                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-2.5 pl-10 pr-10 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
+                                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-10 pr-10 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
                                                         required
                                                     />
                                                     <button
@@ -268,7 +263,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                             <button
                                                 type="submit"
                                                 disabled={isLoading}
-                                                className="w-full py-2.5 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-all disabled:opacity-50 text-sm"
+                                                className="w-full py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-all disabled:opacity-50"
                                             >
                                                 {isLoading ? 'Signing in...' : 'Log In'}
                                             </button>
@@ -276,7 +271,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                             <button
                                                 type="button"
                                                 onClick={() => setView('choice')}
-                                                className="w-full py-2 text-xs text-gray-500 hover:text-gray-300 transition-colors mt-2"
+                                                className="w-full py-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
                                             >
                                                 Back to options
                                             </button>
@@ -287,7 +282,7 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                         </div>
                     </motion.div>
 
-                    {/* Forgot Password Modal — same design as login-client.tsx, elevated z-index */}
+                    {/* Forgot Password Modal */}
                     <AnimatePresence>
                         {showForgotModal && (
                             <>
@@ -305,72 +300,47 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                     className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[111] w-full max-w-md mx-4"
                                 >
                                     <div className="bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-                                        <div className="h-1.5 w-full bg-gradient-to-r from-red-600 to-red-400" />
-
                                         <div className="p-6">
-                                            {/* Header */}
-                                            <div className="p-6 text-center relative pointer-events-auto">
-                                                <h2 className="text-xl font-bold text-white">Reset Password</h2>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowForgotModal(false)}
-                                                    className="text-gray-500 hover:text-white transition-colors"
-                                                >
-                                                    <X className="w-5 h-5" />
-                                                </button>
-                                            </div>
-
+                                            <h2 className="text-xl font-bold text-white mb-1 text-center">Reset Password</h2>
                                             {resetStatus === 'sent' ? (
-                                                /* Success state */
                                                 <div className="text-center py-4">
-                                                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-900/30 border border-green-500/30 mb-4">
-                                                        <CheckCircle2 className="w-7 h-7 text-green-400" />
-                                                    </div>
-                                                    <p className="text-white font-medium mb-2">
-                                                        If an account exists for this email, a password reset link has been sent.
-                                                    </p>
+                                                    <p className="text-white font-medium mb-2">Reset link sent!</p>
                                                     <p className="text-sm text-gray-400 mb-6">Check your inbox and spam folder.</p>
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowForgotModal(false)}
-                                                        className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-all"
+                                                        className="px-6 py-2.5 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-all"
                                                     >
                                                         Back to Login
                                                     </button>
                                                 </div>
                                             ) : (
-                                                /* Email input + send state */
                                                 <>
-                                                    <p className="text-sm text-gray-400 mb-4">
-                                                        Enter your email and we'll send you a link to reset your password.
-                                                    </p>
-
-                                                    <div className="relative mb-4">
-                                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+                                                    <p className="text-sm text-gray-400 mb-4 text-center">Enter your email to receive a reset link.</p>
+                                                    <div className="relative mb-3">
+                                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                                         <input
                                                             type="email"
                                                             value={resetEmail}
                                                             onChange={(e) => setResetEmail(e.target.value)}
-                                                            placeholder="Enter the email you used to claim your profile."
+                                                            placeholder="Your email address"
                                                             disabled={resetStatus === 'sending'}
-                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 md:py-4 pl-11 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600 disabled:opacity-50"
+                                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-red-500/50 transition-colors placeholder:text-gray-600 disabled:opacity-50"
                                                             onKeyDown={(e) => e.key === 'Enter' && handleSendReset()}
                                                         />
                                                     </div>
-
                                                     {resetError && (
-                                                        <div className="mb-4 p-3 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-sm font-medium flex items-center gap-2">
+                                                        <div className="mb-3 p-3 rounded-xl bg-red-900/20 border border-red-500/30 text-red-200 text-xs flex items-center gap-2">
                                                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                                                             {resetError}
                                                         </div>
                                                     )}
-
                                                     <div className="flex gap-3">
                                                         <button
                                                             type="button"
                                                             onClick={() => setShowForgotModal(false)}
                                                             disabled={resetStatus === 'sending'}
-                                                            className="flex-1 py-3 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/5 transition-all disabled:opacity-50"
+                                                            className="flex-1 py-2.5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/5 transition-all disabled:opacity-50"
                                                         >
                                                             Cancel
                                                         </button>
@@ -378,13 +348,11 @@ export default function AuthChoiceModal({ isOpen, onClose, defaultView = 'choice
                                                             type="button"
                                                             onClick={handleSendReset}
                                                             disabled={resetStatus === 'sending'}
-                                                            className="flex-1 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                            className="flex-1 py-2.5 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                         >
                                                             {resetStatus === 'sending' ? (
-                                                                <span className="w-5 h-5 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                                                            ) : (
-                                                                'Send Reset Link'
-                                                            )}
+                                                                <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                                                            ) : 'Send Link'}
                                                         </button>
                                                     </div>
                                                 </>
