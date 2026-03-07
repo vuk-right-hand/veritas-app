@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { cookies } from 'next/headers';
 import { slugify } from '@/lib/utils';
+import { suggestChannel } from './channel-actions';
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -224,20 +225,40 @@ export async function verifyChannelOwnership(email: string, channelUrl: string, 
 }
 
 export async function suggestVideo(videoUrl: string) {
-    // 1. Extract Video ID
-    let videoId = "";
+    // 1. Parse URL — reject anything that isn't a valid URL
+    let parsedUrl: URL;
     try {
-        const url = new URL(videoUrl);
-        if (url.hostname.includes('youtube.com')) {
-            videoId = url.searchParams.get('v') || "";
-        } else if (url.hostname.includes('youtu.be')) {
-            videoId = url.pathname.slice(1);
-        }
+        parsedUrl = new URL(videoUrl);
     } catch (e) {
-        return { success: false, message: "Invalid URL format" };
+        return { success: false, message: "Please paste the exact YouTube video/channel URL" };
     }
 
-    if (!videoId) return { success: false, message: "Could not extract Video ID" };
+    // 2. Route channel URLs to suggestChannel()
+    const isYouTube = parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be');
+    if (!isYouTube) {
+        return { success: false, message: "Please paste the exact YouTube video/channel URL" };
+    }
+
+    const isChannelUrl =
+        parsedUrl.hostname.includes('youtube.com') && (
+            parsedUrl.pathname.startsWith('/@') ||
+            parsedUrl.pathname.startsWith('/c/') ||
+            parsedUrl.pathname.startsWith('/channel/')
+        );
+
+    if (isChannelUrl) {
+        return suggestChannel(videoUrl);
+    }
+
+    // 3. Extract Video ID
+    let videoId = "";
+    if (parsedUrl.hostname.includes('youtube.com')) {
+        videoId = parsedUrl.searchParams.get('v') || "";
+    } else if (parsedUrl.hostname.includes('youtu.be')) {
+        videoId = parsedUrl.pathname.slice(1).split('?')[0];
+    }
+
+    if (!videoId) return { success: false, message: "Please paste the exact YouTube video/channel URL" };
 
     // 2. Check if video exists
     const { data: existing, error: fetchError } = await supabase

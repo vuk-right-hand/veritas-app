@@ -13,7 +13,7 @@ import { suggestVideo, getInitialFeedData, getVerifiedVideosWithCreators } from 
 import { getCreatorsByChannelUrls, checkIsCreator } from '@/app/actions/creator-actions';
 import { getAuthenticatedUserId } from '@/app/actions/auth-actions';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
-import ZeroStateSearch from '@/components/ZeroStateSearch';
+import ZeroStateModal from '@/components/ZeroStateModal';
 import { useUser } from '@/components/UserContext';
 
 
@@ -72,6 +72,7 @@ export default function Dashboard() {
     const [suggestionUrl, setSuggestionUrl] = useState("");
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionStatus, setSuggestionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [suggestionMessage, setSuggestionMessage] = useState("");
 
     // Video Feed State
     const [videos, setVideos] = useState<any[]>([]);
@@ -79,9 +80,13 @@ export default function Dashboard() {
     const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(''); // Track active search
     const [isZeroState, setIsZeroState] = useState(false); // true when search returned 0 results
     const [priorityRequested, setPriorityRequested] = useState(false); // disable button after submission
+    const [showPostZeroMessage, setShowPostZeroMessage] = useState(false);
 
     // Feed loading state — true until first batch of videos is ready
     const [isLoading, setIsLoading] = useState(true);
+
+    // Increment to force-remount ProblemSolver (clears its internal input)
+    const [searchClearKey, setSearchClearKey] = useState(0);
 
     // Pagination State
     const [standardVideoOffset, setStandardVideoOffset] = useState(0);
@@ -313,6 +318,7 @@ export default function Dashboard() {
     // If there's an active search, reapply it after loading
     React.useEffect(() => {
         const loadAndReapplySearch = async () => {
+            setShowPostZeroMessage(false);
             await loadVideos(activeTab);
 
             // If there's an active search query, reapply it
@@ -362,9 +368,9 @@ export default function Dashboard() {
 
 
     const handleSearchResults = async (results: any[], searchQuery: string) => {
-        // Track the search query
         setCurrentSearchQuery(searchQuery);
-        setPriorityRequested(false); // reset for new search
+        setPriorityRequested(false);
+        setShowPostZeroMessage(false);
 
         // Zero-state: no matches — show priority request block + keep regular feed
         if (results.length === 0) {
@@ -401,12 +407,25 @@ export default function Dashboard() {
         setVideos(mapped);
     };
 
+    // Called by ProblemSolver's own X — full reset + reload
     const handleClearSearch = () => {
-        // Clear search query
         setCurrentSearchQuery('');
         setIsZeroState(false);
         setPriorityRequested(false);
-        // Reset to current feed based on active tab/filter
+        setShowPostZeroMessage(false);
+        setSearchClearKey(k => k + 1);
+        loadVideos(activeTab);
+    };
+
+    // Called when zero-state modal is dismissed (X or auto-close after request)
+    // Fresh reload gives the "new feed" feeling; bridge message appears once load completes
+    const handleModalDismiss = () => {
+        setIsZeroState(false);
+        setCurrentSearchQuery('');
+        setPriorityRequested(false);
+        setSearchClearKey(k => k + 1);
+        setShowPostZeroMessage(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         loadVideos(activeTab);
     };
 
@@ -426,9 +445,9 @@ export default function Dashboard() {
             setSuggestionUrl("");
             setTimeout(() => setSuggestionStatus('idle'), 3000); // Reset after 3s
         } else {
-            // Only alert for actual errors (like Banned)
-            alert(result.message);
+            setSuggestionMessage(result.message);
             setSuggestionStatus('error');
+            setTimeout(() => setSuggestionStatus('idle'), 4000);
         }
 
         setIsSuggesting(false);
@@ -441,6 +460,20 @@ export default function Dashboard() {
                 onClose={() => setShowAuthModal(false)}
                 defaultView={authModalDefaultView}
             />
+
+            {/* Zero-state search modal — viewport-centered overlay, preserves scroll position */}
+            <AnimatePresence>
+                {isZeroState && currentSearchQuery && !isLoading && (
+                    <ZeroStateModal
+                        searchQuery={currentSearchQuery}
+                        isAuthenticated={isLoggedIn === true}
+                        requested={priorityRequested}
+                        onClose={handleModalDismiss}
+                        onRequestClick={() => setShowProfileModal(true)}
+                        onRequestSuccess={() => setPriorityRequested(true)}
+                    />
+                )}
+            </AnimatePresence>
             <InstallPrompt videoViewCount={videoViewCount} />
 
             {/* ========== NAVBAR ========== */}
@@ -482,33 +515,35 @@ export default function Dashboard() {
                         <div className="flex items-center gap-4 pl-6 border-l border-white/10">
                             <div className="flex flex-col items-end mr-2">
                                 <span className="text-sm font-semibold text-white">{userName || 'The Builder'}</span>
-                                <Link
-                                    href={isLoggedIn === false ? '#' : '/profile'}
-                                    onClick={(e) => {
-                                        if (isLoggedIn === false) {
-                                            e.preventDefault();
-                                            setShowProfileModal(true);
-                                        }
-                                    }}
-                                    className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
-                                    Update Goals
-                                </Link>
-                            </div>
-                            <Link
-                                href={isLoggedIn === false ? '#' : '/profile'}
-                                onClick={(e) => {
-                                    if (isLoggedIn === false) {
-                                        e.preventDefault();
-                                        setShowProfileModal(true);
-                                    }
-                                }}
-                                className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group overflow-hidden">
-                                {avatarUrl ? (
-                                    <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" loading="lazy" />
+                                {isLoggedIn === false ? (
+                                    <button
+                                        onClick={() => setShowProfileModal(true)}
+                                        className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
+                                        Update Goals
+                                    </button>
                                 ) : (
-                                    <User className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                                    <Link href="/profile" className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
+                                        Update Goals
+                                    </Link>
                                 )}
-                            </Link>
+                            </div>
+                            {isLoggedIn === false ? (
+                                <button
+                                    onClick={() => setShowProfileModal(true)}
+                                    className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group overflow-hidden">
+                                    <User className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                                </button>
+                            ) : (
+                                <Link
+                                    href="/profile"
+                                    className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group overflow-hidden">
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" loading="lazy" />
+                                    ) : (
+                                        <User className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                                    )}
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -808,6 +843,19 @@ export default function Dashboard() {
                                             </div>
                                         </motion.div>
                                     )}
+                                    {suggestionStatus === 'error' && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: -64, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute left-0 right-0 flex justify-center z-50 pointer-events-auto"
+                                            onClick={() => setSuggestionStatus('idle')}
+                                        >
+                                            <div className="bg-[#1a1a1a] border border-red-500/60 shadow-[0_0_30px_rgba(220,38,38,0.4)] rounded-2xl px-5 py-3 text-center cursor-pointer max-w-[280px]">
+                                                <p className="text-xs text-red-300">{suggestionMessage}</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
                                 </AnimatePresence>
                                 <div className="absolute inset-0 bg-red-600/20 rounded-full blur-xl" />
                                 <input
@@ -859,7 +907,7 @@ export default function Dashboard() {
                 </div >
 
                 {/* The Brain (Search) */}
-                < ProblemSolver onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
+                < ProblemSolver key={searchClearKey} onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
 
                 {/* Filters - Centered below Search */}
                 < div className="mt-6 md:mt-8 mb-10 md:mb-16 flex justify-center w-full" >
@@ -909,6 +957,19 @@ export default function Dashboard() {
                                         <div className="bg-[#1a1a1a] border border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.4)] rounded-2xl px-6 py-3.5 text-center cursor-pointer">
                                             <p className="text-[15px] font-bold text-white mb-0.5">Thank you!🙏</p>
                                             <p className="text-sm text-green-100/80">We'll email you when your video is reviewed.</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                                {suggestionStatus === 'error' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: -72, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute left-0 right-0 flex justify-center z-50 pointer-events-auto"
+                                        onClick={() => setSuggestionStatus('idle')}
+                                    >
+                                        <div className="bg-[#1a1a1a] border border-red-500/60 shadow-[0_0_30px_rgba(220,38,38,0.4)] rounded-2xl px-6 py-3.5 text-center cursor-pointer">
+                                            <p className="text-sm text-red-300">{suggestionMessage}</p>
                                         </div>
                                     </motion.div>
                                 )}
@@ -973,16 +1034,24 @@ export default function Dashboard() {
                 </div>
 
 
-                {/* Zero-State Search Block */}
-                {isZeroState && currentSearchQuery && !isLoading && (
-                    <ZeroStateSearch
-                        searchQuery={currentSearchQuery}
-                        isAuthenticated={isLoggedIn === true}
-                        requested={priorityRequested}
-                        onRequestClick={() => setShowProfileModal(true)}
-                        onRequestSuccess={() => setPriorityRequested(true)}
-                    />
-                )}
+                {/* Bridge message after zero-state modal dismissal */}
+                <AnimatePresence>
+                    {showPostZeroMessage && !isLoading && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.5 }}
+                            className="flex items-center gap-4 mb-10"
+                        >
+                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                            <span className="text-xs font-light text-gray-600 tracking-wide text-center max-w-[260px] leading-relaxed">
+                                While we hunt for it, here are the latest videos matching your goals &amp; obstacles
+                            </span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Video Grid - 3 Columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">

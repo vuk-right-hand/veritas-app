@@ -7,28 +7,11 @@ import { ArrowLeft, MessageSquare, Send, Sparkles, Calendar, Lightbulb, Loader2,
 import SmartVideoPlayer from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
-import { getComments, postComment } from '@/app/actions/video-actions';
+import { getComments } from '@/app/actions/video-actions';
+import { postPlatformComment } from '@/app/actions/platform-update-actions';
 import { useUser } from '@/components/UserContext';
 
-// Mock Data for "Founder Updates"
-const MOCK_UPDATES = [
-    {
-        id: "update-1",
-        videoId: "dQw4w9WgXcQ", // Placeholder
-        title: "Update #13: The New Verification Engine & What's Next",
-        date: "Oct 24, 2026",
-        description: "In this update, I break down the new strict verification protocols we're rolling out to combat AI slop. I also need your feedback on the 'Creator Dashboard' features.",
-        comments: 42
-    },
-    {
-        id: "update-2",
-        videoId: "pL5223_Cq1s",
-        title: "Update #12: How we are changing the algorithm",
-        date: "Oct 10, 2026",
-        description: "We are removing engagement-bait metrics from the ranking system alongside a new 'Human Score' visualizer.",
-        comments: 128
-    }
-];
+import { getPlatformUpdatesByStatus } from '@/app/actions/platform-update-actions';
 
 export default function FounderMeeting() {
     const { userProfile, isLoading: isUserLoading } = useUser();
@@ -36,7 +19,9 @@ export default function FounderMeeting() {
     const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
 
     // Home Tab State
-    const [activeUpdate, setActiveUpdate] = useState(MOCK_UPDATES[0]);
+    const [activeUpdate, setActiveUpdate] = useState<any | null>(null);
+    const [previousUpdates, setPreviousUpdates] = useState<any[]>([]);
+    const [isLoadingData, setIsLoadingData] = useState(true);
     // Comments State
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState("");
@@ -48,13 +33,41 @@ export default function FounderMeeting() {
 
     // Load Comments when Active Update Changes
     useEffect(() => {
-        loadInitialComments();
-    }, [activeUpdate.videoId]);
+        if (activeUpdate && activeUpdate.video_id) {
+            loadInitialComments();
+        }
+    }, [activeUpdate?.video_id]);
+
+    useEffect(() => {
+        loadPlatformUpdates();
+    }, []);
+
+    const loadPlatformUpdates = async () => {
+        setIsLoadingData(true);
+        try {
+            const [currentData, previousData] = await Promise.all([
+                getPlatformUpdatesByStatus('current'),
+                getPlatformUpdatesByStatus('previous')
+            ]);
+            
+            if (currentData && currentData.length > 0) {
+                setActiveUpdate(currentData[0]);
+            } else {
+                setActiveUpdate(null);
+            }
+            
+            setPreviousUpdates(previousData || []);
+        } catch (e) {
+            console.error("Failed to load platform updates", e);
+        }
+        setIsLoadingData(false);
+    };
 
     const loadInitialComments = async () => {
+        if (!activeUpdate || !activeUpdate.video_id) return;
         setIsLoadingComments(true);
         const initialLimit = 2;
-        const data = await getComments(activeUpdate.videoId, initialLimit, 0);
+        const data = await getComments(activeUpdate.video_id, initialLimit, 0);
         setComments(data || []);
         setCommentPage(1);
         setHasMoreComments((data?.length || 0) === initialLimit);
@@ -62,9 +75,10 @@ export default function FounderMeeting() {
     };
 
     const handleLoadMoreComments = async () => {
+        if (!activeUpdate || !activeUpdate.video_id) return;
         setIsLoadingComments(true);
         const offset = 2 + (commentPage - 1) * COMMENTS_PER_PAGE;
-        const data = await getComments(activeUpdate.videoId, COMMENTS_PER_PAGE, offset);
+        const data = await getComments(activeUpdate.video_id, COMMENTS_PER_PAGE, offset);
 
         if (data && data.length > 0) {
             setComments(prev => [...prev, ...data]);
@@ -93,7 +107,7 @@ export default function FounderMeeting() {
         setComments(prev => [optimisticComment, ...prev]);
         setNewComment("");
 
-        const result = await postComment(activeUpdate.videoId, optimisticComment.text, userProfile.name, userProfile.id);
+        const result = await postPlatformComment(activeUpdate.video_id, activeUpdate.title || 'Platform Update', optimisticComment.text, userProfile.name, userProfile.id);
 
         if (result.success && result.comment) {
             setComments(prev => prev.map(c => c.id === optimisticComment.id ? result.comment : c));
@@ -126,36 +140,78 @@ export default function FounderMeeting() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                     {/* LEFT COLUMN: Main Video + Comments */}
                     <div className="lg:col-span-2 space-y-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-900/20 border border-red-500/20 text-red-400 text-xs font-medium mb-4">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                </span>
-                                Founder Update
+                        {isLoadingData ? (
+                            <div className="flex flex-col items-center justify-center h-64 bg-[#111] rounded-2xl border border-white/5">
+                                <Loader2 className="w-8 h-8 text-red-500 animate-spin mb-4" />
+                                <p className="text-gray-400">Loading platform updates...</p>
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight">
-                                {activeUpdate.title}
-                            </h1>
-                            <p className="text-gray-400 text-sm flex items-center gap-2">
-                                <Calendar className="w-4 h-4" /> {activeUpdate.date}
-                            </p>
-                        </div>
+                        ) : !activeUpdate ? (
+                            <>
+                                <div>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-900/20 border border-red-500/20 text-red-400  text-xs font-medium mb-4">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        </span>
+                                        Next Meeting Incoming
+                                    </div>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight">
+                                        No active updates
+                                    </h1>
+                                    <p className="text-gray-400 text-sm flex items-center gap-2">
+                                        <Calendar className="w-4 h-4" /> Coming soon
+                                    </p>
+                                </div>
 
-                        <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                            <SmartVideoPlayer
-                                videoId={activeUpdate.videoId}
-                                title={activeUpdate.title}
-                            />
-                        </div>
+                                <div className="relative w-full aspect-video bg-[#111] rounded-2xl border border-white/5 shadow-2xl flex flex-col items-center justify-center text-center p-8">
+                                    <div className="w-16 h-16 rounded-full bg-red-900/20 border border-red-500/20 flex items-center justify-center mb-6">
+                                        <MessageSquare className="w-8 h-8 text-red-400" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-white mb-2">Our next founder meeting is currently being prepared.</h2>
+                                    <p className="text-gray-400">Check back soon for the latest updates from the Veritas team.</p>
+                                </div>
 
-                        <div className="p-6 bg-[#111] rounded-2xl border border-white/5">
-                            <h3 className="text-lg font-bold text-white mb-2">Message from the Founder</h3>
-                            <p className="text-gray-400 leading-relaxed">
-                                {activeUpdate.description}
-                            </p>
-                        </div>
+                                <div className="p-6 bg-[#111] rounded-2xl border border-white/5">
+                                    <h3 className="text-lg font-bold text-white mb-2">Message from the Founder</h3>
+                                    <p className="text-gray-600 italic leading-relaxed whitespace-pre-wrap">
+                                        There is no active message to display at this time.
+                                    </p>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-900/20 border border-red-500/20 text-red-400 text-xs font-medium mb-4">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        </span>
+                                        Founder Update
+                                    </div>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight">
+                                        {activeUpdate.title || 'Untitled Update'}
+                                    </h1>
+                                    <p className="text-gray-400 text-sm flex items-center gap-2">
+                                        <Calendar className="w-4 h-4" /> {new Date(activeUpdate.created_at).toLocaleDateString()}
+                                    </p>
+                                </div>
 
+                                <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                                    <SmartVideoPlayer
+                                        videoId={activeUpdate.video_id}
+                                        title={activeUpdate.title || 'Untitled Update'}
+                                    />
+                                </div>
+
+                                <div className="p-6 bg-[#111] rounded-2xl border border-white/5">
+                                    <h3 className="text-lg font-bold text-white mb-2">Message from the Founder</h3>
+                                    <p className="text-gray-400 leading-relaxed whitespace-pre-wrap">
+                                        {activeUpdate.message || "No message provided for this update."}
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                        
                         {/* Comments Section */}
                         <div className="space-y-6">
                             <div className="flex items-center justify-between">
@@ -163,6 +219,9 @@ export default function FounderMeeting() {
                                     <MessageSquare className="w-5 h-5 text-red-500" />
                                     Your feedback is ALL that matters
                                 </h3>
+                                <span className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-full">
+                                    {comments.length} insight{comments.length !== 1 && 's'}
+                                </span>
                             </div>
 
                             {/* 1. Add Comment Input (Top) */}
@@ -193,51 +252,61 @@ export default function FounderMeeting() {
 
                             {/* 2. Comments List */}
                             <div className="space-y-4 pl-14">
-                                {comments.map((comment) => (
-                                    <div key={comment.id} className="flex gap-3 group">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-xs font-bold text-gray-400 border border-white/5 flex-shrink-0">
-                                            {(comment.user_name || '?').charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-baseline gap-2 mb-1">
-                                                <span className={`text-sm font-semibold ${comment.user_name === 'You' ? 'text-red-400' : 'text-gray-200'}`}>
-                                                    {comment.user_name || 'Community Member'}
-                                                </span>
-                                                <span className="text-[10px] text-gray-600">
-                                                    {new Date(comment.created_at).toLocaleDateString()}
-                                                </span>
+                            {activeUpdate ? (
+                                <div className="space-y-4">
+                                    {comments.map((comment) => (
+                                        <div key={comment.id} className="flex gap-3 group">
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-xs font-bold text-gray-400 border border-white/5 flex-shrink-0">
+                                                {(comment.user_name || '?').charAt(0).toUpperCase()}
                                             </div>
-                                            <p className="text-sm text-gray-400 leading-relaxed font-light">
-                                                {comment.text}
-                                            </p>
+                                            <div className="flex-1">
+                                                <div className="flex items-baseline gap-2 mb-1">
+                                                    <span className={`text-sm font-semibold ${comment.user_name === 'You' ? 'text-red-400' : 'text-gray-200'}`}>
+                                                        {comment.user_name || 'Community Member'}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-600">
+                                                        {new Date(comment.created_at).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-400 leading-relaxed font-light">
+                                                    {comment.text}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
 
-                                {/* Empty State */}
-                                {comments.length === 0 && !isLoadingComments && (
+                                    {/* Empty State */}
+                                    {comments.length === 0 && !isLoadingComments && (
+                                        <div className="text-center py-4">
+                                            <p className="text-xs text-gray-600 italic">No comments yet. Be the first to share your thoughts.</p>
+                                        </div>
+                                    )}
+
+                                    {/* Load More Button */}
+                                    {hasMoreComments && (
+                                        <button
+                                            onClick={handleLoadMoreComments}
+                                            disabled={isLoadingComments}
+                                            className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                                        >
+                                            {isLoadingComments ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <span>Show more comments</span>
+                                                    <ChevronDown className="w-3 h-3" />
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-4 opacity-50 pointer-events-none">
                                     <div className="text-center py-4">
-                                        <p className="text-xs text-gray-600 italic">No comments yet. Be the first to share your thoughts.</p>
+                                        <p className="text-xs text-gray-600 italic">Comments will be available when a meeting is active.</p>
                                     </div>
-                                )}
-
-                                {/* Load More Button */}
-                                {hasMoreComments && (
-                                    <button
-                                        onClick={handleLoadMoreComments}
-                                        disabled={isLoadingComments}
-                                        className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-all"
-                                    >
-                                        {isLoadingComments ? (
-                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                        ) : (
-                                            <>
-                                                <span>Show more comments</span>
-                                                <ChevronDown className="w-3 h-3" />
-                                            </>
-                                        )}
-                                    </button>
-                                )}
+                                </div>
+                            )}
                             </div>
                         </div>
                     </div>
@@ -248,26 +317,32 @@ export default function FounderMeeting() {
                         <div className="space-y-6">
                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Previous Meetings</h3>
                             <div className="space-y-4">
-                                {MOCK_UPDATES.map((update) => (
+                                {previousUpdates.length === 0 && !isLoadingData && (
+                                    <div className="text-gray-500 text-sm italic py-4 bg-[#111] rounded-xl border border-white/5 text-center">
+                                        No previous meetings available.
+                                    </div>
+                                )}
+                                {previousUpdates.map((update) => (
                                     <button
                                         key={update.id}
                                         onClick={() => setActiveUpdate(update)}
-                                        className={`w-full group text-left p-4 rounded-xl border transition-all duration-300 ${activeUpdate.id === update.id
+                                        className={`w-full group text-left p-4 rounded-xl border transition-all duration-300 ${activeUpdate?.id === update.id
                                             ? 'bg-red-900/10 border-red-500/30'
                                             : 'bg-[#111] border-white/5 hover:border-white/20 hover:bg-white/5'
                                             }`}
                                     >
                                         <div className="relative aspect-video rounded-lg overflow-hidden bg-black mb-3 grayscale group-hover:grayscale-0 transition-all">
                                             <img
-                                                src={`https://img.youtube.com/vi/${update.videoId}/mqdefault.jpg`}
-                                                alt={update.title}
+                                                src={`https://img.youtube.com/vi/${update.video_id}/mqdefault.jpg`}
+                                                alt={update.title || 'Untitled Update'}
                                                 className="w-full h-full object-cover"
                                             />
                                         </div>
-                                        <h4 className={`font-bold text-sm leading-snug mb-1 ${activeUpdate.id === update.id ? 'text-red-400' : 'text-gray-300 group-hover:text-white'
+                                        <h4 className={`font-bold text-sm leading-snug mb-1 ${activeUpdate?.id === update.id ? 'text-red-400' : 'text-gray-300 group-hover:text-white'
                                             }`}>
-                                            {update.title}
+                                            {update.title || 'Untitled Update'}
                                         </h4>
+                                        <p className="text-[10px] text-gray-500">{new Date(update.created_at).toLocaleDateString()}</p>
                                     </button>
                                 ))}
                             </div>

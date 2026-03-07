@@ -46,11 +46,12 @@ export async function POST(req: Request) {
             if (cacheError) console.error("Cache Write Error:", cacheError);
         }
 
-        // 4. Search Database using pgvector HNSW Index and RPC
+        // 4. Search Database using hybrid search RPC (pgvector + Postgres FTS)
         const queryArgs: any = {
             query_embedding: embedding,
-            match_threshold: 0.85,
-            match_count: 5
+            query_text: cleanQuery,
+            match_threshold: 0.65,
+            match_count: 9
         };
 
         // Apply temporal filter if provided and not evergreen

@@ -10,8 +10,8 @@ const PHASES = [
     'Generating your custom curriculum...',
 ]
 
-const PHASE_DURATION = 1200  // ms per phase
-const TOTAL_DURATION = PHASE_DURATION * PHASES.length  // 3600ms
+const PHASE_DURATION = 1500  // ms per phase
+const TOTAL_DURATION = PHASE_DURATION * PHASES.length  // 4500ms
 
 const textVariants = {
     enter: {
@@ -38,12 +38,12 @@ export default function BuildingFeedPage() {
     const [phaseIndex, setPhaseIndex] = useState(0)
 
     useEffect(() => {
-        // Advance phases at 1.2s intervals
+        // Advance phases at 1.5s intervals
         const phaseTimers = PHASES.slice(1).map((_, i) =>
             setTimeout(() => setPhaseIndex(i + 1), PHASE_DURATION * (i + 1))
         )
 
-        // At 3.6s: set 7-day cookie and redirect
+        // At 4.5s: set 7-day cookie and redirect
         const redirectTimer = setTimeout(() => {
             document.cookie = 'user_welcomed_weekly=true; path=/; max-age=604800; SameSite=Lax'
             router.push('/dashboard')
@@ -56,7 +56,7 @@ export default function BuildingFeedPage() {
     }, [router])
 
     return (
-        <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden">
+        <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden pb-16 md:pb-0">
             {/* Ambient glow */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-[600px] h-[600px] rounded-full bg-white/[0.015] blur-3xl" />
@@ -65,7 +65,7 @@ export default function BuildingFeedPage() {
             {/* Wordmark */}
             <div className="fixed top-8 left-1/2 -translate-x-1/2 z-10">
                 <span className="text-white/25 text-sm font-light tracking-[0.3em] uppercase select-none">
-                    Veritas
+                    Vibe Coders HQ
                 </span>
             </div>
 
@@ -78,7 +78,7 @@ export default function BuildingFeedPage() {
                         initial="enter"
                         animate="center"
                         exit="exit"
-                        className="text-2xl md:text-3xl font-light text-white/85 leading-relaxed tracking-wide"
+                        className="text-2xl md:text-3xl font-bold text-white/85 leading-relaxed tracking-wide"
                     >
                         {PHASES[phaseIndex]}
                     </motion.p>

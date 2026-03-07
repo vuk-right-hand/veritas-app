@@ -91,31 +91,35 @@ export default function BottomNav() {
                 )}
 
                 {/* Profile Tab */}
-                <Link
-                    href={isLoggedIn === false ? '#' : '/profile'}
-                    onClick={(e) => {
-                        if (isLoggedIn === false) {
-                            e.preventDefault();
-                            setShowProfileModal(true);
-                        }
-                    }}
-                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors ${isProfileActive
-                        ? 'text-red-500'
-                        : 'text-gray-500 active:text-gray-300'
-                        }`}
-                >
-                    <div className="relative flex flex-col items-center justify-center">
-                        {avatarUrl ? (
-                            <img src={avatarUrl} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${isProfileActive ? 'ring-2 ring-offset-2 ring-offset-black ring-red-500' : ''}`} />
-                        ) : (
-                            <User className={`w-6 h-6 ${isProfileActive ? 'text-red-500' : ''}`} />
+                {isLoggedIn === false ? (
+                    <button
+                        onClick={() => setShowProfileModal(true)}
+                        className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors text-gray-500 active:text-gray-300`}
+                    >
+                        <User className="w-6 h-6" />
+                        <span className="text-[10px] font-semibold tracking-wide mt-1">Profile</span>
+                    </button>
+                ) : (
+                    <Link
+                        href="/profile"
+                        className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors ${isProfileActive
+                            ? 'text-red-500'
+                            : 'text-gray-500 active:text-gray-300'
+                            }`}
+                    >
+                        <div className="relative flex flex-col items-center justify-center">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="Profile" className={`w-6 h-6 rounded-full object-cover ${isProfileActive ? 'ring-2 ring-offset-2 ring-offset-black ring-red-500' : ''}`} />
+                            ) : (
+                                <User className={`w-6 h-6 ${isProfileActive ? 'text-red-500' : ''}`} />
+                            )}
+                        </div>
+                        <span className="text-[10px] font-semibold tracking-wide mt-1">Profile</span>
+                        {isProfileActive && (
+                            <div className="absolute bottom-1 w-1 h-1 rounded-full bg-red-500" />
                         )}
-                    </div>
-                    <span className="text-[10px] font-semibold tracking-wide mt-1">Profile</span>
-                    {isProfileActive && (
-                        <div className="absolute bottom-1 w-1 h-1 rounded-full bg-red-500" />
-                    )}
-                </Link>
+                    </Link>
+                )}
             </div>
 
             <AuthChoiceModal

@@ -9,8 +9,8 @@ const PHASES = [
     'Set your goals & obstacles to build a customized feed...',
 ]
 
-const PHASE_DURATION = 1200  // ms per phase
-const TOTAL_DURATION = 3600  // ms total
+const PHASE_DURATION = 1500  // ms — first text stays for 1.5s
+const TOTAL_DURATION = 4500  // ms total — second text shows for 3s
 
 const textVariants = {
     enter: {
@@ -37,10 +37,10 @@ export default function GuestLoadingPage() {
     const [phaseIndex, setPhaseIndex] = useState(0)
 
     useEffect(() => {
-        // Advance to phase 1 at 1.2s
+        // Advance to phase 1 at 1.5s
         const phaseTimer = setTimeout(() => setPhaseIndex(1), PHASE_DURATION)
 
-        // At 3.6s: set 24h cookie and redirect
+        // At 4.5s: set 24h cookie and redirect
         const redirectTimer = setTimeout(() => {
             document.cookie = 'guest_welcomed=true; path=/; max-age=86400; SameSite=Lax'
             router.push('/dashboard')
@@ -53,7 +53,7 @@ export default function GuestLoadingPage() {
     }, [router])
 
     return (
-        <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden">
+        <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden pb-16 md:pb-0">
             {/* Ambient glow */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-[600px] h-[600px] rounded-full bg-white/[0.015] blur-3xl" />
@@ -62,7 +62,7 @@ export default function GuestLoadingPage() {
             {/* Wordmark */}
             <div className="fixed top-8 left-1/2 -translate-x-1/2 z-10">
                 <span className="text-white/25 text-sm font-light tracking-[0.3em] uppercase select-none">
-                    Veritas
+                    Vibe Coders HQ
                 </span>
             </div>
 
@@ -76,11 +76,16 @@ export default function GuestLoadingPage() {
                         animate="center"
                         exit="exit"
                         className={[
-                            'text-2xl md:text-3xl font-light text-white/85 leading-relaxed tracking-wide',
+                            'text-2xl md:text-3xl font-bold text-white/85 leading-relaxed tracking-wide',
                             phaseIndex === 1 ? 'animate-pulse' : '',
                         ].join(' ').trim()}
                     >
-                        {PHASES[phaseIndex]}
+                        {phaseIndex === 1 ? (
+                            <>
+                                <span className="text-red-500">Set your goals & obstacles</span>
+                                {' to build a customized feed...'}
+                            </>
+                        ) : PHASES[phaseIndex]}
                     </motion.p>
                 </AnimatePresence>
             </div>

@@ -9,14 +9,16 @@ import Portal from '@/components/ui/portal';
 import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo } from '@/app/actions/video-actions';
 import { suggestChannel, getPendingChannels, getApprovedChannels, getDeniedChannels, getStorageChannels, moderateChannel, deleteChannel } from '@/app/actions/channel-actions';
 import { getFeatureRequestsByStatus, moderateFeatureRequest, deleteFeatureRequest } from '@/app/actions/feature-actions';
+import { getContentGapsByStatus, moderateContentGap, deleteContentGap } from '@/app/actions/content-gap-actions';
+import { getPlatformUpdatesByStatus, moderatePlatformUpdate, suggestPlatformUpdate, deletePlatformUpdate, updatePlatformMessage } from '@/app/actions/platform-update-actions';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Column Types
-type StatusColumn = 'pending' | 'verified' | 'banned' | 'storage';
+type StatusColumn = 'pending' | 'verified' | 'banned' | 'storage' | 'current' | 'previous';
 
 export default function SuggestedVideosPage() {
     // Tab State
-    const [activeView, setActiveView] = useState<'videos' | 'channels' | 'features'>('videos');
+    const [activeView, setActiveView] = useState<'videos' | 'channels' | 'features' | 'contentGaps' | 'platformUpdates'>('videos');
     const [suggestionUrl, setSuggestionUrl] = useState("");
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [suggestionStatus, setSuggestionStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -26,23 +28,48 @@ export default function SuggestedVideosPage() {
         pending: [],
         verified: [],
         banned: [],
-        storage: []
+        storage: [],
+        current: [],
+        previous: []
     });
     const [channelColumns, setChannelColumns] = useState<{ [key in StatusColumn]: any[] }>({
         pending: [],
         verified: [],
         banned: [],
-        storage: []
+        storage: [],
+        current: [],
+        previous: []
     });
     const [featureColumns, setFeatureColumns] = useState<{ [key in StatusColumn]: any[] }>({
         pending: [],
         verified: [],
         banned: [],
+        storage: [],
+        current: [],
+        previous: []
+    });
+    const [contentGapColumns, setContentGapColumns] = useState<{ [key in StatusColumn]: any[] }>({
+        pending: [],
+        verified: [],
+        banned: [],
+        storage: [],
+        current: [],
+        previous: []
+    });
+    const [platformUpdateColumns, setPlatformUpdateColumns] = useState<{ [key in StatusColumn]?: any[] }>({
+        pending: [],
+        current: [],
+        previous: [],
         storage: []
     });
     const [isLoading, setIsLoading] = useState(false);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [selectedFeature, setSelectedFeature] = useState<any | null>(null); // For the feature request modal
+
+    // Founder Message Modal State
+    const [messageModalItem, setMessageModalItem] = useState<any | null>(null);
+    const [messageModalText, setMessageModalText] = useState("");
+    const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
 
     // Changed to CSSProperties to support top/bottom switching
     const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
@@ -85,7 +112,9 @@ export default function SuggestedVideosPage() {
                 pending: pending || [],
                 verified: verified || [],
                 banned: banned || [],
-                storage: storage || []
+                storage: storage || [],
+                current: [],
+                previous: []
             });
         } else if (activeView === 'channels') {
             const [pending, approved, banned, storage] = await Promise.all([
@@ -98,6 +127,36 @@ export default function SuggestedVideosPage() {
                 pending: pending || [],
                 verified: approved || [],
                 banned: banned || [],
+                storage: storage || [],
+                current: [],
+                previous: []
+            });
+        } else if (activeView === 'contentGaps') {
+            const [pending, approved, banned, storage] = await Promise.all([
+                getContentGapsByStatus('pending'),
+                getContentGapsByStatus('verified'),
+                getContentGapsByStatus('banned'),
+                getContentGapsByStatus('storage')
+            ]);
+            setContentGapColumns({
+                pending: pending || [],
+                verified: approved || [],
+                banned: banned || [],
+                storage: storage || [],
+                current: [],
+                previous: []
+            });
+        } else if (activeView === 'platformUpdates') {
+            const [pending, current, previous, storage] = await Promise.all([
+                getPlatformUpdatesByStatus('pending'),
+                getPlatformUpdatesByStatus('current'),
+                getPlatformUpdatesByStatus('previous'),
+                getPlatformUpdatesByStatus('storage')
+            ]);
+            setPlatformUpdateColumns({
+                pending: pending || [],
+                current: current || [],
+                previous: previous || [],
                 storage: storage || []
             });
         } else {
@@ -111,7 +170,9 @@ export default function SuggestedVideosPage() {
                 pending: pending || [],
                 verified: approved || [],
                 banned: banned || [],
-                storage: storage || []
+                storage: storage || [],
+                current: [],
+                previous: []
             });
         }
         setIsLoading(false);
@@ -123,10 +184,16 @@ export default function SuggestedVideosPage() {
         let setMethod = setColumns;
         if (activeView === 'channels') {
             currentData = channelColumns;
-            setMethod = setChannelColumns;
+            setMethod = setChannelColumns as any;
+        } else if (activeView === 'contentGaps') {
+            currentData = contentGapColumns;
+            setMethod = setContentGapColumns as any;
+        } else if (activeView === 'platformUpdates') {
+            currentData = platformUpdateColumns as any;
+            setMethod = setPlatformUpdateColumns as any;
         } else if (activeView === 'features') {
             currentData = featureColumns;
-            setMethod = setFeatureColumns;
+            setMethod = setFeatureColumns as any;
         }
 
         const sourceColumnKey = Object.keys(currentData).find(key =>
@@ -151,9 +218,13 @@ export default function SuggestedVideosPage() {
 
         let result;
         if (activeView === 'videos') {
-            result = await moderateVideo(id, serverAction);
+            result = await moderateVideo(id, serverAction as any);
         } else if (activeView === 'channels') {
-            result = await moderateChannel(id, serverAction);
+            result = await moderateChannel(id, serverAction as any);
+        } else if (activeView === 'contentGaps') {
+            result = await moderateContentGap(id, serverAction as any);
+        } else if (activeView === 'platformUpdates') {
+            result = await moderatePlatformUpdate(id, toStatus as any);
         } else {
             result = await moderateFeatureRequest(id, serverAction);
         }
@@ -249,10 +320,16 @@ export default function SuggestedVideosPage() {
         let setMethod = setColumns;
         if (activeView === 'channels') {
             currentData = channelColumns;
-            setMethod = setChannelColumns;
+            setMethod = setChannelColumns as any;
+        } else if (activeView === 'contentGaps') {
+            currentData = contentGapColumns;
+            setMethod = setContentGapColumns as any;
+        } else if (activeView === 'platformUpdates') {
+            currentData = platformUpdateColumns as any;
+            setMethod = setPlatformUpdateColumns as any;
         } else if (activeView === 'features') {
             currentData = featureColumns;
-            setMethod = setFeatureColumns;
+            setMethod = setFeatureColumns as any;
         }
 
         // Optimistic UI Removal
@@ -272,6 +349,10 @@ export default function SuggestedVideosPage() {
             result = await deleteVideo(id);
         } else if (activeView === 'channels') {
             result = await deleteChannel(id);
+        } else if (activeView === 'contentGaps') {
+            result = await deleteContentGap(id);
+        } else if (activeView === 'platformUpdates') {
+            result = await deletePlatformUpdate(id);
         } else {
             result = await deleteFeatureRequest(id);
         }
@@ -302,8 +383,38 @@ export default function SuggestedVideosPage() {
         setIsSuggesting(false);
     };
 
+    const handleSuggestPlatformUpdate = async () => {
+        if (!suggestionUrl) return;
+        setIsSuggesting(true);
+        setSuggestionStatus('idle');
+
+        const result = await suggestPlatformUpdate(suggestionUrl);
+
+        if (result.success) {
+            setSuggestionStatus('success');
+            setSuggestionUrl("");
+            loadAllData();
+            setTimeout(() => setSuggestionStatus('idle'), 3000);
+        } else {
+            alert(result.message);
+            setSuggestionStatus('error');
+        }
+
+        setIsSuggesting(false);
+    };
+
+    const submitPlatformMessage = async (id: string, message: string) => {
+        const result = await updatePlatformMessage(id, message);
+        if (result.success) {
+            loadAllData();
+        } else {
+            alert(result.message);
+        }
+    };
+
     const renderColumn = (title: string, status: StatusColumn, icon: any, colorClass: string) => {
-        const dataList = activeView === 'videos' ? columns[status] : activeView === 'channels' ? channelColumns[status] : featureColumns[status];
+        const dataList = activeView === 'videos' ? columns[status] : activeView === 'channels' ? channelColumns[status] : activeView === 'contentGaps' ? contentGapColumns[status] : activeView === 'platformUpdates' ? (platformUpdateColumns[status] || []) : featureColumns[status];
+        if (!dataList) return null;
         return (
             <div
                 className={`flex-1 min-w-[300px] flex flex-col h-full bg-[#111] rounded-2xl border transition-all ${dragOverColumn === status ? 'border-red-500 bg-red-900/10' : 'border-white/5 overflow-hidden'}`}
@@ -328,17 +439,17 @@ export default function SuggestedVideosPage() {
                             draggable
                             onDragStart={(e) => handleDragStart(e, item.id)}
                             onClick={() => {
-                                if (activeView === 'features') setSelectedFeature(item);
+                                if (activeView === 'features' || activeView === 'contentGaps') setSelectedFeature(item);
                             }}
-                            className={`group relative bg-black/40 border border-white/5 rounded-xl p-2 hover:border-white/20 transition-all ${draggedVideoId === item.id ? 'opacity-50' : 'opacity-100'} ${activeView === 'features' ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+                            className={`group relative bg-black/40 border border-white/5 rounded-xl p-2 hover:border-white/20 transition-all ${draggedVideoId === item.id ? 'opacity-50' : 'opacity-100'} ${(activeView === 'features' || activeView === 'contentGaps') ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
                         >
                             {/* Row Layout */}
                             <div className="flex items-center gap-3">
                                 {/* 1. Thumbnail/Avatar (Left) */}
-                                {activeView === 'videos' ? (
+                                {(activeView === 'videos' || activeView === 'platformUpdates') ? (
                                     <div className="w-20 aspect-video rounded bg-gray-900 overflow-hidden flex-shrink-0 relative pointer-events-none">
                                         <img
-                                            src={`https://img.youtube.com/vi/${item.id}/default.jpg`}
+                                            src={`https://img.youtube.com/vi/${activeView === 'platformUpdates' ? item.video_id : item.id}/default.jpg`}
                                             className="w-full h-full object-cover opacity-80"
                                         />
                                     </div>
@@ -377,9 +488,11 @@ export default function SuggestedVideosPage() {
                                                 {item.title || item.id}
                                             </h4>
                                         </a>
-                                    ) : activeView === 'features' ? (
+                                    ) : (activeView === 'features' || activeView === 'contentGaps') ? (
                                         <>
-                                            <div className="text-[10px] text-gray-400 mb-0.5">{item.username}</div>
+                                            <div className="text-[10px] text-gray-400 mb-0.5" title={item.email || "No email"}>
+                                                {item.username} {item.email && <span className="text-gray-600 ml-1">({item.email})</span>}
+                                            </div>
                                             <h4 className="text-xs font-medium text-gray-200 line-clamp-2 leading-tight title-font italic" title={item.title}>
                                                 "{item.title}"
                                             </h4>
@@ -388,6 +501,18 @@ export default function SuggestedVideosPage() {
                                         <h4 className="text-xs font-bold text-gray-200 line-clamp-2 leading-tight mb-1" title={item.title || "Unknown Title"}>
                                             {item.title || item.id}
                                         </h4>
+                                    )}
+                                    {activeView === 'platformUpdates' && status === 'current' && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMessageModalItem(item);
+                                                setMessageModalText(item.message || "");
+                                            }}
+                                            className="text-[10px] text-red-500 hover:text-red-400 hover:underline pointer-events-auto"
+                                        >
+                                            Edit Founder Message
+                                        </button>
                                     )}
                                     {activeView === 'videos' && (
                                         <div className="flex items-center gap-2 overflow-hidden">
@@ -446,6 +571,72 @@ export default function SuggestedVideosPage() {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-red-500/30 flex flex-col">
+
+            {/* Founder Message Modal */}
+            <AnimatePresence>
+                {messageModalItem && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+                        onClick={() => setMessageModalItem(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ duration: 0.2 }}
+                            className="bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg relative overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Top accent line */}
+                            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-red-500/60 to-transparent" />
+
+                            <div className="p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-9 h-9 rounded-full bg-red-900/30 border border-red-500/20 flex items-center justify-center">
+                                        <MoreVertical className="w-4 h-4 text-red-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-white">Edit Founder Message</h3>
+                                        <p className="text-xs text-gray-500 line-clamp-1">{messageModalItem.title}</p>
+                                    </div>
+                                </div>
+
+                                <textarea
+                                    value={messageModalText}
+                                    onChange={(e) => setMessageModalText(e.target.value)}
+                                    rows={5}
+                                    placeholder="Write a message for this platform update..."
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-red-500/50 resize-none transition-colors"
+                                />
+
+                                <div className="flex gap-3 mt-4">
+                                    <button
+                                        onClick={() => setMessageModalItem(null)}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        disabled={isSubmittingMessage}
+                                        onClick={async () => {
+                                            setIsSubmittingMessage(true);
+                                            await submitPlatformMessage(messageModalItem.id, messageModalText);
+                                            setIsSubmittingMessage(false);
+                                            setMessageModalItem(null);
+                                        }}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-500 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isSubmittingMessage ? 'Saving...' : 'Save Message'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* Navbar */}
             <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/80 backdrop-blur-xl">
                 <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
@@ -477,35 +668,58 @@ export default function SuggestedVideosPage() {
                         >
                             Feature Requests
                         </button>
+                        <button
+                            onClick={() => setActiveView('contentGaps')}
+                            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeView === 'contentGaps' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Content Gaps
+                        </button>
+                        <button
+                            onClick={() => setActiveView('platformUpdates')}
+                            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeView === 'platformUpdates' ? 'bg-[#ff3b3b] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Platform Updates
+                        </button>
                     </div>
                 </div>
             </nav>
 
             {/* Main Content */}
             <main className="pt-24 pb-8 px-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col">
-                {activeView === 'channels' && (
+                {(activeView === 'channels' || activeView === 'platformUpdates') && (
                     <div className="w-full max-w-lg mb-6 self-start relative">
-                        <div className="absolute inset-0 bg-blue-600/20 rounded-full blur-xl animate-pulse" />
+                        <div className={`absolute inset-0 rounded-full blur-xl animate-pulse ${activeView === 'platformUpdates' ? 'bg-red-600/20' : 'bg-blue-600/20'}`} />
                         <input
                             type="text"
                             value={suggestionStatus === 'success' ? "Success! Added." : suggestionUrl}
                             onChange={(e) => {
                                 if (suggestionStatus !== 'success') setSuggestionUrl(e.target.value);
                             }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSuggestChannel()}
-                            placeholder="Paste a channel url..."
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    if (activeView === 'channels') handleSuggestChannel();
+                                    else handleSuggestPlatformUpdate();
+                                }
+                            }}
+                            placeholder={activeView === 'platformUpdates' ? "Paste YouTube Update URL..." : "Paste a channel url..."}
                             disabled={suggestionStatus === 'success'}
-                            className={`w-full border-2 rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 shadow-[0_0_20px_rgba(37,99,235,0.4)] ${suggestionStatus === 'success'
+                            className={`w-full border-2 rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 ${
+                                activeView === 'platformUpdates' ? 'shadow-[0_0_20px_rgba(255,59,59,0.4)]' : 'shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                            } ${suggestionStatus === 'success'
                                 ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold tracking-wide'
+                                : activeView === 'platformUpdates'
+                                ? 'bg-[#1a1a1a] border-[#ff3b3b]/60 text-white placeholder:text-[#ff3b3b]/50 focus:border-[#ff3b3b] focus:bg-[#202020]'
                                 : 'bg-[#1a1a1a] border-blue-600/60 text-white placeholder:text-blue-300/50 focus:border-blue-500 focus:bg-[#202020]'
                                 }`}
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
                             <button
-                                onClick={handleSuggestChannel}
+                                onClick={activeView === 'channels' ? handleSuggestChannel : handleSuggestPlatformUpdate}
                                 disabled={isSuggesting || suggestionStatus === 'success'}
                                 className={`p-1.5 rounded-full transition-all duration-500 ease-out disabled:opacity-100 ${suggestionStatus === 'success'
                                     ? 'bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)]'
+                                    : activeView === 'platformUpdates'
+                                    ? 'bg-[#ff3b3b] text-white hover:bg-red-500 shadow-[0_0_10px_rgba(255,59,59,0.8)]'
                                     : 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.8)]'
                                     }`}
                             >
@@ -522,11 +736,22 @@ export default function SuggestedVideosPage() {
                     </div>
                 )}
                 <div className="flex-1 flex gap-4 overflow-x-auto h-[calc(100vh-140px)]">
-                    {/* 4 COLUMNS */}
-                    {renderColumn('Pending', 'pending', <AlertCircle className="w-4 h-4" />, 'text-yellow-500')}
-                    {renderColumn('Approved', 'verified', <CheckCircle2 className="w-4 h-4" />, 'text-green-500')}
-                    {renderColumn('Denied', 'banned', <XCircle className="w-4 h-4" />, 'text-red-500')}
-                    {renderColumn('Storage', 'storage', <Box className="w-4 h-4" />, 'text-blue-500')}
+                    {/* COLUMNS */}
+                    {activeView !== 'platformUpdates' ? (
+                        <>
+                            {renderColumn('Pending', 'pending', <AlertCircle className="w-4 h-4" />, 'text-yellow-500')}
+                            {renderColumn('Approved', 'verified', <CheckCircle2 className="w-4 h-4" />, 'text-green-500')}
+                            {renderColumn('Denied', 'banned', <XCircle className="w-4 h-4" />, 'text-red-500')}
+                            {renderColumn('Storage', 'storage', <Box className="w-4 h-4" />, 'text-blue-500')}
+                        </>
+                    ) : (
+                        <>
+                            {renderColumn('Pending', 'pending', <AlertCircle className="w-4 h-4" />, 'text-yellow-500')}
+                            {renderColumn('Current', 'current', <CheckCircle2 className="w-4 h-4" />, 'text-green-500')}
+                            {renderColumn('Previous', 'previous', <Box className="w-4 h-4" />, 'text-gray-400')}
+                            {renderColumn('Storage', 'storage', <Box className="w-4 h-4" />, 'text-blue-500')}
+                        </>
+                    )}
 
                     {/* Global Dropdown via Portal */}
                     {activeMenuId && (
@@ -541,15 +766,17 @@ export default function SuggestedVideosPage() {
                             >
                                 {(() => {
                                     // Find the active item and its status
-                                    const currentDataList = activeView === 'videos' ? columns : activeView === 'channels' ? channelColumns : featureColumns;
+                                    const currentDataList = activeView === 'videos' ? columns : activeView === 'channels' ? channelColumns : activeView === 'contentGaps' ? contentGapColumns : activeView === 'platformUpdates' ? platformUpdateColumns : featureColumns;
                                     let activeItem: any = null;
                                     let activeStatus: StatusColumn | null = null;
-                                    for (const statusEnv of ['pending', 'verified', 'banned', 'storage'] as StatusColumn[]) {
-                                        const found = currentDataList[statusEnv].find((v: any) => v.id === activeMenuId);
-                                        if (found) {
-                                            activeItem = found;
-                                            activeStatus = statusEnv;
-                                            break;
+                                    for (const statusEnv of ['pending', 'verified', 'banned', 'storage', 'current', 'previous'] as StatusColumn[]) {
+                                        if (currentDataList[statusEnv]) {
+                                            const found = currentDataList[statusEnv]!.find((v: any) => v.id === activeMenuId);
+                                            if (found) {
+                                                activeItem = found;
+                                                activeStatus = statusEnv;
+                                                break;
+                                            }
                                         }
                                     }
 
@@ -558,9 +785,21 @@ export default function SuggestedVideosPage() {
                                     return (
                                         <>
                                             {activeStatus !== 'pending' && <button onClick={() => handleMove(activeItem.id, 'pending')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-yellow-500">Move to Pending</button>}
-                                            {activeStatus !== 'verified' && <button onClick={() => handleMove(activeItem.id, 'verified')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Approve</button>}
+                                            
+                                            {activeView !== 'platformUpdates' ? (
+                                                <>
+                                                    {activeStatus !== 'verified' && <button onClick={() => handleMove(activeItem.id, 'verified')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Approve</button>}
+                                                    {activeStatus !== 'banned' && <button onClick={() => handleMove(activeItem.id, 'banned')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-red-500">Deny</button>}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {activeStatus !== 'current' && <button onClick={() => handleMove(activeItem.id, 'current')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Set as Current Update</button>}
+                                                    {activeStatus !== 'previous' && <button onClick={() => handleMove(activeItem.id, 'previous')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-gray-400">Move to Previous</button>}
+                                                </>
+                                            )}
+                                            
                                             {activeStatus !== 'storage' && <button onClick={() => handleMove(activeItem.id, 'storage')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-blue-500">Move to Storage</button>}
-                                            {activeStatus !== 'banned' && <button onClick={() => handleMove(activeItem.id, 'banned')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-red-500">Deny</button>}
+                                            
                                             <div className="h-px bg-white/10 my-1"></div>
                                             <button onClick={(e) => handleDelete(activeItem.id, e)} className="w-full text-left px-3 py-2 text-xs hover:bg-red-900/20 text-red-600 font-bold flex items-center gap-2">
                                                 <Trash2 className="w-3 h-3" /> Delete
@@ -607,6 +846,7 @@ export default function SuggestedVideosPage() {
                                     <div>
                                         <div className="text-sm font-bold text-white mb-0.5">{selectedFeature.username}</div>
                                         <div className="text-[10px] text-gray-500">{new Date(selectedFeature.created_at).toLocaleDateString()}</div>
+                                        {selectedFeature.email && <div className="text-[10px] text-gray-400 mt-0.5">{selectedFeature.email}</div>}
                                     </div>
                                 </div>
                                 <button
