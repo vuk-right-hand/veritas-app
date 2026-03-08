@@ -482,7 +482,10 @@ export default function Dashboard() {
                 <div className="hidden md:flex max-w-[1600px] mx-auto px-8 h-20 items-center justify-between">
                     <div className="flex items-center gap-2">
                         <img src="/veritas-heart.svg" alt="Veritas Logo" className="w-11 h-11 object-contain animate-heartbeat fill-red-600" />
-                        <span className="font-bold text-xl tracking-tight">Veritas</span>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-bold text-xl tracking-tight">HQ</span>
+                            <span className="text-[10px] font-light text-gray-400 tracking-wide">Human Quality</span>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -550,10 +553,13 @@ export default function Dashboard() {
 
                 {/* Mobile Navbar */}
                 <div className="flex md:hidden items-center justify-between px-4 h-14">
-                    {/* Left: Logo + Name */}
+                    {/* Left: Logo + HQ / Human Quality */}
                     <div className="flex items-center gap-2">
                         <img src="/veritas-heart.svg" alt="Veritas" className="w-8 h-8 object-contain animate-heartbeat" />
-                        <span className="font-bold text-lg tracking-tight">Veritas</span>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-bold text-lg tracking-tight">HQ</span>
+                            <span className="text-[10px] font-light text-gray-400 tracking-wide">Human Quality</span>
+                        </div>
                     </div>
 
                     {/* Center: Glowing Suggest Bar (visible when scrolled) */}
@@ -572,8 +578,33 @@ export default function Dashboard() {
                         )}
                     </AnimatePresence>
 
-                    {/* Right: Compact icons (visible when scrolled) */}
+                    {/* Right: Founder Meeting pill (pre-scroll) + Compact icons (when scrolled) */}
                     <div className="flex items-center gap-2">
+                        <AnimatePresence>
+                            {!isScrolled && (
+                                <motion.div
+                                    key="founder-meeting-btn"
+                                    initial={{ opacity: 0, scale: 0.85 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.85 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <button
+                                        onClick={() => {
+                                            if (!isLoggedIn) {
+                                                setShowProfileModal(true);
+                                            } else {
+                                                window.location.href = '/founder-meeting';
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 bg-red-600/15 border border-red-500/30 rounded-full text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                        Meeting
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                         <AnimatePresence>
                             {isScrolled && (
                                 <>
