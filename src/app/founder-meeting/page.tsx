@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, Send, Sparkles, Calendar, Lightbulb, Loader2, ChevronDown, X, Play, Pause, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Sparkles, Calendar, Lightbulb, Loader2, ChevronDown, ChevronLeft, ChevronRight, X, Play, Pause, Volume2, VolumeX, Maximize2 } from 'lucide-react';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
@@ -43,8 +43,14 @@ export default function FounderMeeting() {
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showMobileControls, setShowMobileControls] = useState(false);
+    const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+    const [seekFeedback, setSeekFeedback] = useState<{ side: 'left' | 'right'; key: number } | null>(null);
     const mobileControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastTapTimeRef = useRef<number>(0);
+    const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const seekFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Comments State (used inside MODAL on mobile)
     const [comments, setComments] = useState<any[]>([]);
@@ -137,8 +143,10 @@ export default function FounderMeeting() {
         playerRef.current?.pauseVideo();
         setIsPlaying(false);
         setProgress(0);
+        setShowVolumeSlider(false);
         if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
         if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+        if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
     };
 
     const switchModalVideo = (update: any) => {
@@ -321,6 +329,31 @@ export default function FounderMeeting() {
         setIsMuted(v === 0);
     };
 
+    const handleVolumeEnter = () => {
+        if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+        setShowVolumeSlider(true);
+    };
+
+    const handleVolumeLeave = () => {
+        volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 300);
+    };
+
+    const handleVolumeTap = () => {
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isTouch) {
+            if (showVolumeSlider) {
+                setShowVolumeSlider(false);
+                if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+            } else {
+                setShowVolumeSlider(true);
+                if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+                volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 3000);
+            }
+        } else {
+            toggleMute();
+        }
+    };
+
     const formatTime = (s: number) => {
         const m = Math.floor(s / 60);
         const sec = Math.floor(s % 60);
@@ -459,6 +492,18 @@ export default function FounderMeeting() {
                             <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-wrap">
                                 {activeUpdate.message || "No message provided for this update."}
                             </p>
+                        </div>
+                    )}
+
+                    {/* 4. Previous updates (max 2, tap to open modal) */}
+                    {previousUpdates.slice(0, 2).length > 0 && !isLoadingData && (
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">Previous Meetings</h3>
+                            <div className="space-y-3">
+                                {previousUpdates.slice(0, 2).map((update) => (
+                                    <VideoThumbnailCard key={update.id} update={update} large />
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -752,10 +797,10 @@ export default function FounderMeeting() {
 
                             {/* Scrollable content */}
                             <div className="flex flex-col gap-4 md:gap-6 p-4 md:p-8 overflow-y-auto no-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
 
-                                    {/* LEFT: Video + message + comments */}
-                                    <div className="md:col-span-2 space-y-5">
+                                    {/* Video + message + comments */}
+                                    <div className="space-y-5">
 
                                         {/* Custom video player */}
                                         <div
@@ -780,10 +825,37 @@ export default function FounderMeeting() {
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-                                                    if (isTouch) { showMobileControls ? (setShowMobileControls(false)) : showMobileControlsTemporarily(); return; }
+                                                    if (isTouch) {
+                                                        const now = Date.now();
+                                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                        const x = e.clientX - rect.left;
+                                                        const side = x < rect.width / 2 ? 'left' : 'right';
+
+                                                        if (now - lastTapTimeRef.current < 300) {
+                                                            if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
+                                                            const curr = playerRef.current?.getCurrentTime() || 0;
+                                                            const dur = playerRef.current?.getDuration() || 0;
+                                                            const newTime = side === 'right'
+                                                                ? Math.min(curr + 10, dur || curr + 10)
+                                                                : Math.max(curr - 5, 0);
+                                                            playerRef.current?.seekTo(newTime);
+                                                            setCurrentTime(newTime);
+                                                            if (dur > 0) setProgress((newTime / dur) * 100);
+                                                            if (seekFeedbackTimeoutRef.current) clearTimeout(seekFeedbackTimeoutRef.current);
+                                                            setSeekFeedback({ side, key: Date.now() });
+                                                            seekFeedbackTimeoutRef.current = setTimeout(() => setSeekFeedback(null), 700);
+                                                            lastTapTimeRef.current = 0;
+                                                        } else {
+                                                            lastTapTimeRef.current = now;
+                                                            singleTapTimeoutRef.current = setTimeout(() => {
+                                                                showMobileControls ? setShowMobileControls(false) : showMobileControlsTemporarily();
+                                                            }, 250);
+                                                        }
+                                                        return;
+                                                    }
                                                     togglePlay();
                                                 }}
-                                                onDoubleClick={(e) => { e.preventDefault(); handleFullscreen(); }}
+                                                onDoubleClick={(e) => { const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0; if (isTouch) return; e.preventDefault(); handleFullscreen(); }}
                                             />
                                             {/* Centre play/pause (mobile) */}
                                             <div className={`absolute inset-0 pointer-events-none flex items-center justify-center z-20 transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0'}`}>
@@ -792,6 +864,33 @@ export default function FounderMeeting() {
                                                     {isPlaying ? <Pause className="w-8 h-8 text-white fill-white" /> : <Play className="w-8 h-8 text-white fill-white ml-1" />}
                                                 </button>
                                             </div>
+                                            {/* Double-tap seek feedback */}
+                                            <AnimatePresence>
+                                                {seekFeedback && (
+                                                    <motion.div
+                                                        key={seekFeedback.key}
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        exit={{ opacity: 0 }}
+                                                        transition={{ duration: 0.15 }}
+                                                        className={`absolute inset-y-0 z-30 pointer-events-none flex items-center justify-center ${seekFeedback.side === 'right' ? 'left-1/2 right-0' : 'left-0 right-1/2'}`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <div className="flex">
+                                                                {seekFeedback.side === 'right' ? (
+                                                                    <><ChevronRight className="w-7 h-7 text-white drop-shadow-lg" /><ChevronRight className="w-7 h-7 text-white drop-shadow-lg -ml-3" /></>
+                                                                ) : (
+                                                                    <><ChevronLeft className="w-7 h-7 text-white drop-shadow-lg -mr-3" /><ChevronLeft className="w-7 h-7 text-white drop-shadow-lg" /></>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-white text-xs font-bold drop-shadow-lg tabular-nums">
+                                                                {seekFeedback.side === 'right' ? '+10s' : '-5s'}
+                                                            </span>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+
                                             {/* Controls overlay */}
                                             <div className={`absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0 md:opacity-0 md:group-hover:opacity-100'}`}>
                                                 <div className="w-full flex flex-col gap-2 pb-4 px-4 pointer-events-auto z-20">
@@ -809,14 +908,45 @@ export default function FounderMeeting() {
                                                             <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10">
                                                                 {isPlaying ? <Pause className="w-4 h-4 text-white fill-white" /> : <Play className="w-4 h-4 text-white fill-white ml-0.5" />}
                                                             </button>
-                                                            <button onClick={toggleMute} className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10">
-                                                                {isMuted ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
-                                                            </button>
+                                                            <div
+                                                                className="relative flex items-center"
+                                                                onMouseEnter={handleVolumeEnter}
+                                                                onMouseLeave={handleVolumeLeave}
+                                                            >
+                                                                <button onClick={handleVolumeTap} className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10">
+                                                                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
+                                                                </button>
+                                                                <AnimatePresence>
+                                                                    {showVolumeSlider && (
+                                                                        <div
+                                                                            className="absolute bottom-full left-0 mb-2 px-3 py-3 bg-black/90 border border-white/10 rounded-full backdrop-blur-md flex flex-col items-center shadow-xl"
+                                                                            onTouchStart={(e) => e.stopPropagation()}
+                                                                            onTouchMove={(e) => e.stopPropagation()}
+                                                                        >
+                                                                            <input
+                                                                                type="range"
+                                                                                min="0"
+                                                                                max="100"
+                                                                                value={isMuted ? 0 : volume}
+                                                                                onChange={handleVolumeChange}
+                                                                                className="h-28 w-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg"
+                                                                                style={{ writingMode: 'vertical-lr', direction: 'rtl', touchAction: 'none' } as any}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </AnimatePresence>
+                                                            </div>
                                                             <span className="text-[10px] text-white/70 font-mono tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={toggleSpeed} className="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold text-white hover:bg-white/30 transition-colors border border-white/10">
-                                                                {playbackRate}Ã—
+                                                            <button
+                                                                onClick={toggleSpeed}
+                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-lg ${playbackRate === 1.5
+                                                                    ? 'bg-red-600 border-red-500 text-white'
+                                                                    : 'bg-white/20 border-white/10 text-white hover:bg-white/30'
+                                                                }`}
+                                                            >
+                                                                1.5x
                                                             </button>
                                                             <button onClick={handleFullscreen} className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10">
                                                                 <Maximize2 className="w-4 h-4 text-white" />
@@ -901,32 +1031,6 @@ export default function FounderMeeting() {
                                         </div>
                                     </div>
 
-                                    {/* RIGHT: Previous meetings */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Previous Meetings</h3>
-                                        <div className="flex md:flex-col gap-3 overflow-x-auto no-scrollbar pb-2 md:pb-0">
-                                            {previousUpdates.length === 0 && !isLoadingData && (
-                                                <p className="text-gray-500 text-xs italic py-4 text-center w-full">No previous meetings.</p>
-                                            )}
-                                            {previousUpdates.map((update) => (
-                                                <button key={update.id} onClick={() => switchModalVideo(update)}
-                                                    className={`flex-shrink-0 w-48 md:w-full text-left rounded-xl border transition-all duration-300 overflow-hidden ${
-                                                        modalUpdate?.id === update.id ? 'border-red-500/30 bg-red-900/10' : 'border-white/5 bg-[#0f0f0f] hover:border-white/20'
-                                                    }`}>
-                                                    <div className="relative aspect-video overflow-hidden bg-black">
-                                                        <img src={`https://img.youtube.com/vi/${update.video_id}/mqdefault.jpg`} alt={update.title || 'Untitled'}
-                                                            className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" />
-                                                    </div>
-                                                    <div className="p-2">
-                                                        <p className={`text-xs font-semibold leading-snug line-clamp-2 ${modalUpdate?.id === update.id ? 'text-red-400' : 'text-gray-400'}`}>
-                                                            {update.title || 'Untitled Update'}
-                                                        </p>
-                                                        <p className="text-[10px] text-gray-600 mt-0.5">{new Date(update.created_at).toLocaleDateString()}</p>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>

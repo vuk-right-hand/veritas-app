@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles } from 'lucide-react';
+import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles, RotateCcw, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
@@ -40,11 +40,14 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
     const [isVideoEnded, setIsVideoEnded] = useState(false);
-    const [showQuizOverlay, setShowQuizOverlay] = useState(false);
+    const [showEndScreen, setShowEndScreen] = useState(false); // End screen overlay (dismissible with X)
+    const [showQuizBelow, setShowQuizBelow] = useState(false);
+    const [showInlineQuiz, setShowInlineQuiz] = useState(false); // Quiz expanded inline below video
     const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
     const [modalSource, setModalSource] = useState<'profile' | 'comment' | 'quiz' | 'default'>('default');
     const [mobileStartSignal, setMobileStartSignal] = useState(0);
     const quizPanelRef = useRef<HTMLDivElement>(null);
+    const controlsBarRef = useRef<HTMLDivElement>(null);
 
     // === DISPLAY PRIORITY LOGIC ===
     // First line: video description (priority) OR channel description (fallback)
@@ -74,8 +77,6 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-    const [showMobileControls, setShowMobileControls] = useState(false);
-    const mobileControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Auto-open modal on mount (for /v/[slug] standalone page)
     useEffect(() => {
@@ -85,6 +86,15 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     // Close handler — redirects to /dashboard when used as standalone page
     const handleClose = useCallback(() => {
         setIsOpen(false);
+        // Reset video state so reopening plays video fresh
+        setIsVideoEnded(false);
+        setShowEndScreen(false);
+        setShowQuizBelow(false);
+        setShowInlineQuiz(false);
+        setIsPlaying(false);
+        setProgress(0);
+        setCurrentTime(0);
+        setDuration(0);
         if (onClose) onClose();
     }, [onClose]);
 
@@ -258,16 +268,16 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                     lastKnownDurationRef.current = dur;
                     if (dur > 0) {
                         setProgress((curr / dur) * 100);
-                        // Trigger end screen earlier (5-6s before)
-                        if (dur - curr <= 6 && !isVideoEnded && curr > 10) {
-                            setIsVideoEnded(true);
+                        // Quiz teaser rolls up below video at T-20s
+                        if (dur - curr <= 20 && !showQuizBelow && curr > 10) {
+                            setShowQuizBelow(true);
                         }
                     }
                 }
             }, 500); // Update every 500ms
         }
         return () => clearInterval(interval);
-    }, [isOpen, isPlaying, isVideoEnded]);
+    }, [isOpen, isPlaying, showQuizBelow]);
 
     // Periodic watch progress reporter (every 30s while playing)
     // NOTE: sendWatchProgress is now stable (only depends on videoId),
@@ -620,12 +630,13 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                 )}
 
                                 {/* Close Button - Internal Top Right (Hidden in Fullscreen) */}
+                                {/* On mobile: smaller + tucked into corner (swipe-down is primary close) */}
                                 {!isFullscreen && (
                                     <button
                                         onClick={() => handleClose()}
-                                        className="absolute top-6 right-6 z-50 p-2 rounded-full bg-black/40 hover:bg-white/10 border border-white/5 text-gray-300 hover:text-white transition-colors"
+                                        className="absolute top-2 right-2 md:top-6 md:right-6 z-50 p-1.5 md:p-2 rounded-full bg-black/40 hover:bg-white/10 border border-white/5 text-gray-300 hover:text-white transition-colors"
                                     >
-                                        <X className="w-5 h-5" />
+                                        <X className="w-4 h-4 md:w-5 md:h-5" />
                                     </button>
                                 )}
 
@@ -637,331 +648,353 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                     <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 ${isFullscreen ? 'h-full w-full flex flex-col md:grid' : ''}`}>
 
                                         <div className="col-span-1 md:col-span-3 flex flex-col gap-6">
-                                            {/* LEFT: Video Player (Browser Fullscreen API handles fullscreen) */}
+                                            {/* LEFT: Video Player + Controls (YouTube ToS Compliant — no overlays on iframe) */}
                                             <div
                                                 ref={videoContainerRef}
-                                                className="relative group bg-black shadow-2xl flex flex-col justify-center overflow-hidden transition-all duration-300 w-full rounded-2xl border border-white/10 aspect-video"
-                                                style={{ touchAction: 'pan-x' }}
-                                                onDoubleClick={(e) => {
-                                                    e.preventDefault();
-                                                    handleFullscreen();
-                                                }}
+                                                className="relative group bg-black shadow-2xl flex flex-col overflow-hidden transition-all duration-300 w-full rounded-2xl border border-white/10"
                                             >
-                                                <div className="relative w-full h-full">
-                                                    <SmartVideoPlayer
-                                                        ref={playerRef}
-                                                        videoId={videoId}
-                                                        title={title}
-                                                        autoplay={true}
-                                                        controls={false}
-                                                        className="w-full h-full object-cover"
-                                                        onEnded={() => {
-                                                            console.log("Main Feed Video Ended");
-                                                            // Close the play segment: accumulate elapsed time
-                                                            if (playStartTimeRef.current > 0) {
-                                                                accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
-                                                                playStartTimeRef.current = 0;
-                                                            }
-                                                            setIsPlaying(false);
-                                                            setIsVideoEnded(true);
-                                                            sendWatchProgress();
-                                                        }}
-                                                        onPlay={() => {
-                                                            playStartTimeRef.current = Date.now();
-                                                            setIsPlaying(true);
-                                                        }}
-                                                        onPause={() => {
-                                                            // Close the play segment: accumulate elapsed time
-                                                            if (playStartTimeRef.current > 0) {
-                                                                accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
-                                                                playStartTimeRef.current = 0;
-                                                            }
-                                                            setIsPlaying(false);
-                                                            sendWatchProgress();
-                                                        }}
-                                                    />
+                                                {/* Video Area — conditionally render player vs end screen */}
+                                                {!isVideoEnded ? (
+                                                    <div className="relative w-full aspect-video">
+                                                        <SmartVideoPlayer
+                                                            ref={playerRef}
+                                                            videoId={videoId}
+                                                            title={title}
+                                                            autoplay={true}
+                                                            controls={false}
+                                                            className="w-full h-full object-cover"
+                                                            onEnded={() => {
+                                                                console.log("Main Feed Video Ended");
+                                                                if (playStartTimeRef.current > 0) {
+                                                                    accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
+                                                                    playStartTimeRef.current = 0;
+                                                                }
+                                                                setIsPlaying(false);
+                                                                setIsVideoEnded(true);
+                                                                setShowEndScreen(true);
+                                                                sendWatchProgress();
+                                                            }}
+                                                            onPlay={() => {
+                                                                playStartTimeRef.current = Date.now();
+                                                                setIsPlaying(true);
+                                                            }}
+                                                            onPause={() => {
+                                                                if (playStartTimeRef.current > 0) {
+                                                                    accumulatedWatchRef.current += (Date.now() - playStartTimeRef.current) / 1000;
+                                                                    playStartTimeRef.current = 0;
+                                                                }
+                                                                setIsPlaying(false);
+                                                                sendWatchProgress();
+                                                            }}
+                                                        />
+                                                        {/* NO overlays on the iframe — ads, skip button, end-screen cards all remain clickable */}
+                                                    </div>
+                                                ) : (
+                                                    /* VIDEO ENDED — iframe unmounted, show end screen or "watch next" */
+                                                    <div className="relative w-full aspect-video bg-[#0f0f0f]">
+                                                        {/* "Watch Next" placeholder (always rendered behind end screen) */}
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6">
+                                                            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                                                <Play className="w-7 h-7 text-gray-600 fill-gray-600" />
+                                                            </div>
+                                                            <div className="text-center">
+                                                                <p className="text-lg font-bold text-white mb-1">Watch this next</p>
+                                                                <p className="text-xs text-gray-500 max-w-[240px]">Based on your watch history and goals — coming soon</p>
+                                                            </div>
+                                                        </div>
 
-                                                    {/* VIDEO END SCREEN OVERLAY */}
-                                                    <AnimatePresence>
-                                                        {isVideoEnded && (
-                                                            <motion.div
-                                                                key="end-screen"
-                                                                initial={{ opacity: 0 }}
-                                                                animate={{ opacity: 1 }}
-                                                                exit={{ opacity: 0 }}
-                                                                className="absolute inset-0 z-30 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center gap-5 p-6"
-                                                            >
-                                                                {/* Dismiss */}
-                                                                <button
-                                                                    onClick={() => setIsVideoEnded(false)}
-                                                                    className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
+                                                        {/* End Screen (dismissible — sits on top of "watch next") */}
+                                                        <AnimatePresence>
+                                                            {showEndScreen && (
+                                                                <motion.div
+                                                                    key="end-screen"
+                                                                    initial={{ opacity: 0 }}
+                                                                    animate={{ opacity: 1 }}
+                                                                    exit={{ opacity: 0 }}
+                                                                    className="absolute inset-0 bg-[#0f0f0f] flex flex-col items-center justify-center gap-5 p-6 z-10"
                                                                 >
-                                                                    <X className="w-4 h-4" />
+                                                                    {/* X to dismiss end screen */}
+                                                                    <button
+                                                                        onClick={() => setShowEndScreen(false)}
+                                                                        className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors z-20"
+                                                                    >
+                                                                        <X className="w-4 h-4" />
+                                                                    </button>
+
+                                                                    {/* Creator Links Section */}
+                                                                    {(customLinks?.length || channelLinks?.length) ? (
+                                                                        <div className="w-full max-w-xs space-y-2">
+                                                                            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold text-center mb-3">From the Creator</p>
+                                                                            {(customLinks?.length ? customLinks : channelLinks!).slice(0, 3).map((link, i) => (
+                                                                                <a
+                                                                                    key={i}
+                                                                                    href={link.url}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="flex items-center gap-3 w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all group"
+                                                                                >
+                                                                                    <ExternalLink className="w-3.5 h-3.5 text-gray-500 group-hover:text-red-400 transition-colors flex-shrink-0" />
+                                                                                    <span className="text-sm text-gray-200 font-medium truncate">{link.title}</span>
+                                                                                </a>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="text-center">
+                                                                            <p className="text-[22px] font-bold text-white mb-1">Great watch!</p>
+                                                                            <p className="text-sm text-gray-400">But don't make this a brain porn.</p>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Divider */}
+                                                                    <div className="w-full max-w-xs border-t border-white/10" />
+
+                                                                    {/* Proof of Work CTA */}
+                                                                    <div className="text-center space-y-3">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (!userProfile) {
+                                                                                    setModalSource('quiz');
+                                                                                    setShowProfileRequiredModal(true);
+                                                                                    return;
+                                                                                }
+                                                                                setShowEndScreen(false);
+                                                                                setShowInlineQuiz(true);
+                                                                                setMobileStartSignal(s => s + 1);
+                                                                            }}
+                                                                            className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center gap-2 mx-auto"
+                                                                        >
+                                                                            <Zap className="w-4 h-4 fill-current" />
+                                                                            Claim your knowledge!
+                                                                        </button>
+                                                                    </div>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </div>
+                                                )}
+
+                                                {/* CONTROLS BAR — sits BELOW the iframe, never overlays it */}
+                                                {!isVideoEnded && (
+                                                    <div ref={controlsBarRef} className="w-full bg-[#0f0f0f] px-4 py-2 flex flex-col gap-1.5">
+
+                                                        {/* Progress Bar */}
+                                                        <div className="group/progress relative w-full h-4 flex items-center cursor-pointer touch-none">
+                                                            <div className="absolute left-0 right-0 h-1 bg-white/20 rounded-full overflow-hidden group-hover/progress:h-1.5 transition-all">
+                                                                <div
+                                                                    className="absolute left-0 top-0 bottom-0 bg-red-600"
+                                                                    style={{ width: `${progress}%` }}
+                                                                />
+                                                            </div>
+                                                            <input
+                                                                type="range"
+                                                                min="0"
+                                                                max="100"
+                                                                step="0.01"
+                                                                value={progress}
+                                                                onChange={handleSeek}
+                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-40"
+                                                            />
+                                                            <div
+                                                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] border-2 border-white scale-0 group-hover/progress:scale-100 transition-transform duration-200 ease-out pointer-events-none z-50 origin-center"
+                                                                style={{ left: `${progress}%` }}
+                                                            />
+                                                        </div>
+
+                                                        {/* Buttons Row */}
+                                                        <div className="flex items-center justify-between">
+
+                                                            {/* Left Side: Play | Skip Back | Skip Forward | Volume | Time */}
+                                                            <div className="flex items-center gap-2 md:gap-3">
+                                                                {/* Play/Pause */}
+                                                                <button
+                                                                    onClick={togglePlay}
+                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                                                >
+                                                                    {isPlaying ? <Pause className="w-4 h-4 text-white fill-white" /> : <Play className="w-4 h-4 text-white fill-white ml-0.5" />}
                                                                 </button>
 
-                                                                {/* Creator Links Section */}
-                                                                {(customLinks?.length || channelLinks?.length) ? (
-                                                                    <div className="w-full max-w-xs space-y-2">
-                                                                        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold text-center mb-3">From the Creator</p>
-                                                                        {(customLinks?.length ? customLinks : channelLinks!).slice(0, 3).map((link, i) => (
-                                                                            <a
-                                                                                key={i}
-                                                                                href={link.url}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                className="flex items-center gap-3 w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all group"
-                                                                            >
-                                                                                <ExternalLink className="w-3.5 h-3.5 text-gray-500 group-hover:text-red-400 transition-colors flex-shrink-0" />
-                                                                                <span className="text-sm text-gray-200 font-medium truncate">{link.title}</span>
-                                                                            </a>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="text-center">
-                                                                        <p className="text-[22px] font-bold text-white mb-1">Great watch!</p>
-                                                                        <p className="text-sm text-gray-400">But don't make this a brain porn.</p>
-                                                                    </div>
-                                                                )}
+                                                                {/* Skip Back -10s */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const curr = playerRef.current?.getCurrentTime() || 0;
+                                                                        const newTime = Math.max(curr - 10, 0);
+                                                                        playerRef.current?.seekTo(newTime);
+                                                                        setCurrentTime(newTime);
+                                                                        if (duration > 0) setProgress((newTime / duration) * 100);
+                                                                    }}
+                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                                                    title="Skip back 10s"
+                                                                >
+                                                                    <RotateCcw className="w-4 h-4 text-white" />
+                                                                </button>
 
-                                                                {/* Divider */}
-                                                                <div className="w-full max-w-xs border-t border-white/10" />
+                                                                {/* Skip Forward +10s */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const curr = playerRef.current?.getCurrentTime() || 0;
+                                                                        const dur = playerRef.current?.getDuration() || duration;
+                                                                        const newTime = Math.min(curr + 10, dur);
+                                                                        playerRef.current?.seekTo(newTime);
+                                                                        setCurrentTime(newTime);
+                                                                        if (dur > 0) setProgress((newTime / dur) * 100);
+                                                                    }}
+                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                                                    title="Skip forward 10s"
+                                                                >
+                                                                    <RotateCw className="w-4 h-4 text-white" />
+                                                                </button>
 
-                                                                {/* Proof of Work CTA */}
-                                                                <div className="text-center space-y-3">
+                                                                {/* Volume */}
+                                                                <div
+                                                                    className="relative flex items-center"
+                                                                    onMouseEnter={handleVolumeEnter}
+                                                                    onMouseLeave={handleVolumeLeave}
+                                                                >
                                                                     <button
                                                                         onClick={() => {
-                                                                            if (!userProfile) {
-                                                                                setIsVideoEnded(false);
-                                                                                setModalSource('quiz');
-                                                                                setShowProfileRequiredModal(true);
-                                                                                return;
-                                                                            }
-                                                                            setIsVideoEnded(false);
-                                                                            const isMobile = window.innerWidth < 768;
-                                                                            if (isMobile) {
-                                                                                // Mobile: scroll to quiz panel and trigger start
-                                                                                setMobileStartSignal(s => s + 1);
-                                                                                setTimeout(() => {
-                                                                                    quizPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                                                }, 50);
+                                                                            const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                                                                            if (isTouch) {
+                                                                                if (showVolumeSlider) {
+                                                                                    setShowVolumeSlider(false);
+                                                                                    if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+                                                                                } else {
+                                                                                    handleVolumeEnter();
+                                                                                    volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 3000);
+                                                                                }
                                                                             } else {
-                                                                                setShowQuizOverlay(true);
+                                                                                toggleMute();
                                                                             }
                                                                         }}
-                                                                        className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center gap-2 mx-auto"
+                                                                        className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
                                                                     >
-                                                                        <Zap className="w-4 h-4 fill-current" />
-                                                                        Claim your knowledge!
+                                                                        {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
                                                                     </button>
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
 
-                                                    {/* DESKTOP QUIZ OVERLAY (animates across the video on desktop) */}
-                                                    <AnimatePresence>
-                                                        {showQuizOverlay && (
-                                                            <motion.div
-                                                                key="quiz-overlay"
-                                                                initial={{ opacity: 0, x: '100%' }}
-                                                                animate={{ opacity: 1, x: 0 }}
-                                                                exit={{ opacity: 0, x: '100%' }}
-                                                                transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-                                                                className="absolute inset-0 z-30 bg-[#0f0f0f]/95 backdrop-blur-md hidden md:flex"
-                                                                onDoubleClick={(e) => e.stopPropagation()}
-                                                            >
+                                                                    {/* Horizontal Volume Slider (pops right) */}
+                                                                    <AnimatePresence>
+                                                                        {showVolumeSlider && (
+                                                                            <div
+                                                                                className="absolute left-full ml-2 px-3 py-2 bg-black/90 border border-white/10 rounded-full backdrop-blur-md flex items-center shadow-xl z-50"
+                                                                                onMouseEnter={handleVolumeEnter}
+                                                                                onMouseLeave={handleVolumeLeave}
+                                                                                onTouchStart={(e) => e.stopPropagation()}
+                                                                                onTouchMove={(e) => e.stopPropagation()}
+                                                                            >
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="0"
+                                                                                    max="100"
+                                                                                    value={isMuted ? 0 : volume}
+                                                                                    onChange={handleVolumeChange}
+                                                                                    className="w-24 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg"
+                                                                                    style={{ touchAction: 'none' }}
+                                                                                />
+                                                                            </div>
+                                                                        )}
+                                                                    </AnimatePresence>
+                                                                </div>
+
+                                                                {/* Time Pill */}
+                                                                <div className="px-2 py-1 rounded-full text-[11px] font-medium text-white/70 font-mono flex items-center gap-1">
+                                                                    <span>{formatTime(currentTime)}</span>
+                                                                    <span className="text-white/30">/</span>
+                                                                    <span className="text-white/50">{formatTime(duration)}</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Right Side: Speed | Fullscreen */}
+                                                            <div className="flex items-center gap-2">
                                                                 <button
-                                                                    onClick={() => setShowQuizOverlay(false)}
-                                                                    className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
+                                                                    onClick={toggleSpeed}
+                                                                    className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${playbackRate === 1.5
+                                                                        ? 'bg-red-600 border-red-500 text-white'
+                                                                        : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
+                                                                        }`}
                                                                 >
-                                                                    <X className="w-4 h-4" />
+                                                                    1.5x
                                                                 </button>
-                                                                <div className="w-full h-full overflow-y-auto no-scrollbar">
-                                                                    <QuizPanel
-                                                                        videoId={videoId}
-                                                                        takeaways={takeaways}
-                                                                        autoStart={true}
-                                                                        onClose={() => setShowQuizOverlay(false)}
-                                                                        onRequireProfile={() => {
-                                                                            setModalSource('quiz');
-                                                                            setShowProfileRequiredModal(true);
-                                                                        }}
-                                                                    />
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
 
-                                                    {/* Transparent Double-Click Capture Layer */}
-                                                    <div
-                                                        className="absolute inset-0 z-10"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-
-                                                            if (isTouch) {
-                                                                if (showMobileControls) {
-                                                                    setShowMobileControls(false);
-                                                                    if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
-                                                                } else {
-                                                                    setShowMobileControls(true);
-                                                                    if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
-                                                                    mobileControlsTimeoutRef.current = setTimeout(() => {
-                                                                        setShowMobileControls(false);
-                                                                    }, 3000);
-                                                                }
-                                                                return;
-                                                            }
-
-                                                            // Use timeout to avoid conflict with double-click
-                                                            const clickTimer = setTimeout(() => {
-                                                                togglePlay();
-                                                            }, 200);
-                                                            (e.currentTarget as any).clickTimer = clickTimer;
-                                                        }}
-                                                        onDoubleClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            if ((e.currentTarget as any).clickTimer) {
-                                                                clearTimeout((e.currentTarget as any).clickTimer);
-                                                            }
-                                                            handleFullscreen();
-                                                        }}
-                                                    />
-
-                                                    {/* Big Play/Pause Button in the middle (Visible only when mobile controls are active) */}
-                                                    <div className={`absolute inset-0 pointer-events-none flex items-center justify-center z-20 transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0'}`}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                togglePlay();
-                                                                if (mobileControlsTimeoutRef.current) clearTimeout(mobileControlsTimeoutRef.current);
-                                                                mobileControlsTimeoutRef.current = setTimeout(() => {
-                                                                    setShowMobileControls(false);
-                                                                }, 3000);
-                                                            }}
-                                                            className={`w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center hover:bg-black/70 transition-colors border border-white/20 shadow-2xl ${showMobileControls ? 'pointer-events-auto' : 'pointer-events-none'}`}
-                                                        >
-                                                            {isPlaying ? <Pause className="w-8 h-8 text-white fill-white" /> : <Play className="w-8 h-8 text-white fill-white ml-1" />}
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Custom Controls Overlay */}
-                                                    <div
-                                                        className={`absolute inset-0 pointer-events-none flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 ${showMobileControls ? 'opacity-100' : 'opacity-0 md:opacity-0 md:group-hover:opacity-100'}`}
-                                                    >
-
-                                                        {/* Bottom Controls Container */}
-                                                        <div className="w-full flex flex-col gap-2 pb-6 px-6 pointer-events-auto z-20">
-
-                                                            {/* Progress Bar - Above Buttons */}
-                                                            <div className="group/progress relative w-full h-4 flex items-center cursor-pointer touch-none">
-                                                                {/* Background Track */}
-                                                                <div className="absolute left-0 right-0 h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm group-hover/progress:h-1.5 transition-all">
-                                                                    {/* Buffered/Red Progress */}
-                                                                    <div
-                                                                        className="absolute left-0 top-0 bottom-0 bg-red-600"
-                                                                        style={{ width: `${progress}%` }}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Interactive Input (Invisible but handles drag) */}
-                                                                <input
-                                                                    type="range"
-                                                                    min="0"
-                                                                    max="100"
-                                                                    step="0.01"
-                                                                    value={progress}
-                                                                    onChange={handleSeek}
-                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-40"
-                                                                />
-
-                                                                {/* Visible Thumb (Follows Progress) */}
-                                                                <div
-                                                                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] border-2 border-white scale-0 group-hover/progress:scale-100 transition-transform duration-200 ease-out pointer-events-none z-50 origin-center"
-                                                                    style={{ left: `${progress}%` }}
-                                                                />
+                                                                <button
+                                                                    onClick={handleFullscreen}
+                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                                                >
+                                                                    {isFullscreen ? <X className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+                                                                </button>
                                                             </div>
-
-                                                            {/* Buttons Row */}
-                                                            <div className="flex items-center justify-between">
-
-                                                                {/* Left Side: Play | Volume | Time Pill */}
-                                                                <div className="flex items-center gap-4">
-
-                                                                    {/* Play Button - Circle */}
-                                                                    <button
-                                                                        onClick={togglePlay}
-                                                                        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
-                                                                    >
-                                                                        {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white ml-0.5" />}
-                                                                    </button>
-
-                                                                    {/* Volume Button - Circle */}
-                                                                    <div
-                                                                        className="relative flex items-center"
-                                                                        onMouseEnter={handleVolumeEnter}
-                                                                        onMouseLeave={handleVolumeLeave}
-                                                                    >
-                                                                        <button
-                                                                            onClick={toggleMute}
-                                                                            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
-                                                                        >
-                                                                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
-                                                                        </button>
-
-                                                                        {/* Vertical Slider Popover */}
-                                                                        <AnimatePresence>
-                                                                            {showVolumeSlider && (
-                                                                                <div
-                                                                                    className="absolute bottom-full left-0 mb-2 p-2 bg-black/90 border border-white/10 rounded-full backdrop-blur-md flex flex-col items-center shadow-xl"
-                                                                                >
-                                                                                    <input
-                                                                                        type="range"
-                                                                                        min="0"
-                                                                                        max="100"
-                                                                                        value={isMuted ? 0 : volume}
-                                                                                        onChange={handleVolumeChange}
-                                                                                        className="h-24 w-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white writing-mode-vertical"
-                                                                                        style={{ writingMode: 'vertical-lr', direction: 'rtl' } as any}
-                                                                                    />
-                                                                                </div>
-                                                                            )}
-                                                                        </AnimatePresence>
-                                                                    </div>
-
-                                                                    {/* Time Pill: 0:05 / 9:50 */}
-                                                                    <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-medium text-white font-mono flex items-center gap-1 shadow-lg">
-                                                                        <span className="text-white/90">{formatTime(currentTime)}</span>
-                                                                        <span className="text-white/40">/</span>
-                                                                        <span className="text-white/60">{formatTime(duration)}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Right Side: Speed | Fullscreen */}
-                                                                <div className="flex items-center gap-3">
-                                                                    <button
-                                                                        onClick={toggleSpeed}
-                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all shadow-lg ${playbackRate === 1.5
-                                                                            ? 'bg-red-600 border-red-500 text-white'
-                                                                            : 'bg-white/20 border-white/10 text-white hover:bg-white/30'
-                                                                            }`}
-                                                                    >
-                                                                        1.5x
-                                                                    </button>
-
-                                                                    <button
-                                                                        onClick={handleFullscreen}
-                                                                        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors border border-white/10 shadow-lg"
-                                                                    >
-                                                                        {isFullscreen ? <X className="w-5 h-5 text-white" /> : <Maximize2 className="w-5 h-5 text-white" />}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-
                                                         </div>
                                                     </div>
-                                                </div>
+                                                )}
+
+                                                {/* QUIZ TEASER — rolls up BELOW controls at T-20s (physically outside iframe, 100% compliant) */}
+                                                <AnimatePresence>
+                                                    {showQuizBelow && !isVideoEnded && (
+                                                        <motion.div
+                                                            key="quiz-teaser"
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                                            className="overflow-hidden"
+                                                        >
+                                                            <div className="bg-gradient-to-r from-red-950/40 to-[#0f0f0f] border-t border-red-500/20 px-4 py-3 flex items-center justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <motion.div
+                                                                        animate={{ scale: [1, 1.1, 1] }}
+                                                                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                                                    >
+                                                                        <Brain className="w-5 h-5 text-red-400" />
+                                                                    </motion.div>
+                                                                    <div>
+                                                                        <p className="text-sm font-bold text-white">Quiz ready</p>
+                                                                        <p className="text-[10px] text-gray-500">Test what you learned</p>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (!userProfile) {
+                                                                            setModalSource('quiz');
+                                                                            setShowProfileRequiredModal(true);
+                                                                            return;
+                                                                        }
+                                                                        setShowInlineQuiz(true);
+                                                                        setMobileStartSignal(s => s + 1);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center gap-1.5"
+                                                                >
+                                                                    <Zap className="w-3.5 h-3.5 fill-current" />
+                                                                    Start
+                                                                </button>
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* INLINE QUIZ — expands below teaser/controls, same width as video */}
+                                                <AnimatePresence>
+                                                    {showInlineQuiz && (
+                                                        <motion.div
+                                                            key="inline-quiz"
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                                            className="overflow-hidden border-t border-white/10"
+                                                        >
+                                                            <QuizPanel
+                                                                videoId={videoId}
+                                                                takeaways={takeaways}
+                                                                autoStart={true}
+                                                                inline={true}
+                                                                mobileStartSignal={mobileStartSignal}
+                                                                onRequireProfile={(source) => {
+                                                                    setModalSource(source as any || 'quiz');
+                                                                    setShowProfileRequiredModal(true);
+                                                                }}
+                                                                onClose={() => setShowInlineQuiz(false)}
+                                                            />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
 
                                             {/* Description & Links (Moved OUT of Video Container) */}
@@ -1184,17 +1217,20 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                             </div>
                                         </div > {/* End col-span-3 Wrapper */}
 
-                                        {/* RIGHT: Proof of Work Quiz Box (mobile: full width below video; desktop: right column; NOT shown when overlay is active) */}
-                                        {!isFullscreen && !showQuizOverlay && (
+                                        {/* RIGHT: Proof of Work Quiz Box — hidden when inline quiz is active (quiz shows below video instead) */}
+                                        {!isFullscreen && !showInlineQuiz && (
                                             <div ref={quizPanelRef} className="col-span-1">
                                                 <QuizPanel
                                                     videoId={videoId}
                                                     takeaways={takeaways}
-                                                    onOpenOverlay={() => setShowQuizOverlay(true)}
                                                     mobileStartSignal={mobileStartSignal}
                                                     onRequireProfile={(source) => {
                                                         setModalSource(source as any || 'quiz');
                                                         setShowProfileRequiredModal(true);
+                                                    }}
+                                                    onStartInline={() => {
+                                                        setShowInlineQuiz(true);
+                                                        setMobileStartSignal(s => s + 1);
                                                     }}
                                                 />
                                             </div>
@@ -1229,14 +1265,15 @@ type QuizQuestion = {
 
 type QuizState = 'cta' | 'loading' | 'active' | 'feedback' | 'complete' | 'no-questions';
 
-function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobileStartSignal, onRequireProfile }: {
+function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, onRequireProfile, inline, onStartInline }: {
     videoId: string;
     takeaways: string[];
     autoStart?: boolean;
     onClose?: () => void;
-    onOpenOverlay?: () => void;
     mobileStartSignal?: number;
     onRequireProfile?: (source?: string) => void;
+    inline?: boolean;
+    onStartInline?: () => void;
 }) {
     const [quizState, setQuizState] = useState<QuizState>(autoStart ? 'loading' : 'cta');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -1394,23 +1431,21 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, onOpenOverlay, mobi
         return colors[tag] || 'bg-white/10 text-gray-300 border-white/20';
     };
 
-    // On desktop: clicking CTA opens overlay instead of staying in panel
     const handleDesktopCta = () => {
         if (!userProfile) {
             if (onRequireProfile) onRequireProfile('quiz');
             return;
         }
-
-        if (onOpenOverlay && window.innerWidth >= 768) {
-            onOpenOverlay();
-        } else {
-            handleStartQuiz();
+        if (onStartInline) {
+            onStartInline();
+            return;
         }
+        handleStartQuiz();
     };
 
     return (
-        <div className="col-span-1 md:col-span-1 pb-72 md:pb-0">
-            <div className="w-full bg-white/[0.03] backdrop-blur-sm rounded-2xl border border-white/5 flex flex-col relative overflow-hidden">
+        <div className={inline ? '' : 'col-span-1 md:col-span-1 pb-72 md:pb-0'}>
+            <div className={`w-full ${inline ? 'bg-[#0f0f0f]' : 'bg-white/[0.03] backdrop-blur-sm rounded-2xl border border-white/5'} flex flex-col relative overflow-hidden`}>
                 {/* Background noise */}
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none" />
 
