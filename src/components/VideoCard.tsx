@@ -104,6 +104,13 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [swipeDragY, setSwipeDragY] = useState(0);
     const swipeActiveRef = useRef(false); // true once we've committed to a vertical drag
 
+    // Swipe handle ref — dedicated swipe zone above the iframe (pill handle + header area)
+    const swipeHandleRef = useRef<HTMLDivElement>(null);
+
+    // Seek guard — prevents the 500ms progress poll from overwriting our
+    // manually-set position while YouTube buffers to the new spot
+    const lastSeekTimeRef = useRef<number>(0);
+
     // Watch Progress Tracking (Interest Scoring)
     const watchReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastKnownTimeRef = useRef<number>(0); // Video position (for interest scoring)
@@ -261,13 +268,21 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                 if (playerRef.current) {
                     const curr = playerRef.current.getCurrentTime();
                     const dur = playerRef.current.getDuration();
-                    setCurrentTime(curr);
+                    // After a seek, YouTube takes ~1-2s to report the new position.
+                    // Skip UI updates during that window so the progress bar doesn't
+                    // snap back to the old position before jumping forward.
+                    const timeSinceSeek = Date.now() - lastSeekTimeRef.current;
+                    if (timeSinceSeek > 1500) {
+                        setCurrentTime(curr);
+                        if (dur > 0) {
+                            setProgress((curr / dur) * 100);
+                        }
+                    }
+                    // Always keep duration + refs updated (these don't cause visual snap)
                     setDuration(dur);
-                    // Keep refs in sync — these survive player unmount
                     lastKnownTimeRef.current = curr;
                     lastKnownDurationRef.current = dur;
                     if (dur > 0) {
-                        setProgress((curr / dur) * 100);
                         // Quiz teaser rolls up below video at T-20s
                         if (dur - curr <= 20 && !showQuizBelow && curr > 10) {
                             setShowQuizBelow(true);
@@ -421,14 +436,38 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         }
     };
 
+    // Skip ±10s — seeks with allowSeekAhead=true so it works even outside
+    // the buffered range. Re-issues playVideo() to push through the brief
+    // BUFFERING state on mobile. Sets lastSeekTimeRef so the progress poll
+    // doesn't overwrite our UI update with the stale pre-seek position.
+    const skipSeconds = useCallback((delta: number) => {
+        if (!playerRef.current) return;
+        const wasPlaying = isPlaying;
+        const curr = playerRef.current.getCurrentTime() || 0;
+        const dur = playerRef.current.getDuration() || duration;
+        const newTime = Math.max(0, Math.min(curr + delta, dur));
+        lastSeekTimeRef.current = Date.now();
+        playerRef.current.seekTo(newTime, true);
+        setCurrentTime(newTime);
+        if (dur > 0) setProgress((newTime / dur) * 100);
+        if (wasPlaying) {
+            setTimeout(() => playerRef.current?.playVideo(), 100);
+        }
+    }, [duration, isPlaying]);
+
     const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newProgress = parseFloat(e.target.value);
         setProgress(newProgress);
         if (playerRef.current) {
             const effectiveDuration = duration || playerRef.current.getDuration();
             if (effectiveDuration > 0) {
-                playerRef.current.seekTo((newProgress / 100) * effectiveDuration);
-                setCurrentTime((newProgress / 100) * effectiveDuration);
+                const newTime = (newProgress / 100) * effectiveDuration;
+                lastSeekTimeRef.current = Date.now();
+                playerRef.current.seekTo(newTime, true);
+                setCurrentTime(newTime);
+                if (isPlaying) {
+                    setTimeout(() => playerRef.current?.playVideo(), 100);
+                }
             }
         }
     };
@@ -575,38 +614,30 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                                 onTouchStart={(e) => {
+                                    // The cross-origin YouTube iframe naturally swallows its own
+                                    // touch events, so this handler only fires for touches on
+                                    // native elements: pill handle, controls, description, comments.
+                                    // No overlay on the iframe needed (YouTube compliance — CLAUDE.md §4).
                                     const touch = e.touches[0];
-                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                    const relY = touch.clientY - rect.top;
-
-                                    // Allow swipe from the top 120px OR if touching the video player itself
-                                    const isTopZone = relY < 120;
-                                    const isVideoContainer = videoContainerRef.current?.contains(e.target as Node);
-
-                                    if (isTopZone || isVideoContainer) {
-                                        swipeTouchStartYRef.current = touch.clientY;
-                                        swipeTouchStartXRef.current = touch.clientX;
-                                        swipeActiveRef.current = false; // not yet committed
-                                    } else {
-                                        swipeTouchStartYRef.current = -1; // sentinel = inactive
-                                    }
+                                    swipeTouchStartYRef.current = touch.clientY;
+                                    swipeTouchStartXRef.current = touch.clientX;
+                                    swipeActiveRef.current = false;
                                 }}
                                 onTouchMove={(e) => {
                                     if (swipeTouchStartYRef.current < 0) return;
                                     const touch = e.touches[0];
                                     const dy = touch.clientY - swipeTouchStartYRef.current;
                                     const dx = Math.abs(touch.clientX - swipeTouchStartXRef.current);
-                                    // Commit to vertical swipe only if more vertical than horizontal
                                     if (!swipeActiveRef.current) {
-                                        if (Math.abs(dy) < 8 && dx < 8) return; // not moved enough yet
+                                        if (Math.abs(dy) < 8 && dx < 8) return;
                                         if (dx > Math.abs(dy)) {
-                                            swipeTouchStartYRef.current = -1; // horizontal — cancel
+                                            swipeTouchStartYRef.current = -1;
                                             return;
                                         }
                                         swipeActiveRef.current = true;
                                     }
                                     if (dy > 0) {
-                                        e.preventDefault(); // prevent scroll while swiping down
+                                        e.preventDefault();
                                         setSwipeDragY(dy);
                                     }
                                 }}
@@ -619,9 +650,10 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                     swipeActiveRef.current = false;
                                 }}
                             >
-                                {/* Swipe pill handle — mobile-only, top of modal */}
+                                {/* Swipe pill handle — mobile-only visual indicator */}
                                 {!isFullscreen && (
                                     <div
+                                        ref={swipeHandleRef}
                                         className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0"
                                         style={{ touchAction: 'none' }}
                                     >
@@ -687,7 +719,8 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                 sendWatchProgress();
                                                             }}
                                                         />
-                                                        {/* NO overlays on the iframe — ads, skip button, end-screen cards all remain clickable */}
+                                                        {/* NO overlays on the iframe — YouTube ads, end-screen cards,
+                                                           annotations must remain 100% clickable. See CLAUDE.md §4. */}
                                                     </div>
                                                 ) : (
                                                     /* VIDEO ENDED — iframe unmounted, show end screen or "watch next" */
@@ -815,13 +848,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                                 {/* Skip Back -10s */}
                                                                 <button
-                                                                    onClick={() => {
-                                                                        const curr = playerRef.current?.getCurrentTime() || 0;
-                                                                        const newTime = Math.max(curr - 10, 0);
-                                                                        playerRef.current?.seekTo(newTime);
-                                                                        setCurrentTime(newTime);
-                                                                        if (duration > 0) setProgress((newTime / duration) * 100);
-                                                                    }}
+                                                                    onClick={() => skipSeconds(-10)}
                                                                     className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
                                                                     title="Skip back 10s"
                                                                 >
@@ -830,14 +857,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                                 {/* Skip Forward +10s */}
                                                                 <button
-                                                                    onClick={() => {
-                                                                        const curr = playerRef.current?.getCurrentTime() || 0;
-                                                                        const dur = playerRef.current?.getDuration() || duration;
-                                                                        const newTime = Math.min(curr + 10, dur);
-                                                                        playerRef.current?.seekTo(newTime);
-                                                                        setCurrentTime(newTime);
-                                                                        if (dur > 0) setProgress((newTime / dur) * 100);
-                                                                    }}
+                                                                    onClick={() => skipSeconds(10)}
                                                                     className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
                                                                     title="Skip forward 10s"
                                                                 >
