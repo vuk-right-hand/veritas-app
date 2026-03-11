@@ -133,7 +133,33 @@ export async function recordWatchProgress(
             }
         }
 
-        // 5. Also record the raw watch event in analytics_events for audit trail
+        // 5. Upsert watch_history — powers /watch-history and profile preview
+        {
+            const { data: existing } = await supabase
+                .from('watch_history')
+                .select('watch_seconds')
+                .eq('user_id', userId)
+                .eq('video_id', videoId)
+                .single();
+
+            const prevSeconds = existing?.watch_seconds || 0;
+            const addedSeconds = Math.round(reportedDelta);
+
+            const { error: whError } = await supabase
+                .from('watch_history')
+                .upsert({
+                    user_id: userId,
+                    video_id: videoId,
+                    watch_seconds: prevSeconds + addedSeconds,
+                    last_watched_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,video_id' });
+
+            if (whError) {
+                console.error('[Interest] Failed to upsert watch_history:', whError);
+            }
+        }
+
+        // 6. Also record the raw watch event in analytics_events for audit trail
         await supabase.from('analytics_events').insert({
             event_type: 'video_view',
             target_id: videoId,
@@ -202,5 +228,49 @@ export async function getVideoTags(videoId: string) {
     } catch (err: any) {
         console.error("[Interest] Error in getVideoTags:", err);
         return { success: false, data: [] };
+    }
+}
+
+/**
+ * Record that a user opened a video — fires immediately on modal open.
+ * Creates a watch_history row (or updates last_watched_at if re-opened).
+ * Does NOT increment watch_seconds — that's handled by recordWatchProgress.
+ */
+export async function recordVideoOpen(videoId: string, userId: string) {
+    if (!videoId || !userId) return;
+
+    try {
+        // Check if row already exists
+        const { data: existing } = await supabase
+            .from('watch_history')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('video_id', videoId)
+            .single();
+
+        if (existing) {
+            // Re-opened — only bump timestamp, preserve accumulated watch_seconds
+            await supabase
+                .from('watch_history')
+                .update({ last_watched_at: new Date().toISOString() })
+                .eq('user_id', userId)
+                .eq('video_id', videoId);
+        } else {
+            // First time — insert with watch_seconds = 0
+            const { error } = await supabase
+                .from('watch_history')
+                .insert({
+                    user_id: userId,
+                    video_id: videoId,
+                    watch_seconds: 0,
+                    last_watched_at: new Date().toISOString(),
+                });
+
+            if (error) {
+                console.error('[Interest] Failed to insert watch_history:', error);
+            }
+        }
+    } catch (err: any) {
+        console.error('[Interest] Error in recordVideoOpen:', err);
     }
 }

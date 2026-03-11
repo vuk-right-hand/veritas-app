@@ -8,7 +8,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supab
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function submitFeatureRequest(content: string, userId?: string) {
     if (!content || content.trim().length === 0) {
@@ -38,7 +37,7 @@ export async function getFeatureRequestsByStatus(status: 'pending' | 'verified' 
 
     const dbStatus = statusMap[status];
 
-    const { data: requests, error } = await supabaseAdmin
+    const { data: requests, error } = await supabase
         .from('feature_requests')
         .select('*')
         .eq('status', dbStatus)
@@ -52,30 +51,47 @@ export async function getFeatureRequestsByStatus(status: 'pending' | 'verified' 
     // Extract unique user IDs
     const userIds = [...new Set(requests.map(req => req.user_id).filter(Boolean))];
 
-    // Fetch profiles for these users
+    // Fetch profiles and emails for these users
     const profilesMap: Record<string, any> = {};
     if (userIds.length > 0) {
-        const { data: profiles } = await supabaseAdmin
+        const { data: profiles } = await supabase
             .from('profiles')
             .select('id, username, avatar_url')
             .in('id', userIds);
 
         if (profiles) {
             profiles.forEach(p => {
-                profilesMap[p.id] = p;
+                profilesMap[p.id] = { ...p };
             });
         }
+
+        // Fetch emails from auth.admin (same pattern as content-gap-actions)
+        const authData = await Promise.all(
+            userIds.map(id => supabase.auth.admin.getUserById(id))
+        );
+        authData.forEach((res, i) => {
+            if (res.data?.user) {
+                const id = userIds[i];
+                if (!profilesMap[id]) profilesMap[id] = {};
+                profilesMap[id].email = res.data.user.email;
+            }
+        });
     }
 
     // Map the results so they are easier to render in the UI
     return requests.map((req: any) => {
         const profile = req.user_id ? profilesMap[req.user_id] : null;
+        let displayName = profile?.username;
+        if (!displayName && profile?.email) {
+            displayName = profile.email.split('@')[0];
+        }
         return {
             id: req.id,
             title: req.content,
             created_at: req.created_at,
             user_id: req.user_id,
-            username: profile?.username || 'Anonymous',
+            username: displayName || 'Anonymous',
+            email: profile?.email || null,
             avatar_url: profile?.avatar_url || null,
             suggestion_count: 1 // For the UI hexagon
         };
@@ -92,7 +108,7 @@ export async function moderateFeatureRequest(id: string, action: 'approve' | 'ba
 
     const newStatus = statusMap[action];
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('feature_requests')
         .update({ status: newStatus })
         .eq('id', id);
@@ -107,7 +123,7 @@ export async function moderateFeatureRequest(id: string, action: 'approve' | 'ba
 }
 
 export async function deleteFeatureRequest(id: string) {
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('feature_requests')
         .delete()
         .eq('id', id);

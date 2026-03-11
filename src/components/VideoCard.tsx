@@ -7,10 +7,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
 import ShareButton from '@/components/ShareButton';
-import { getComments, postComment, recordVideoView } from '@/app/actions/video-actions';
+import { getComments, postComment, recordVideoView, toggleVideoLike, getVideoLikeStatus } from '@/app/actions/video-actions';
 import { getQuizQuestions, getUserIdFromMission, getCurrentUserId } from '@/app/actions/quiz-actions';
+import { getRecommendedVideo, type RecommendedVideo } from '@/app/actions/recommendation-actions';
 import { useUser } from '@/components/UserContext';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
+import WatchNextCard from './WatchNextCard';
 
 interface VideoCardProps {
     videoId: string;
@@ -77,11 +79,44 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const [volume, setVolume] = useState(100);
     const [isMuted, setIsMuted] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+    const [isLiked, setIsLiked] = useState(false);
+    const [isLikeLoading, setIsLikeLoading] = useState(false);
+    const [showLoveToast, setShowLoveToast] = useState(false);
+    const loveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [recommendedVideo, setRecommendedVideo] = useState<RecommendedVideo | null>(null);
 
     // Auto-open modal on mount (for /v/[slug] standalone page)
     useEffect(() => {
         if (autoOpen) setIsOpen(true);
     }, [autoOpen]);
+
+    // Load like status when modal opens (signed-in users only)
+    useEffect(() => {
+        if (isOpen && userProfile) {
+            getVideoLikeStatus(videoId).then(liked => setIsLiked(liked));
+        }
+        if (!isOpen) setIsLiked(false);
+    }, [isOpen, userProfile, videoId]);
+
+    // Log to watch_history immediately on modal open (fire-and-forget)
+    useEffect(() => {
+        if (isOpen) {
+            fetch('/api/video-open', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoId }),
+            }).catch(() => {}); // silent — non-critical
+        }
+    }, [isOpen, videoId]);
+
+    // Fetch recommendation when modal opens (lazy, cached in state)
+    useEffect(() => {
+        if (isOpen && !recommendedVideo) {
+            getCurrentUserId().then(userId => {
+                getRecommendedVideo(videoId, userId).then(rec => setRecommendedVideo(rec));
+            });
+        }
+    }, [isOpen, videoId, recommendedVideo]);
 
     // Close handler — redirects to /dashboard when used as standalone page
     const handleClose = useCallback(() => {
@@ -368,6 +403,26 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
             setHasMoreComments(false);
         }
         setIsLoadingComments(false);
+    };
+
+    const handleLike = async () => {
+        if (!userProfile) {
+            setModalSource('default');
+            setShowProfileRequiredModal(true);
+            return;
+        }
+        if (isLikeLoading) return;
+        const optimistic = !isLiked;
+        setIsLiked(optimistic);
+        setIsLikeLoading(true);
+        const result = await toggleVideoLike(videoId);
+        setIsLiked(result.liked);
+        setIsLikeLoading(false);
+        if (result.liked) {
+            setShowLoveToast(true);
+            if (loveToastTimerRef.current) clearTimeout(loveToastTimerRef.current);
+            loveToastTimerRef.current = setTimeout(() => setShowLoveToast(false), 2000);
+        }
     };
 
     const handlePostComment = async () => {
@@ -687,7 +742,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                             >
                                                 {/* Video Area — conditionally render player vs end screen */}
                                                 {!isVideoEnded ? (
-                                                    <div className="relative w-full aspect-video">
+                                                    <div className={isFullscreen ? 'relative w-full flex-1 min-h-0' : 'relative w-full aspect-video'}>
                                                         <SmartVideoPlayer
                                                             ref={playerRef}
                                                             videoId={videoId}
@@ -724,16 +779,29 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                     </div>
                                                 ) : (
                                                     /* VIDEO ENDED — iframe unmounted, show end screen or "watch next" */
-                                                    <div className="relative w-full aspect-video bg-[#0f0f0f]">
-                                                        {/* "Watch Next" placeholder (always rendered behind end screen) */}
-                                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6">
-                                                            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                                                <Play className="w-7 h-7 text-gray-600 fill-gray-600" />
-                                                            </div>
-                                                            <div className="text-center">
-                                                                <p className="text-lg font-bold text-white mb-1">Watch this next</p>
-                                                                <p className="text-xs text-gray-500 max-w-[240px]">Based on your watch history and goals — coming soon</p>
-                                                            </div>
+                                                    <div className={`relative bg-[#0f0f0f] ${isFullscreen ? 'w-full flex-1 min-h-0' : 'w-full aspect-video'}`}>
+                                                        {/* "Watch Next" — revealed when user dismisses end screen overlay */}
+                                                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                                                            {recommendedVideo ? (
+                                                                <WatchNextCard
+                                                                    videoId={recommendedVideo.id}
+                                                                    title={recommendedVideo.title}
+                                                                    channelTitle={recommendedVideo.channelTitle}
+                                                                    reason={recommendedVideo.reason}
+                                                                    slug={recommendedVideo.slug}
+                                                                    variant="fullscreen"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex flex-col items-center gap-4">
+                                                                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                                                        <Play className="w-7 h-7 text-gray-600 fill-gray-600" />
+                                                                    </div>
+                                                                    <div className="text-center">
+                                                                        <p className="text-lg font-bold text-white mb-1">Watch this next</p>
+                                                                        <p className="text-xs text-gray-500 max-w-[240px]">Finding your next video...</p>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {/* End Screen (dismissible — sits on top of "watch next") */}
@@ -808,7 +876,24 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                 {/* CONTROLS BAR — sits BELOW the iframe, never overlays it */}
                                                 {!isVideoEnded && (
-                                                    <div ref={controlsBarRef} className="w-full bg-[#0f0f0f] px-4 py-2 flex flex-col gap-1.5">
+                                                    <div ref={controlsBarRef} className={`w-full bg-[#0f0f0f] flex flex-col relative ${isFullscreen ? 'px-3 py-1.5 gap-1 flex-shrink-0' : 'px-4 py-2 gap-1.5'}`}>
+
+                                                        {/* "Love it!" toast — above controls bar, visually above the heart button */}
+                                                        <AnimatePresence>
+                                                            {showLoveToast && (
+                                                                <motion.div
+                                                                    key="love-toast"
+                                                                    initial={{ opacity: 0, y: 4, scale: 0.9 }}
+                                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                                    exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                                                    transition={{ duration: 0.18 }}
+                                                                    className="absolute bottom-full right-3 mb-2 flex items-center gap-1.5 bg-[#111] border border-red-500/30 px-3 py-1.5 rounded-full pointer-events-none whitespace-nowrap z-50"
+                                                                >
+                                                                    <img src="/veritas-heart.svg" alt="" className="w-3.5 h-3.5 object-contain animate-heartbeat" />
+                                                                    <span className="text-xs font-semibold text-white">Love it!</span>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
 
                                                         {/* Progress Bar */}
                                                         <div className="group/progress relative w-full h-4 flex items-center cursor-pointer touch-none">
@@ -922,8 +1007,22 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                 </div>
                                                             </div>
 
-                                                            {/* Right Side: Speed | Fullscreen */}
-                                                            <div className="flex items-center gap-2">
+                                                            {/* Right Side: Heart | Speed | Fullscreen */}
+                                                            <div className="flex items-center gap-3">
+                                                                {/* Heart Like Button — no circle, raw on dark bg */}
+                                                                <button
+                                                                    onClick={handleLike}
+                                                                    disabled={isLikeLoading}
+                                                                    className="flex items-center justify-center transition-transform active:scale-90 disabled:opacity-40"
+                                                                    title={isLiked ? 'Unlike' : 'Like this video'}
+                                                                >
+                                                                    <img
+                                                                        src="/veritas-heart.svg"
+                                                                        alt="Like"
+                                                                        className={`w-6 h-6 object-contain animate-heartbeat transition-[filter,opacity] duration-300 ${isLiked ? '' : 'grayscale brightness-[3] opacity-80'}`}
+                                                                    />
+                                                                </button>
+
                                                                 <button
                                                                     onClick={toggleSpeed}
                                                                     className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${playbackRate === 1.5
@@ -947,7 +1046,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                 {/* QUIZ TEASER — rolls up BELOW controls at T-20s (physically outside iframe, 100% compliant) */}
                                                 <AnimatePresence>
-                                                    {showQuizBelow && !isVideoEnded && (
+                                                    {showQuizBelow && !isVideoEnded && !isFullscreen && (
                                                         <motion.div
                                                             key="quiz-teaser"
                                                             initial={{ height: 0, opacity: 0 }}
@@ -1011,6 +1110,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                     setShowProfileRequiredModal(true);
                                                                 }}
                                                                 onClose={() => setShowInlineQuiz(false)}
+                                                                recommendedVideo={recommendedVideo}
                                                             />
                                                         </motion.div>
                                                     )}
@@ -1252,6 +1352,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         setShowInlineQuiz(true);
                                                         setMobileStartSignal(s => s + 1);
                                                     }}
+                                                    recommendedVideo={recommendedVideo}
                                                 />
                                             </div>
                                         )}
@@ -1285,7 +1386,7 @@ type QuizQuestion = {
 
 type QuizState = 'cta' | 'loading' | 'active' | 'feedback' | 'complete' | 'no-questions';
 
-function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, onRequireProfile, inline, onStartInline }: {
+function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, onRequireProfile, inline, onStartInline, recommendedVideo }: {
     videoId: string;
     takeaways: string[];
     autoStart?: boolean;
@@ -1294,6 +1395,7 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, 
     onRequireProfile?: (source?: string) => void;
     inline?: boolean;
     onStartInline?: () => void;
+    recommendedVideo?: RecommendedVideo | null;
 }) {
     const [quizState, setQuizState] = useState<QuizState>(autoStart ? 'loading' : 'cta');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -1308,6 +1410,8 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, 
     const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const submitBtnRef = useRef<HTMLButtonElement>(null);
+    const [showPointsToast, setShowPointsToast] = useState(false);
+    const pointsToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { userProfile } = useUser();
 
     // Resolve the current user UUID on mount (Viewer or Creator)
@@ -1389,6 +1493,12 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, 
             });
             if (data.passed) setPassedCount(p => p + 1);
             setQuizState('feedback');
+            // Show points toast at end of each batch (Q3 and Q6)
+            if (currentIndex === 2) {
+                setShowPointsToast(true);
+                if (pointsToastTimerRef.current) clearTimeout(pointsToastTimerRef.current);
+                pointsToastTimerRef.current = setTimeout(() => setShowPointsToast(false), 3000);
+            }
         } catch (err) {
             console.error('Quiz submit error:', err);
             setFeedback({ passed: true, confidence: 'low', feedback: 'Great effort! Keep going.' });
@@ -1470,6 +1580,23 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, 
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none" />
 
                 <div className="relative z-10 p-5">
+                    {/* Points Saved Toast */}
+                    <AnimatePresence>
+                        {showPointsToast && (
+                            <motion.div
+                                key="points-toast"
+                                initial={{ opacity: 0, y: -8, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                transition={{ duration: 0.25 }}
+                                className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#111] border border-green-500/30 px-4 py-2 rounded-full pointer-events-none whitespace-nowrap z-50 shadow-lg shadow-green-900/20"
+                            >
+                                <Sparkles className="w-4 h-4 text-yellow-400" />
+                                <span className="text-xs font-semibold text-white">Points saved to your profile!</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     <AnimatePresence mode="wait">
                         {/* === CTA STATE === */}
                         {quizState === 'cta' && (
@@ -1673,35 +1800,51 @@ function QuizPanel({ videoId, takeaways, autoStart, onClose, mobileStartSignal, 
                                         Next Question <ArrowRight className="w-4 h-4" />
                                     </button>
                                 ) : (
-                                    <div className="flex flex-col gap-2 w-full mt-4">
-                                        {/* +3 More Questions Button */}
-                                        {questions.length > 3 && batch === 0 && (
-                                            <button
-                                                onClick={handleLoadMore}
-                                                disabled={isLoadingMore}
-                                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
-                                            >
-                                                {isLoadingMore ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        Loading...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Sparkles className="w-4 h-4" />
-                                                        I like this, give me 3 more!
-                                                    </>
+                                    <div className="flex flex-col gap-3 w-full mt-4">
+                                        {/* After Q3 (batch 0): Split — WatchNext top, "3 more" bottom */}
+                                        {batch === 0 && (
+                                            <>
+                                                {recommendedVideo && (
+                                                    <WatchNextCard
+                                                        videoId={recommendedVideo.id}
+                                                        title={recommendedVideo.title}
+                                                        channelTitle={recommendedVideo.channelTitle}
+                                                        reason={recommendedVideo.reason}
+                                                        slug={recommendedVideo.slug}
+                                                        variant="half"
+                                                    />
                                                 )}
-                                            </button>
+                                                {questions.length > 3 && (
+                                                    <button
+                                                        onClick={handleLoadMore}
+                                                        disabled={isLoadingMore}
+                                                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
+                                                    >
+                                                        {isLoadingMore ? (
+                                                            <>
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                                Loading...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Sparkles className="w-4 h-4" />
+                                                                I like this, give me 3 more!
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </>
                                         )}
 
-                                        {/* Save to Profile Button */}
-                                        <button
-                                            onClick={handleNext}
-                                            className="w-full py-3 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                        >
-                                            Save to my profile <Trophy className="w-4 h-4" />
-                                        </button>
+                                        {/* After Q6 (batch 1): just a Done button — WatchNext already visible at top */}
+                                        {batch === 1 && (
+                                            <button
+                                                onClick={handleNext}
+                                                className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                            >
+                                                Done
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </motion.div>
