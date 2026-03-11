@@ -9,10 +9,20 @@ export async function generateMetadata(
     { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
     const { slug } = await params;
+
+    const isValidSlug = /^[a-zA-Z0-9-]+$/.test(slug);
+    if (!isValidSlug) {
+        return {
+            title: 'Video Not Found',
+            metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://vibecodershq.io'),
+        };
+    }
+    const safeSlug = slug.slice(0, 100);
+
     const { data: video } = await supabaseAdmin
         .from('videos')
         .select('id, title, description, channel_title')
-        .eq('slug', slug)
+        .eq('slug', safeSlug)
         .single();
 
     if (!video) {
@@ -35,11 +45,18 @@ export async function generateMetadata(
 export default async function VideoPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
 
+    const isValidSlug = /^[a-zA-Z0-9-]+$/.test(slug);
+    if (!isValidSlug) {
+        notFound();
+    }
+    const safeSlug = slug.slice(0, 100);
+
     // 1. Fetch video
     const { data: video } = await supabaseAdmin
         .from('videos')
         .select('id, title, human_score, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, slug, status')
-        .eq('slug', slug)
+        .eq('slug', safeSlug)
+        .eq('status', 'verified')
         .single();
 
     if (!video || video.status !== 'verified') {

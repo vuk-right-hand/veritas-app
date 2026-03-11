@@ -5,6 +5,7 @@ import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { cookies } from 'next/headers';
 import { slugify } from '@/lib/utils';
 import { suggestChannel } from './channel-actions';
+import { getAuthenticatedUserId } from './auth-actions';
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -804,5 +805,64 @@ export async function updateVideoDescription(videoId: string, description: strin
     } catch (e: any) {
         return { success: false, error: e.message };
     }
+}
+
+// ─── Video Likes ───────────────────────────────────────────────────────────────
+
+/**
+ * Toggle like on a video. Returns the new liked state.
+ * Stores mission_id alongside the like so we can later surface this video
+ * to users with the same goal/obstacle/content preferences.
+ */
+export async function toggleVideoLike(videoId: string): Promise<{ liked: boolean; error?: string }> {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return { liked: false, error: 'Unauthorized' };
+
+    // Capture the user's active mission for personalization context
+    const { data: mission } = await supabase
+        .from('user_missions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+    const missionId: string | null = mission?.id ?? null;
+
+    // Check if already liked
+    const { data: existing } = await supabase
+        .from('video_likes')
+        .select('id')
+        .eq('video_id', videoId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (existing) {
+        const { error } = await supabase.from('video_likes').delete().eq('id', existing.id);
+        if (error) return { liked: true, error: error.message };
+        return { liked: false };
+    } else {
+        const { error } = await supabase.from('video_likes').insert({
+            video_id: videoId,
+            user_id: userId,
+            mission_id: missionId,
+        });
+        if (error) return { liked: false, error: error.message };
+        return { liked: true };
+    }
+}
+
+/** Returns whether the current authenticated user has liked this video. */
+export async function getVideoLikeStatus(videoId: string): Promise<boolean> {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return false;
+
+    const { data } = await supabase
+        .from('video_likes')
+        .select('id')
+        .eq('video_id', videoId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return !!data;
 }
 

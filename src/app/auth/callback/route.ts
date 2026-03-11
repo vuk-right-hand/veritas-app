@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         } else {
             // Check for `next` param (used by password reset flow)
             const next = searchParams.get('next');
-            if (next && next.startsWith('/')) {
+            if (next && next.startsWith('/') && !next.startsWith('//')) {
                 // Redirect to the requested page (session is now established)
                 destinationResponse = NextResponse.redirect(new URL(next, origin));
             } else {

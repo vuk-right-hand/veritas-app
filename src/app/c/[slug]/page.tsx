@@ -11,10 +11,20 @@ export async function generateMetadata(
     { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
     const { slug } = await params;
+
+    const isValidSlug = /^[a-zA-Z0-9-]+$/.test(slug);
+    if (!isValidSlug) {
+        return {
+            title: 'Creator Not Found',
+            metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://vibecodershq.io'),
+        };
+    }
+    const safeSlug = slug.slice(0, 100);
+
     const { data: creator } = await supabaseAdmin
         .from('creators')
         .select('channel_name, description, avatar_url')
-        .eq('slug', slug)
+        .eq('slug', safeSlug)
         .single();
 
     if (!creator) {
@@ -37,11 +47,17 @@ export async function generateMetadata(
 export default async function CreatorPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
 
+    const isValidSlug = /^[a-zA-Z0-9-]+$/.test(slug);
+    if (!isValidSlug) {
+        notFound();
+    }
+    const safeSlug = slug.slice(0, 100);
+
     // Fetch creator
     const { data: creator } = await supabaseAdmin
         .from('creators')
         .select('*')
-        .eq('slug', slug)
+        .eq('slug', safeSlug)
         .single();
 
     if (!creator) {
