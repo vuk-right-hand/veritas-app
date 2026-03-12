@@ -94,11 +94,37 @@ export async function getCreatorStats(userId: string) {
         // Let's count from analytics_events for 'today' or 'last 7 days' if needed, 
         // but for "Total Veritas Views" on dashboard, let's aggregate.
 
-        const { count: searchCount, error: searchError } = await supabaseAdmin
-            .from('analytics_events')
-            .select('*', { count: 'exact', head: true })
-            .eq('event_type', 'creator_search')
-            .eq('target_id', creator.channel_url); // Assuming we log searches by channel url/name
+        let searchCount = 0;
+        let topSearchedVideos: { videoId: string; title: string; count: number }[] = [];
+
+        if (videoIds.length > 0) {
+            const { count: sc } = await supabaseAdmin
+                .from('analytics_events')
+                .select('*', { count: 'exact', head: true })
+                .eq('event_type', 'creator_search')
+                .in('target_id', videoIds);
+            searchCount = sc || 0;
+
+            if (searchCount > 0) {
+                const { data: searchEvents } = await supabaseAdmin
+                    .from('analytics_events')
+                    .select('target_id')
+                    .eq('event_type', 'creator_search')
+                    .in('target_id', videoIds);
+
+                const countMap = new Map<string, number>();
+                for (const row of searchEvents ?? []) {
+                    countMap.set(row.target_id, (countMap.get(row.target_id) ?? 0) + 1);
+                }
+                topSearchedVideos = [...countMap.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([id, count]) => {
+                        const v = videos?.find((v: any) => v.id === id);
+                        return { videoId: id, count, title: v?.title ?? '' };
+                    });
+            }
+        }
 
         // Calculate total views from videos list (assuming we have a view counter on videos or we count events)
         // Let's do a count of all video_view events for these video IDs
@@ -168,18 +194,29 @@ export async function getCreatorStats(userId: string) {
             });
         }
 
-        // 4. Opportunity Gaps
-        const gaps = await getOpportunityGaps();
+        // 4. Opportunity Gaps + Handshake Count (parallel)
+        const [gaps, handshakeResult] = await Promise.all([
+            getOpportunityGaps(),
+            supabaseAdmin
+                .from('handshakes')
+                .select('*', { count: 'exact', head: true })
+                .eq('creator_id', creator.id),
+        ]);
+        const totalHandshakes = handshakeResult.count || 0;
 
         return {
             success: true,
             stats: {
                 totalViews,
-                searches: searchCount || 0,
+                totalHandshakes,
+                searches: searchCount,
                 videosPromoted: videos?.length || 0,
-                humanScoreAvg: videos?.length > 0 ? creator.human_score : 0,
+                humanScoreAvg: videos?.length > 0
+                    ? Math.round(videos.reduce((sum: number, v: any) => sum + (v.human_score || 0), 0) / videos.length)
+                    : 0,
                 trafficInsights,
-                gaps
+                gaps,
+                topSearchedVideos
             },
             creator: {
                 ...creator,

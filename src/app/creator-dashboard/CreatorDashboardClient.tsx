@@ -34,9 +34,11 @@ interface VideoType {
 
 interface CreatorStats {
     totalViews: number;
+    totalHandshakes: number;
     searches: number;
     videosPromoted: number;
     humanScoreAvg: number;
+    topSearchedVideos?: { videoId: string; title: string; count: number }[];
     trafficInsights?: {
         last_14_days: number;
         evergreen: number;
@@ -72,6 +74,7 @@ export default function CreatorDashboardClient({
 }) {
     const [activeTab, setActiveTab] = useState<'home' | 'videos'>('home');
     const [isManageLinksOpen, setIsManageLinksOpen] = useState(false);
+    const [isSearchBreakdownOpen, setIsSearchBreakdownOpen] = useState(false);
     const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -259,6 +262,8 @@ export default function CreatorDashboardClient({
                             <div className="flex items-center gap-4 text-sm text-gray-400">
                                 <span>Views: {stats.totalViews}</span>
                                 <span className="text-gray-600">•</span>
+                                <span className="text-red-400 font-bold">Handshakes: <span className="text-white">{stats.totalHandshakes ?? 0}</span></span>
+                                <span className="text-gray-600">•</span>
                                 <span className={`${videos.some(v => v.status === 'verified') ? 'text-green-400 shadow-green-400/20 drop-shadow-sm' : 'text-gray-600'} font-medium transition-colors duration-500`}>
                                     Verified Human Creator
                                 </span>
@@ -376,7 +381,6 @@ export default function CreatorDashboardClient({
                                 { label: 'Total Veritas Views', value: stats.totalViews, icon: Users, color: 'text-blue-400' },
                                 { label: 'Human Score Avg', value: `${Math.round(stats.humanScoreAvg || 0)}%`, icon: Zap, color: 'text-yellow-400' },
                                 { label: 'Videos Promoted', value: stats.videosPromoted, icon: Youtube, color: 'text-red-400' },
-                                { label: 'Searches', value: stats.searches, icon: Search, color: 'text-green-400' },
                             ].map((stat, i) => (
                                 <div key={i} className="p-6 rounded-2xl bg-[#111] border border-white/5 hover:border-white/10 transition-colors group">
                                     <div className="flex items-center justify-between mb-4">
@@ -386,6 +390,18 @@ export default function CreatorDashboardClient({
                                     <div className="text-3xl font-bold text-white tracking-tight">{stat.value}</div>
                                 </div>
                             ))}
+                            {/* Searches card — always tappable */}
+                            <div
+                                onClick={() => setIsSearchBreakdownOpen(true)}
+                                className="p-6 rounded-2xl bg-[#111] border border-white/5 hover:border-white/10 transition-colors group cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <span className="text-sm text-gray-500 font-medium">Searches</span>
+                                    <Search className="w-5 h-5 text-green-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <div className="text-3xl font-bold text-white tracking-tight">{stats.searches}</div>
+                                <p className="text-xs text-gray-600 mt-2">Tap to see breakdown</p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -545,7 +561,62 @@ export default function CreatorDashboardClient({
                 }
             </AnimatePresence >
 
-
+            {/* Search Breakdown Modal */}
+            <AnimatePresence>
+                {isSearchBreakdownOpen && (
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setIsSearchBreakdownOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-md rounded-xl bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5 relative overflow-hidden"
+                        >
+                            <div className="p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 rounded-lg bg-white/5 text-gray-500">
+                                        <Search className="w-5 h-5 opacity-50" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-white">Search Appearances</h3>
+                                </div>
+                                {(stats.topSearchedVideos?.length ?? 0) > 0 ? (
+                                    <>
+                                        <p className="text-sm text-gray-400 leading-relaxed mb-5">
+                                            How many times each video appeared in user search results.
+                                        </p>
+                                        <div className="space-y-3">
+                                            {stats.topSearchedVideos?.map(({ videoId, title, count }) => (
+                                                <div key={videoId} className="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                                                    <img
+                                                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                                                        alt={title}
+                                                        className="w-16 h-10 rounded object-cover flex-shrink-0 bg-white/5"
+                                                    />
+                                                    <span className="text-sm text-gray-300 flex-1 line-clamp-2">{title}</span>
+                                                    <span className="text-sm font-bold text-green-400 flex-shrink-0">{count}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className="text-sm text-gray-400 leading-relaxed">
+                                        Your videos haven't appeared in search results yet. Suggest more of your own videos so users can find you.
+                                    </p>
+                                )}
+                                <button
+                                    onClick={() => setIsSearchBreakdownOpen(false)}
+                                    className="mt-6 w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-gray-400 hover:text-white transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Video Edit Modal */}
             <AnimatePresence>

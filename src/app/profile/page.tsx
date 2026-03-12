@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { getMyMission } from '@/app/actions/video-actions';
 import { getUserSkillsMatrix, getCurrentUserId } from '@/app/actions/quiz-actions';
 import { getTopCreators, getWatchHistory } from '@/app/actions/watch-history-actions';
+import { getUserHandshakes } from '@/app/actions/handshake-actions';
 import ProfileClientTabs from '@/components/ProfileClientTabs';
 import BottomNav from '@/components/BottomNav';
 
@@ -14,20 +15,23 @@ export default async function ProfilePage() {
     let skillsMatrix = {};
     let topCreators: any[] = [];
     let watchHistory: any[] = [];
+    let handshakes: any[] = [];
 
-    // If user is authenticated, aggressively load all dependencies concurrently 
+    // If user is authenticated, aggressively load all dependencies concurrently
     if (userId) {
-        const [missionResult, skillsMatrixResult, topCreatorsResult, watchHistoryResult] = await Promise.all([
+        const [missionResult, skillsMatrixResult, topCreatorsResult, watchHistoryResult, handshakesResult] = await Promise.all([
             getMyMission(),
             getUserSkillsMatrix(userId),
             getTopCreators(userId),
-            getWatchHistory(userId)
+            getWatchHistory(userId),
+            getUserHandshakes(),
         ]);
 
         mission = missionResult;
         skillsMatrix = skillsMatrixResult || {};
         topCreators = topCreatorsResult || [];
         watchHistory = watchHistoryResult || [];
+        handshakes = handshakesResult || [];
     }
 
     return (
@@ -51,11 +55,12 @@ export default async function ProfilePage() {
                         </Link>
                     </div>
                 ) : (
-                    <ProfileClientTabs 
-                        initialMission={mission} 
-                        skillsMatrix={skillsMatrix} 
+                    <ProfileClientTabs
+                        initialMission={mission}
+                        skillsMatrix={skillsMatrix}
                         topCreators={topCreators}
                         watchHistory={watchHistory}
+                        handshakes={handshakes}
                     />
                 )}
             </div>

@@ -21,7 +21,7 @@ export async function generateMetadata(
 
     const { data: video } = await supabaseAdmin
         .from('videos')
-        .select('id, title, description, channel_title')
+        .select('id, title, description, channel_title, slug')
         .eq('slug', safeSlug)
         .single();
 
@@ -33,11 +33,18 @@ export async function generateMetadata(
     }
 
     return {
-        title: `${video.title} - VibeCoders`,
-        description: video.description || `Watch and learn from ${video.title} on VibeCoders.`,
+        title: `${video.title} - Veritas`,
+        description: video.description || `Watch and learn from ${video.title} on Veritas.`,
         metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://vibecodershq.io'),
+        alternates: video.slug ? {
+            canonical: `/v/${video.slug}`,
+        } : {},
         openGraph: {
+            title: `${video.title} - Veritas`,
+            description: video.description || `Watch and learn from ${video.title} on Veritas.`,
+            url: video.slug ? `/v/${video.slug}` : undefined,
             images: [`https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`],
+            type: 'video.other',
         }
     };
 }
@@ -64,6 +71,7 @@ export default async function VideoPage({ params }: { params: Promise<{ slug: st
     }
 
     // 2. Fetch creator by channel_url (for description, links, claim status, slug)
+    let creatorId: string | undefined;
     let creatorSlug: string | undefined;
     let channelDescription: string | undefined;
     let channelLinks: { title: string; url: string }[] | undefined;
@@ -72,11 +80,12 @@ export default async function VideoPage({ params }: { params: Promise<{ slug: st
     if (video.channel_url) {
         const { data: creator } = await supabaseAdmin
             .from('creators')
-            .select('slug, description, links, user_id')
+            .select('id, slug, description, links, user_id')
             .eq('channel_url', video.channel_url)
             .maybeSingle();
 
         if (creator) {
+            creatorId = creator.id;
             creatorSlug = creator.slug || undefined;
             channelDescription = creator.description || undefined;
             channelLinks = creator.links || undefined;
@@ -100,6 +109,7 @@ export default async function VideoPage({ params }: { params: Promise<{ slug: st
             isChannelClaimed={isChannelClaimed}
             slug={video.slug}
             creatorSlug={creatorSlug}
+            creatorId={creatorId}
         />
     );
 }

@@ -74,6 +74,18 @@ export async function POST(req: Request) {
             });
         }
 
+        // Log creator_search events for each result video (fire-and-forget)
+        // Enables per-video search appearance stats on creator dashboard
+        supabase.from('analytics_events').insert(
+            results.map((v: any) => ({
+                event_type: 'creator_search',
+                target_id: v.id,
+                metadata: { query: cleanQuery, channel_url: v.channel_url },
+            }))
+        ).then(({ error }) => {
+            if (error) console.error('Search event log error:', error);
+        });
+
         console.log(`Found ${results.length} matches above 0.5 threshold`);
         if (results.length > 0) {
             console.log('Top match:', results[0].title, 'similarity:', results[0].similarity.toFixed(3));

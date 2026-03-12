@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import VideoCard from '@/components/VideoCard';
 import ShareButton from '@/components/ShareButton';
 import { ShieldCheck, ExternalLink } from 'lucide-react';
+import { getHandshakeCount, isHandshaked } from '@/app/actions/handshake-actions';
+import HandshakeButton from './HandshakeButton';
 
 export const revalidate = 60; // Cache invalidation
 
@@ -23,7 +25,7 @@ export async function generateMetadata(
 
     const { data: creator } = await supabaseAdmin
         .from('creators')
-        .select('channel_name, description, avatar_url')
+        .select('channel_name, description, avatar_url, slug')
         .eq('slug', safeSlug)
         .single();
 
@@ -38,8 +40,15 @@ export async function generateMetadata(
         title: `${creator.channel_name} - Verified Creator on VibeCoders`,
         description: creator.description || `Watch verified videos from ${creator.channel_name}.`,
         metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://vibecodershq.io'),
+        alternates: creator.slug ? {
+            canonical: `/c/${creator.slug}`,
+        } : {},
         openGraph: {
+            title: `${creator.channel_name} - Verified Creator on VibeCoders`,
+            description: creator.description || `Watch verified videos from ${creator.channel_name}.`,
+            url: creator.slug ? `/c/${creator.slug}` : undefined,
             images: [creator.avatar_url || '/default-avatar.png'],
+            type: 'profile',
         }
     };
 }
@@ -64,13 +73,17 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
         notFound();
     }
 
-    // Fetch their verified videos
-    const { data: videos } = await supabaseAdmin
-        .from('videos')
-        .select('*')
-        .eq('channel_url', creator.channel_url)
-        .eq('status', 'verified')
-        .order('published_at', { ascending: false });
+    // Fetch videos, handshake count, and handshake status in parallel
+    const [{ data: videos }, handshakeCount, userHandshaked] = await Promise.all([
+        supabaseAdmin
+            .from('videos')
+            .select('*')
+            .eq('channel_url', creator.channel_url)
+            .eq('status', 'verified')
+            .order('published_at', { ascending: false }),
+        getHandshakeCount(creator.id),
+        isHandshaked(creator.id),
+    ]);
 
     return (
         <div className="min-h-screen bg-black text-white p-8">
@@ -107,8 +120,13 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
                             <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">{creator.description}</p>
                         )}
 
-                        {/* Share + YouTube Exit */}
+                        {/* Handshake + Share + YouTube Exit */}
                         <div className="flex flex-wrap items-center gap-3 mt-4">
+                            <HandshakeButton
+                                creatorId={creator.id}
+                                initialHandshaked={userHandshaked}
+                                initialCount={handshakeCount}
+                            />
                             <ShareButton path={`/c/${slug}`} label="Share" size="md" />
                             {creator.channel_url && (
                                 <a
@@ -168,6 +186,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
                                     isChannelClaimed={!!creator.user_id}
                                     slug={v.slug}
                                     creatorSlug={creator.slug}
+                                    creatorId={creator.id}
                                 />
                             ))}
                         </div>

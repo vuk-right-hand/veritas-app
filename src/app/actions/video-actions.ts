@@ -582,14 +582,14 @@ export async function getInitialFeedData(temporalFilter: '14' | '28' | '60' | 'e
     ];
     const uniqueUrls = [...new Set(allUrls)] as string[];
 
-    const creatorMap: Record<string, { description: string; links: any[]; slug: string | null }> = {};
+    const creatorMap: Record<string, { id: string; description: string; links: any[]; slug: string | null }> = {};
     if (uniqueUrls.length > 0) {
         const { data: creators } = await supabase
             .from('creators')
-            .select('channel_url, description, links, slug')
+            .select('id, channel_url, description, links, slug')
             .in('channel_url', uniqueUrls);
         creators?.forEach((c: any) => {
-            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [], slug: c.slug || null };
+            creatorMap[c.channel_url] = { id: c.id, description: c.description || '', links: c.links || [], slug: c.slug || null };
         });
     }
 
@@ -628,10 +628,10 @@ export async function getVerifiedVideosWithCreators(
     if (channelUrls.length > 0) {
         const { data: creators } = await supabase
             .from('creators')
-            .select('channel_url, description, links, slug')
+            .select('id, channel_url, description, links, slug')
             .in('channel_url', channelUrls);
         creators?.forEach((c: any) => {
-            creatorMap[c.channel_url] = { description: c.description || '', links: c.links || [], slug: c.slug || null };
+            creatorMap[c.channel_url] = { id: c.id, description: c.description || '', links: c.links || [], slug: c.slug || null };
         });
     }
 
@@ -654,6 +654,7 @@ export async function getVerifiedVideosWithCreators(
             isCurated: false,
             slug: v.slug || null,
             creatorSlug: creator?.slug || null,
+            creatorId: creator?.id || null,
         };
     });
 }

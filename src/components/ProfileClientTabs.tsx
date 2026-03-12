@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { User, Trophy, Lock, Brain, CheckCircle2, Save, Zap, Eye, EyeOff, Target, Clock, ChevronRight, Play } from 'lucide-react';
+import { User, Trophy, Lock, Brain, CheckCircle2, Save, Zap, Eye, EyeOff, Target, Clock, ChevronRight, Play, Handshake } from 'lucide-react';
 import { updateProfile, updateProfileAvatar, updateUserPassword } from '@/app/actions/profile-actions';
 import { logoutUser } from '@/app/actions/auth-actions';
 import { supabase } from '@/lib/supabaseClient';
 import SkillProgressCard from '@/components/SkillProgressCard';
+import { toggleHandshake } from '@/app/actions/handshake-actions';
+import type { HandshakeCreator } from '@/app/actions/handshake-actions';
 
 const GOALS = [
     "Make $10,000/m Online",
@@ -28,9 +30,10 @@ interface ProfileClientTabsProps {
     skillsMatrix: Record<string, any>;
     topCreators: any[];
     watchHistory: any[];
+    handshakes: HandshakeCreator[];
 }
 
-export default function ProfileClientTabs({ initialMission, skillsMatrix, topCreators, watchHistory }: ProfileClientTabsProps) {
+export default function ProfileClientTabs({ initialMission, skillsMatrix, topCreators, watchHistory, handshakes: initialHandshakes }: ProfileClientTabsProps) {
     const [saving, setSaving] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [error, setError] = useState('');
@@ -58,7 +61,9 @@ export default function ProfileClientTabs({ initialMission, skillsMatrix, topCre
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     // Tab state
-    const [activeTab, setActiveTab] = useState<'profile' | 'proof-of-work' | 'history'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'proof-of-work' | 'history' | 'handshakes'>('profile');
+    const [handshakesList, setHandshakesList] = useState<HandshakeCreator[]>(initialHandshakes || []);
+    const [unhandshakeLoading, setUnhandshakeLoading] = useState<string | null>(null);
 
 
     const handleGoalSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -255,6 +260,7 @@ export default function ProfileClientTabs({ initialMission, skillsMatrix, topCre
                         { key: 'profile' as const, label: 'Profile', icon: <User className="w-3.5 h-3.5" /> },
                         { key: 'proof-of-work' as const, label: 'Proof of Work', icon: <Trophy className="w-3.5 h-3.5" /> },
                         { key: 'history' as const, label: 'History', icon: <Clock className="w-3.5 h-3.5" /> },
+                        { key: 'handshakes' as const, label: 'Handshakes', icon: <Handshake className="w-3.5 h-3.5" /> },
                     ]).map((tab) => (
                         <button
                             key={tab.key}
@@ -597,6 +603,86 @@ export default function ProfileClientTabs({ initialMission, skillsMatrix, topCre
                                     </div>
                                 )}
                             </div>
+                        </motion.div>
+                    )}
+
+                    {/* Handshakes Tab Content */}
+                    {activeTab === 'handshakes' && (
+                        <motion.div
+                            key="handshakes"
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            transition={{ duration: 0.15 }}
+                            className="space-y-4"
+                        >
+                            <h2 className="text-sm font-bold uppercase tracking-widest text-red-400 flex items-center gap-2">
+                                <Handshake className="w-4 h-4" />
+                                Your Handshakes
+                            </h2>
+
+                            {handshakesList.length > 0 ? (
+                                <div className="space-y-1">
+                                    {handshakesList.map((creator) => (
+                                        <div
+                                            key={creator.creatorId}
+                                            className="flex items-center gap-3 p-3 rounded-xl bg-[#111] border border-white/5 hover:border-white/10 transition-colors group"
+                                        >
+                                            {/* Avatar */}
+                                            {creator.avatarUrl ? (
+                                                <img
+                                                    src={creator.avatarUrl}
+                                                    alt={creator.channelName}
+                                                    className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                                />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-full bg-red-900/20 border border-red-500/20 flex items-center justify-center text-sm font-bold text-red-400">
+                                                    {creator.channelName?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+
+                                            {/* Name — clickable link to creator channel */}
+                                            <div className="flex-1 min-w-0">
+                                                {creator.slug ? (
+                                                    <Link
+                                                        href={`/c/${creator.slug}`}
+                                                        className="text-sm font-semibold text-white hover:text-red-400 transition-colors truncate block"
+                                                    >
+                                                        {creator.channelName}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-sm font-semibold text-white truncate block">
+                                                        {creator.channelName}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Unhandshake button */}
+                                            <button
+                                                onClick={async () => {
+                                                    setUnhandshakeLoading(creator.creatorId);
+                                                    // Optimistic removal
+                                                    setHandshakesList(prev => prev.filter(c => c.creatorId !== creator.creatorId));
+                                                    const result = await toggleHandshake(creator.creatorId);
+                                                    if (result.error) {
+                                                        // Revert on error
+                                                        setHandshakesList(prev => [...prev, creator]);
+                                                    }
+                                                    setUnhandshakeLoading(null);
+                                                }}
+                                                disabled={unhandshakeLoading === creator.creatorId}
+                                                className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-red-400 border border-white/5 hover:border-red-500/20 transition-all"
+                                            >
+                                                Unhandshake
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-gray-500 py-8 text-center border border-white/5 rounded-2xl border-dashed">
+                                    No handshakes yet. Visit a creator&apos;s channel to handshake them.
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

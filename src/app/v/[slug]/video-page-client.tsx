@@ -18,6 +18,7 @@ interface VideoPageClientProps {
     isChannelClaimed?: boolean;
     slug?: string;
     creatorSlug?: string;
+    creatorId?: string;
 }
 
 export default function VideoPageClient(props: VideoPageClientProps) {

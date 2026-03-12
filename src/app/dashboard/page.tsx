@@ -198,6 +198,7 @@ export default function Dashboard() {
                     isCurated: true,
                     slug: c.videos.slug || null,
                     creatorSlug: creator?.slug || null,
+                    creatorId: creator?.id || null,
                 };
             });
         }
@@ -225,6 +226,7 @@ export default function Dashboard() {
                     isCurated: false,
                     slug: v.slug || null,
                     creatorSlug: creator?.slug || null,
+                    creatorId: creator?.id || null,
                 };
             });
 
@@ -1118,6 +1120,7 @@ export default function Dashboard() {
                                     publishedAt={video.publishedAt}
                                     slug={video.slug}
                                     creatorSlug={video.creatorSlug}
+                                    creatorId={video.creatorId}
                                     onQuizStart={() => { }}
                                     onVideoView={() => setVideoViewCount(c => c + 1)}
                                 />

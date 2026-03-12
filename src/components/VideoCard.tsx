@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles, RotateCcw, RotateCw } from 'lucide-react';
+import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles, RotateCcw, RotateCw, Handshake } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
 import ShareButton from '@/components/ShareButton';
 import { getComments, postComment, recordVideoView, toggleVideoLike, getVideoLikeStatus } from '@/app/actions/video-actions';
+import { isHandshaked as checkIsHandshaked, toggleHandshake } from '@/app/actions/handshake-actions';
 import { getQuizQuestions, getUserIdFromMission, getCurrentUserId } from '@/app/actions/quiz-actions';
 import { getRecommendedVideo, type RecommendedVideo } from '@/app/actions/recommendation-actions';
 import { useUser } from '@/components/UserContext';
@@ -31,11 +32,12 @@ interface VideoCardProps {
     onVideoView?: () => void;
     slug?: string;           // Video slug for share URL (/v/[slug])
     creatorSlug?: string;    // Creator slug for internal channel link (/c/[slug])
+    creatorId?: string;      // Creator UUID for handshake (follow) feature
     autoOpen?: boolean;      // Open modal immediately on mount (used by /v/[slug] page)
     onClose?: () => void;    // Called when modal closes (used for redirect on /v/[slug])
 }
 
-export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView, slug, creatorSlug, autoOpen, onClose }: VideoCardProps) {
+export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView, slug, creatorSlug, creatorId, autoOpen, onClose }: VideoCardProps) {
     const { userProfile, isLoading: isUserLoading } = useUser();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -85,6 +87,12 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     const loveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [recommendedVideo, setRecommendedVideo] = useState<RecommendedVideo | null>(null);
 
+    // Handshake (follow) state
+    const [handshaked, setHandshaked] = useState(false);
+    const [handshakeLoading, setHandshakeLoading] = useState(false);
+    const [showHandshakeToast, setShowHandshakeToast] = useState(false);
+    const handshakeToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Auto-open modal on mount (for /v/[slug] standalone page)
     useEffect(() => {
         if (autoOpen) setIsOpen(true);
@@ -97,6 +105,14 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         }
         if (!isOpen) setIsLiked(false);
     }, [isOpen, userProfile, videoId]);
+
+    // Load handshake status when modal opens
+    useEffect(() => {
+        if (isOpen && creatorId) {
+            checkIsHandshaked(creatorId).then(status => setHandshaked(status));
+        }
+        if (!isOpen) setHandshaked(false);
+    }, [isOpen, creatorId]);
 
     // Log to watch_history immediately on modal open (fire-and-forget)
     useEffect(() => {
@@ -423,6 +439,30 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
             if (loveToastTimerRef.current) clearTimeout(loveToastTimerRef.current);
             loveToastTimerRef.current = setTimeout(() => setShowLoveToast(false), 2000);
         }
+    };
+
+    const handleHandshake = async () => {
+        if (!userProfile) {
+            setModalSource('default');
+            setShowProfileRequiredModal(true);
+            return;
+        }
+        if (handshakeLoading || !creatorId) return;
+        const optimistic = !handshaked;
+        setHandshaked(optimistic);
+        setHandshakeLoading(true);
+        const result = await toggleHandshake(creatorId);
+        if (result.error) {
+            setHandshaked(!optimistic); // revert
+        } else {
+            setHandshaked(result.handshaked);
+            if (result.handshaked) {
+                setShowHandshakeToast(true);
+                if (handshakeToastTimerRef.current) clearTimeout(handshakeToastTimerRef.current);
+                handshakeToastTimerRef.current = setTimeout(() => setShowHandshakeToast(false), 4000);
+            }
+        }
+        setHandshakeLoading(false);
     };
 
     const handlePostComment = async () => {
@@ -1140,6 +1180,30 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                     )}
                                                 </div>
 
+                                                {/* Handshake (follow) pill */}
+                                                {creatorId && (
+                                                    <div className="mb-1">
+                                                        <button
+                                                            onClick={handleHandshake}
+                                                            disabled={handshakeLoading}
+                                                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl transition-all text-sm font-medium group ${
+                                                                handshaked
+                                                                    ? 'bg-gradient-to-br from-red-900/20 via-black to-black border border-red-500/20 hover:border-red-500/40'
+                                                                    : 'bg-gradient-to-br from-gray-900/40 via-black to-black border border-white/5 hover:border-white/15'
+                                                            }`}
+                                                        >
+                                                            <Handshake className={`w-4 h-4 transition-colors ${
+                                                                handshaked ? 'text-red-400' : 'text-gray-500 group-hover:text-white'
+                                                            }`} />
+                                                            <span className={`transition-colors ${
+                                                                handshaked ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                                                            }`}>
+                                                                {handshaked ? 'Handshaked' : 'Handshake'}
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                )}
+
                                                 {/* Description & Links - Priority Display */}
                                                 <div className="text-sm text-gray-300 leading-relaxed">
                                                     {/* First line: video desc OR channel desc (truncated) */}
@@ -1362,6 +1426,31 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                             </motion.div> {/* End Card */}
                         </div> {/* End Modal Wrapper */}
                     </>)}
+            </AnimatePresence>
+
+            {/* Handshake Toast */}
+            <AnimatePresence>
+                {showHandshakeToast && (
+                    <motion.div
+                        key="handshake-toast"
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 bg-[#111] border border-red-500/30 px-5 py-3.5 rounded-xl shadow-2xl shadow-black/50 max-w-sm"
+                    >
+                        <Handshake className="w-5 h-5 text-red-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-200 leading-snug">
+                            We&apos;ll honor the handshake by customizing your feed
+                        </span>
+                        <button
+                            onClick={() => setShowHandshakeToast(false)}
+                            className="ml-1 p-1 hover:bg-white/10 rounded-full text-gray-500 hover:text-white transition-colors flex-shrink-0"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </motion.div>
+                )}
             </AnimatePresence>
 
             {/* Profile Required Modal */}
