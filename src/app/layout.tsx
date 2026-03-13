@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { UserProvider } from "@/components/UserContext";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,6 +52,7 @@ export default function RootLayout({
       >
         <UserProvider>
           {children}
+          <Analytics />
           {/* Service Worker Registration */}
           <script
             dangerouslySetInnerHTML={{
