@@ -13,7 +13,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export const maxDuration = 60; // Vercel Hobby tier supports up to 60s with explicit config
 
 const SUPADATA_API_URL = 'https://api.supadata.ai/v1/youtube/transcript';
-const MIN_DURATION_SECONDS = 60;      // 1 minute
+const MIN_DURATION_SECONDS = 180;     // 3 minutes — filters out YouTube Shorts (up to 3min)
 const MAX_DURATION_SECONDS = 2100;    // 35 minutes
 
 const SKILL_TAGS = [
@@ -203,10 +203,14 @@ export async function POST(req: Request) {
       .map((segment: any) => segment.text)
       .join(' ');
 
-    // 5. Duration check (estimate from transcript length if Supadata doesn't return duration)
-    // Average speaking rate: ~150 words/min. If transcript is too short or too long, skip.
+    // 5. Duration check — use Supadata segment timestamps when available, fall back to word count
+    const lastSegment = transcriptData.content[transcriptData.content.length - 1];
+    const segmentDuration = lastSegment?.offset != null && lastSegment?.duration != null
+      ? Math.round((lastSegment.offset + lastSegment.duration) / 1000) // ms → seconds
+      : null;
     const wordCount = fullTranscript.split(/\s+/).length;
-    const estimatedDurationSeconds = Math.round((wordCount / 150) * 60);
+    const wordEstimate = Math.round((wordCount / 150) * 60);
+    const estimatedDurationSeconds = segmentDuration || wordEstimate;
 
     await updatePipelineJob(supabaseAdmin, jobId, {
       transcript_length: fullTranscript.length,
@@ -216,7 +220,7 @@ export async function POST(req: Request) {
     if (estimatedDurationSeconds < MIN_DURATION_SECONDS || estimatedDurationSeconds > MAX_DURATION_SECONDS) {
       await updatePipelineJob(supabaseAdmin, jobId, {
         status: 'skipped_duration',
-        error_message: `Estimated duration ${Math.round(estimatedDurationSeconds / 60)}min (${wordCount} words) outside 1-35min range`,
+        error_message: `Duration ~${Math.round(estimatedDurationSeconds / 60)}min (${segmentDuration ? 'from timestamps' : wordCount + ' words'}) outside 3-35min range`,
         processing_time_ms: Date.now() - startTime,
       });
       return NextResponse.json({
