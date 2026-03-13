@@ -142,6 +142,17 @@ export async function finalizeChannelClaim(
             insertSuccess = true;
         }
 
+        // Mark the channel as claimed in the channels table
+        // Extract channel slug from URL for matching (channels table uses slugified IDs)
+        const handleMatch = channelInfo.url.match(/@([^/?]+)/);
+        const channelSlug = handleMatch ? handleMatch[1] : channelInfo.url.split('/').filter(Boolean).pop();
+        if (channelSlug) {
+            await supabaseAdmin
+                .from('channels')
+                .update({ is_claimed: true, owner_id: userId })
+                .eq('youtube_channel_id', channelSlug);
+        }
+
         return { success: true, message: "Channel claimed successfully! You can now log in." };
 
     } catch (error: any) {
@@ -386,6 +397,16 @@ export async function claimChannelForExistingUser(
                 throw new Error("Failed to create creator profile: " + insertError.message);
             }
             insertSuccess = true;
+        }
+
+        // Mark the channel as claimed in the channels table
+        const handleMatch = channelInfo.url.match(/@([^/?]+)/);
+        const channelSlug = handleMatch ? handleMatch[1] : channelInfo.url.split('/').filter(Boolean).pop();
+        if (channelSlug) {
+            await supabaseAdmin
+                .from('channels')
+                .update({ is_claimed: true, owner_id: userId })
+                .eq('youtube_channel_id', channelSlug);
         }
 
         // SECURITY PATCH H2: Bust the Next.js cache so the UserContext and

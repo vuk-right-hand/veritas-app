@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
+import { resolveYouTubeChannelId } from '@/lib/pipeline-utils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key';
@@ -148,6 +149,13 @@ export async function moderateChannel(channelId: string, action: 'approve' | 'ba
     else if (action === 'storage') newStatus = 'storage';
     else newStatus = 'pending';
 
+    // Fetch channel data before updating (needed for pipeline seeding)
+    const { data: channelData } = await supabase
+        .from('channel_suggestions')
+        .select('channel_url, title')
+        .eq('id', channelId)
+        .single();
+
     const { error } = await supabase
         .from('channel_suggestions')
         .update({ status: newStatus })
@@ -156,6 +164,26 @@ export async function moderateChannel(channelId: string, action: 'approve' | 'ba
     if (error) {
         console.error('[moderateChannel] Update Error:', error);
         return { success: false, message: error.message };
+    }
+
+    // When a channel is approved, auto-add it to the pipeline for automated video fetching
+    if (action === 'approve' && channelData?.channel_url) {
+        try {
+            const realChannelId = await resolveYouTubeChannelId(channelData.channel_url);
+            await supabase
+                .from('pipeline_channels')
+                .upsert({
+                    channel_id: realChannelId,
+                    channel_url: channelData.channel_url,
+                    channel_name: channelData.title || 'Unknown Channel',
+                    status: 'active',
+                    fetch_enabled: true,
+                }, { onConflict: 'channel_id' });
+            console.log(`[Pipeline] Auto-seeded channel: ${channelData.title} (${realChannelId})`);
+        } catch (pipelineError: any) {
+            // Don't fail the moderation if pipeline seeding fails
+            console.error('[Pipeline] Failed to auto-seed channel:', pipelineError.message);
+        }
     }
 
     revalidatePath('/suggested-videos');

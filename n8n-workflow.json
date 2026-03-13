@@ -1,0 +1,153 @@
+{
+  "name": "Veritas Video Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "trigger-1",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.VERITAS_API_URL }}/api/pipeline/next-video",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.PIPELINE_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "fullResponse": false
+        }
+      },
+      "id": "get-next-1",
+      "name": "Get Next Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-done",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ]
+        }
+      },
+      "id": "if-1",
+      "name": "Has Video?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VERITAS_API_URL }}/api/pipeline/process-video",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"video_id\": \"{{ $('Get Next Video').item.json.video_id }}\",\n  \"channel_id\": \"{{ $('Get Next Video').item.json.channel_id }}\",\n  \"pipeline_secret\": \"{{ $env.PIPELINE_SECRET }}\"\n}",
+        "options": {
+          "timeout": 120000,
+          "fullResponse": false
+        }
+      },
+      "id": "process-1",
+      "name": "Process Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 200]
+    },
+    {
+      "parameters": {},
+      "id": "noop-1",
+      "name": "No Videos to Process",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [920, 420]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Next Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Next Video": {
+      "main": [
+        [
+          {
+            "node": "Has Video?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Video?": {
+      "main": [
+        [
+          {
+            "node": "Process Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Videos to Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "automation"
+    },
+    {
+      "name": "veritas"
+    }
+  ]
+}

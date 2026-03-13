@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         console.log("Fetching transcript for:", url);
         const bridgeResponse = await fetch(`https://api.supadata.ai/v1/youtube/transcript?url=${encodeURIComponent(url)}`, {
             headers: {
-                'x-api-key': 'sd_2fb896d1eb5cc52981e383f3a1560d72'
+                'x-api-key': process.env.SUPADATA_API_KEY!
             }
         });
 

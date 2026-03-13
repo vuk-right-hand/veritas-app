@@ -128,6 +128,16 @@ export async function finalizeOAuthChannelClaim(
         return { success: false, message: 'Failed to create creator profile: ' + error.message };
     }
 
+    // Mark the channel as claimed in the channels table
+    const handleMatch = channelInfo.url.match(/@([^/?]+)/);
+    const channelSlug = handleMatch ? handleMatch[1] : channelInfo.url.split('/').filter(Boolean).pop();
+    if (channelSlug) {
+        await supabaseAdmin
+            .from('channels')
+            .update({ is_claimed: true, owner_id: userId })
+            .eq('youtube_channel_id', channelSlug);
+    }
+
     revalidatePath('/', 'layout');
     return { success: true, message: 'Channel claimed successfully via Google!' };
 }
