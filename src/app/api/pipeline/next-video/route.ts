@@ -113,6 +113,9 @@ export async function GET(req: Request) {
         'fetching_transcript',
         'analyzing',
         'generating_embedding',
+        'skipped_duplicate',
+        'skipped_duration',
+        'skipped_no_transcript',
       ]),
   ]);
 
