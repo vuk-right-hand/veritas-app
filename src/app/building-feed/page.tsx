@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const PHASES = [
@@ -34,7 +33,6 @@ const textVariants = {
 }
 
 export default function BuildingFeedPage() {
-    const router = useRouter()
     const [phaseIndex, setPhaseIndex] = useState(0)
 
     useEffect(() => {
@@ -44,16 +42,17 @@ export default function BuildingFeedPage() {
         )
 
         // At 4.5s: set 7-day cookie and redirect
+        // Must use window.location (not router.push) so the proxy sees the fresh cookie
         const redirectTimer = setTimeout(() => {
             document.cookie = 'user_welcomed_weekly=true; path=/; max-age=604800; SameSite=Lax'
-            router.push('/dashboard')
+            window.location.href = '/dashboard'
         }, TOTAL_DURATION)
 
         return () => {
             phaseTimers.forEach(clearTimeout)
             clearTimeout(redirectTimer)
         }
-    }, [router])
+    }, [])
 
     return (
         <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden pb-16 md:pb-0">

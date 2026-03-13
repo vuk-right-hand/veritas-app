@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const PHASES = [
@@ -33,7 +32,6 @@ const textVariants = {
 }
 
 export default function GuestLoadingPage() {
-    const router = useRouter()
     const [phaseIndex, setPhaseIndex] = useState(0)
 
     useEffect(() => {
@@ -43,14 +41,14 @@ export default function GuestLoadingPage() {
         // At 4.5s: set 24h cookie and redirect
         const redirectTimer = setTimeout(() => {
             document.cookie = 'guest_welcomed=true; path=/; max-age=86400; SameSite=Lax'
-            router.push('/dashboard')
+            window.location.href = '/dashboard'
         }, TOTAL_DURATION)
 
         return () => {
             clearTimeout(phaseTimer)
             clearTimeout(redirectTimer)
         }
-    }, [router])
+    }, [])
 
     return (
         <div className="min-h-screen bg-[#08080f] flex flex-col items-center justify-center px-6 relative overflow-hidden pb-16 md:pb-0">
