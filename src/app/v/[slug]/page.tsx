@@ -49,8 +49,9 @@ export async function generateMetadata(
     };
 }
 
-export default async function VideoPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function VideoPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ autoQuiz?: string }> }) {
     const { slug } = await params;
+    const { autoQuiz } = await searchParams;
 
     const isValidSlug = /^[a-zA-Z0-9-]+$/.test(slug);
     if (!isValidSlug) {
@@ -110,6 +111,7 @@ export default async function VideoPage({ params }: { params: Promise<{ slug: st
             slug={video.slug}
             creatorSlug={creatorSlug}
             creatorId={creatorId}
+            autoQuiz={autoQuiz === 'true'}
         />
     );
 }

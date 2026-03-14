@@ -10,15 +10,30 @@ interface ProfileRequiredModalProps {
     isOpen: boolean;
     onClose: () => void;
     source?: 'default' | 'profile' | 'comment' | 'quiz';
+    videoSlug?: string;
 }
 
-export default function ProfileRequiredModal({ isOpen, onClose, source = 'default' }: ProfileRequiredModalProps) {
+export default function ProfileRequiredModal({ isOpen, onClose, source = 'default', videoSlug }: ProfileRequiredModalProps) {
     const router = useRouter();
+
+    // Build return URL for stateless auth routing
+    const nextUrl = source === 'quiz' && videoSlug
+        ? `/v/${videoSlug}?autoQuiz=true`
+        : videoSlug
+            ? `/v/${videoSlug}`
+            : null;
+
+    const loginUrl = nextUrl
+        ? `/login?next=${encodeURIComponent(nextUrl)}`
+        : '/login';
+
+    const onboardingUrl = nextUrl
+        ? `/onboarding?next=${encodeURIComponent(nextUrl)}`
+        : '/onboarding';
 
     React.useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
-            // Also prevent mobile Safari bounce
             document.documentElement.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
@@ -30,13 +45,6 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
             document.documentElement.style.overflow = '';
         };
     }, [isOpen]);
-
-    const handleLoginClick = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-        router.push('/login');
-    };
 
     const handleClose = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -93,7 +101,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                             )}
 
                             {/* OAuth Buttons */}
-                            <OAuthButtons flow="login" size="sm" className="mb-3" />
+                            <OAuthButtons flow="login" size="sm" className="mb-3" next={nextUrl || undefined} />
 
                             {/* Divider */}
                             <div className="relative flex items-center mb-2">
@@ -108,7 +116,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     e.preventDefault();
                                     e.stopPropagation();
                                     onClose();
-                                    router.push('/login');
+                                    router.push(loginUrl);
                                 }}
                                 className="w-full py-2.5 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10 mb-2"
                             >
@@ -121,7 +129,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                                     e.preventDefault();
                                     e.stopPropagation();
                                     onClose();
-                                    router.push('/onboarding');
+                                    router.push(onboardingUrl);
                                 }}
                                 className="w-full py-2.5 px-6 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer relative z-10"
                             >

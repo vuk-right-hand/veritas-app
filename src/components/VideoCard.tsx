@@ -34,10 +34,11 @@ interface VideoCardProps {
     creatorSlug?: string;    // Creator slug for internal channel link (/c/[slug])
     creatorId?: string;      // Creator UUID for handshake (follow) feature
     autoOpen?: boolean;      // Open modal immediately on mount (used by /v/[slug] page)
+    autoQuiz?: boolean;      // Auto-start quiz after login redirect (used with ?autoQuiz=true)
     onClose?: () => void;    // Called when modal closes (used for redirect on /v/[slug])
 }
 
-export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView, slug, creatorSlug, creatorId, autoOpen, onClose }: VideoCardProps) {
+export default function VideoCard({ videoId, title, humanScore, takeaways, customDescription, channelTitle, channelUrl, publishedAt, customLinks, channelDescription, channelLinks, isChannelClaimed, onQuizStart, onVideoView, slug, creatorSlug, creatorId, autoOpen, autoQuiz, onClose }: VideoCardProps) {
     const { userProfile, isLoading: isUserLoading } = useUser();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +98,19 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
     useEffect(() => {
         if (autoOpen) setIsOpen(true);
     }, [autoOpen]);
+
+    // Auto-start quiz after login redirect (?autoQuiz=true)
+    useEffect(() => {
+        if (autoQuiz && isOpen && userProfile) {
+            const timer = setTimeout(() => {
+                setShowQuizBelow(true);
+                setShowInlineQuiz(true);
+                // Clean URL param to prevent re-trigger on refresh
+                window.history.replaceState({}, '', window.location.pathname);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [autoQuiz, isOpen, userProfile]);
 
     // Load like status when modal opens (signed-in users only)
     useEffect(() => {
@@ -1458,6 +1472,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                 isOpen={showProfileRequiredModal}
                 onClose={() => setShowProfileRequiredModal(false)}
                 source={modalSource}
+                videoSlug={slug}
             />
         </>
     );

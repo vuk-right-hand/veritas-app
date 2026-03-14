@@ -68,23 +68,20 @@ export async function GET(request: NextRequest) {
     // --- Route based on flow type ---
     let destinationResponse: NextResponse;
 
+    // Read `next` param — used to return user to previous context after auth
+    const next = searchParams.get('next');
+    const safeNext = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
+
     try {
         if (flow === 'onboarding') {
-            destinationResponse = await handleOnboarding(userId, email, name, origin);
+            destinationResponse = await handleOnboarding(userId, email, name, origin, safeNext);
         } else if (flow === 'claim') {
             destinationResponse = await handleClaim(userId, email, name, session.provider_token, origin);
         } else if (flow === 'creator-login') {
             destinationResponse = NextResponse.redirect(new URL('/creator-dashboard', origin));
         } else {
-            // Check for `next` param (used by password reset flow)
-            const next = searchParams.get('next');
-            if (next && next.startsWith('/') && !next.startsWith('//')) {
-                // Redirect to the requested page (session is now established)
-                destinationResponse = NextResponse.redirect(new URL(next, origin));
-            } else {
-                // Default: login flow (viewer → /dashboard)
-                destinationResponse = await handleLogin(userId, origin);
-            }
+            // Login flow — establish viewer session then redirect
+            destinationResponse = await handleLogin(userId, origin, safeNext);
         }
     } catch (err) {
         console.error('[auth/callback] Unexpected error:', err);
@@ -112,7 +109,8 @@ async function handleOnboarding(
     userId: string,
     email: string,
     name: string,
-    origin: string
+    origin: string,
+    next: string | null
 ): Promise<NextResponse> {
     const pending = await getPendingMission();
 
@@ -135,7 +133,7 @@ async function handleOnboarding(
         return NextResponse.redirect(new URL('/onboarding?error=mission_failed', origin));
     }
 
-    return NextResponse.redirect(new URL('/dashboard', origin));
+    return NextResponse.redirect(new URL(next || '/dashboard', origin));
 }
 
 async function handleClaim(
@@ -189,10 +187,12 @@ async function handleClaim(
 
 async function handleLogin(
     userId: string,
-    origin: string
+    origin: string,
+    next: string | null
 ): Promise<NextResponse> {
     const result = await establishOAuthViewerSession(userId);
-    return NextResponse.redirect(new URL(result.destination, origin));
+    // Use `next` param if provided, otherwise use the default destination from session establishment
+    return NextResponse.redirect(new URL(next || result.destination, origin));
 }
 
 // -------------------------------------------------------------------

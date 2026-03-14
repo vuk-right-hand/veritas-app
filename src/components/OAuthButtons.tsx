@@ -13,9 +13,11 @@ interface OAuthButtonsProps {
     /** Fires before the OAuth redirect — use to persist pending data to cookies */
     onBeforeRedirect?: () => Promise<void>;
     className?: string;
+    /** URL to redirect to after auth callback (e.g. /v/slug?autoQuiz=true) */
+    next?: string;
 }
 
-export function OAuthButtons({ flow, size = 'md', extraScopes = [], onBeforeRedirect, className }: OAuthButtonsProps) {
+export function OAuthButtons({ flow, size = 'md', extraScopes = [], onBeforeRedirect, className, next }: OAuthButtonsProps) {
 
     const handleOAuth = async (provider: 'google' | 'github') => {
         // Persist pending data before redirect wipes client state
@@ -27,7 +29,9 @@ export function OAuthButtons({ flow, size = 'md', extraScopes = [], onBeforeRedi
             ? extraScopes.join(' ')
             : undefined;
 
-        const redirectTo = `${window.location.origin}/auth/callback?flow=${flow}`;
+        const redirectTo = next
+            ? `${window.location.origin}/auth/callback?flow=${flow}&next=${encodeURIComponent(next)}`
+            : `${window.location.origin}/auth/callback?flow=${flow}`;
 
         const { error } = await supabase.auth.signInWithOAuth({
             provider,

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Zap, Eye, EyeOff, Mail } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { saveMission } from '../actions/saveMission';
@@ -17,7 +17,6 @@ interface OnboardingProps {
 }
 
 export default function Onboarding({ oauthUser }: OnboardingProps) {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -107,7 +106,8 @@ export default function Onboarding({ oauthUser }: OnboardingProps) {
                 );
 
                 if (result.success) {
-                    router.push('/dashboard');
+                    const nextParam = searchParams.get('next');
+                    window.location.href = (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) ? nextParam : '/dashboard';
                 } else {
                     setError('Error: ' + result.message);
                     setLoading(false);
@@ -143,7 +143,8 @@ export default function Onboarding({ oauthUser }: OnboardingProps) {
             try {
                 const result = await saveMission(finalData);
                 if (result.success) {
-                    router.push('/dashboard');
+                    const nextParam = searchParams.get('next');
+                    window.location.href = (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) ? nextParam : '/dashboard';
                 } else {
                     setError('Error: ' + result.message);
                 }
@@ -343,6 +344,7 @@ export default function Onboarding({ oauthUser }: OnboardingProps) {
                             <OAuthButtons
                                 flow="onboarding"
                                 onBeforeRedirect={handleBeforeOAuthRedirect}
+                                next={searchParams.get('next') || undefined}
                             />
 
                             {/* Divider */}

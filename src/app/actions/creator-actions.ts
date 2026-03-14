@@ -65,18 +65,7 @@ export async function getCreatorStats(userId: string) {
             return { success: false, error: "Creator profile not found" };
         }
 
-        // 2. Get Analytics Stats
-        // Count 'creator_search' events for this creator
-        // Target ID for searches could be channel_name or channel_url. 
-        // We'll assume we track by channel_url for uniqueness or creator_id. 
-        // Let's assume we track by creator.id for direct lookups if we implement search tracking that way.
-        // OR we track by channel_url associated with videos.
-
-        // For 'total_views', we sum up 'video_view' events for all videos owned by this creator via channel_url matching.
-        // This is a bit heavy for a simple query. 
-        // Optimization: Creator should have 'channel_url' that videos have 'channel_url'.
-
-        // Let's fetch all videos by this creator to get their IDs
+        // 2. Fetch all videos by this creator
         const { data: videos, error: videoError } = await supabaseAdmin
             .from('videos')
             .select('id, title, status, human_score, custom_links, published_at, custom_description, takeaways, summary_points, slug')
@@ -89,76 +78,61 @@ export async function getCreatorStats(userId: string) {
 
         const videoIds = videos?.map(v => v.id) || [];
 
-        // Count Views from Analytics (Real-time-ish)
-        // Alternatively, we could just trust 'views_count' on video table if we update it periodically.
-        // Let's count from analytics_events for 'today' or 'last 7 days' if needed, 
-        // but for "Total Veritas Views" on dashboard, let's aggregate.
-
-        let searchCount = 0;
-        let topSearchedVideos: { videoId: string; title: string; count: number }[] = [];
-
-        if (videoIds.length > 0) {
-            const { count: sc } = await supabaseAdmin
-                .from('analytics_events')
-                .select('*', { count: 'exact', head: true })
-                .eq('event_type', 'creator_search')
-                .in('target_id', videoIds);
-            searchCount = sc || 0;
-
-            if (searchCount > 0) {
-                const { data: searchEvents } = await supabaseAdmin
+        // 3. Fire all independent queries in parallel
+        const [searchEventsRes, viewEventsRes, handshakeResult] = await Promise.all([
+            // Search events — single query replaces count-then-fetch pattern
+            videoIds.length > 0
+                ? supabaseAdmin
                     .from('analytics_events')
                     .select('target_id')
                     .eq('event_type', 'creator_search')
-                    .in('target_id', videoIds);
-
-                const countMap = new Map<string, number>();
-                for (const row of searchEvents ?? []) {
-                    countMap.set(row.target_id, (countMap.get(row.target_id) ?? 0) + 1);
-                }
-                topSearchedVideos = [...countMap.entries()]
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 3)
-                    .map(([id, count]) => {
-                        const v = videos?.find((v: any) => v.id === id);
-                        return { videoId: id, count, title: v?.title ?? '' };
-                    });
-            }
-        }
-
-        // Calculate total views from videos list (assuming we have a view counter on videos or we count events)
-        // Let's do a count of all video_view events for these video IDs
-        let totalViews = 0;
-
-        if (videoIds.length > 0) {
-            const { count: viewsCount } = await supabaseAdmin
-                .from('analytics_events')
+                    .in('target_id', videoIds)
+                : Promise.resolve({ data: [] as { target_id: string }[] }),
+            // View events — single query gives both per-video counts and total
+            videoIds.length > 0
+                ? supabaseAdmin
+                    .from('analytics_events')
+                    .select('target_id')
+                    .eq('event_type', 'video_view')
+                    .in('target_id', videoIds)
+                : Promise.resolve({ data: [] as { target_id: string }[] }),
+            // Handshake count
+            supabaseAdmin
+                .from('handshakes')
                 .select('*', { count: 'exact', head: true })
-                .eq('event_type', 'video_view')
-                .in('target_id', videoIds);
+                .eq('creator_id', creator.id),
+        ]);
 
-            totalViews = viewsCount || 0;
+        // Aggregate search events
+        let searchCount = 0;
+        let topSearchedVideos: { videoId: string; title: string; count: number }[] = [];
+        const searchData = searchEventsRes.data ?? [];
+        searchCount = searchData.length;
+        if (searchCount > 0) {
+            const countMap = new Map<string, number>();
+            for (const row of searchData) {
+                countMap.set(row.target_id, (countMap.get(row.target_id) ?? 0) + 1);
+            }
+            topSearchedVideos = [...countMap.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([id, count]) => {
+                    const v = videos?.find((v: any) => v.id === id);
+                    return { videoId: id, count, title: v?.title ?? '' };
+                });
         }
 
-        // Calculate per-video view counts
+        // Aggregate view events — per-video counts + total in one pass
         const perVideoViewCounts: Record<string, number> = {};
-        if (videoIds.length > 0) {
-            const { data: allViewEvents } = await supabaseAdmin
-                .from('analytics_events')
-                .select('target_id')
-                .eq('event_type', 'video_view')
-                .in('target_id', videoIds);
-
-            allViewEvents?.forEach((event: any) => {
-                const videoId = event.target_id;
-                perVideoViewCounts[videoId] = (perVideoViewCounts[videoId] || 0) + 1;
-            });
-        }
+        const viewData = viewEventsRes.data ?? [];
+        viewData.forEach((event: any) => {
+            perVideoViewCounts[event.target_id] = (perVideoViewCounts[event.target_id] || 0) + 1;
+        });
+        const totalViews = viewData.length;
+        const totalHandshakes = handshakeResult.count || 0;
 
         // Enrich videos with view counts and resolved takeaways
         const enrichedVideos = videos?.map(video => {
-            // If creator has saved custom takeaways (non-empty), use those.
-            // Otherwise fall back to the AI-generated summary_points shown on the feed.
             const resolvedTakeaways: string[] =
                 (video.takeaways && video.takeaways.some((t: string) => t.trim() !== ''))
                     ? video.takeaways
@@ -170,40 +144,6 @@ export async function getCreatorStats(userId: string) {
             };
         }) || [];
 
-        // 3. Traffic Insights (Filter usage)
-        let trafficInsights = {
-            last_14_days: 0,
-            evergreen: 0,
-            other: 0,
-            total: 0
-        };
-
-        if (videoIds.length > 0) {
-            const { data: viewEvents } = await supabaseAdmin
-                .from('analytics_events')
-                .select('metadata')
-                .eq('event_type', 'video_view')
-                .in('target_id', videoIds);
-
-            viewEvents?.forEach((ev: any) => {
-                const context = ev.metadata?.source_context || 'unknown';
-                if (context.includes('14')) trafficInsights.last_14_days++;
-                else if (context.includes('evergreen')) trafficInsights.evergreen++;
-                else trafficInsights.other++;
-                trafficInsights.total++;
-            });
-        }
-
-        // 4. Opportunity Gaps + Handshake Count (parallel)
-        const [gaps, handshakeResult] = await Promise.all([
-            getOpportunityGaps(),
-            supabaseAdmin
-                .from('handshakes')
-                .select('*', { count: 'exact', head: true })
-                .eq('creator_id', creator.id),
-        ]);
-        const totalHandshakes = handshakeResult.count || 0;
-
         return {
             success: true,
             stats: {
@@ -214,8 +154,6 @@ export async function getCreatorStats(userId: string) {
                 humanScoreAvg: videos?.length > 0
                     ? Math.round(videos.reduce((sum: number, v: any) => sum + (v.human_score || 0), 0) / videos.length)
                     : 0,
-                trafficInsights,
-                gaps,
                 topSearchedVideos
             },
             creator: {

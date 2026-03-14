@@ -39,18 +39,6 @@ interface CreatorStats {
     videosPromoted: number;
     humanScoreAvg: number;
     topSearchedVideos?: { videoId: string; title: string; count: number }[];
-    trafficInsights?: {
-        last_14_days: number;
-        evergreen: number;
-        other: number;
-        total: number;
-    };
-    gaps?: {
-        term: string;
-        demand: number;
-        supply: number;
-        score: number;
-    }[];
 }
 
 interface CreatorProfile {

@@ -4,12 +4,11 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Mail, Lock, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { viewerLogin } from '../actions/auth-actions';
 import { OAuthButtons } from '@/components/OAuthButtons';
 
 export default function LoginPage() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -37,8 +36,13 @@ export default function LoginPage() {
         const result = await viewerLogin(email, password);
 
         if (result.success) {
-            router.push('/dashboard');
-            router.refresh();
+            // Full page navigation (not router.push) so UserProvider re-mounts with fresh cookies
+            const nextParam = searchParams.get('next');
+            if (nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')) {
+                window.location.href = nextParam;
+            } else {
+                window.location.href = '/dashboard';
+            }
         } else {
             setError(result.message || "Failed to log in.");
             setIsLoading(false);
@@ -77,8 +81,8 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {/* OAuth Buttons */}
-                    <OAuthButtons flow="login" className="mb-4" />
+                    {/* OAuth Buttons — pass next param so OAuth redirect preserves return URL */}
+                    <OAuthButtons flow="login" className="mb-4" next={searchParams.get('next') || undefined} />
 
                     {/* Divider */}
                     <div className="relative flex items-center mb-4">
