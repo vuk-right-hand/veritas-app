@@ -564,23 +564,7 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Center: Glowing Suggest Bar (visible when scrolled) */}
-                    <AnimatePresence>
-                        {isScrolled && (
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                onClick={() => setShowMobileSuggest(true)}
-                                className="absolute left-1/2 -translate-x-1/2 px-5 py-1.5 bg-red-600/20 border border-red-500/40 rounded-full text-[11px] font-bold text-red-300 shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 transition-transform"
-                            >
-                                <Zap className="w-3 h-3 inline mr-1" />
-                                Suggest
-                            </motion.button>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Right: Founder Meeting pill (pre-scroll) + Compact icons (when scrolled) */}
+                    {/* Right: Founder Meeting pill (pre-scroll) + Suggest + Search + Filter icons (when scrolled) */}
                     <div className="flex items-center gap-2">
                         <AnimatePresence>
                             {!isScrolled && (
@@ -614,6 +598,17 @@ export default function Dashboard() {
                                         initial={{ opacity: 0, x: 10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         exit={{ opacity: 0, x: 10 }}
+                                        onClick={() => setShowMobileSuggest(true)}
+                                        className="px-3 py-1.5 bg-red-600/20 border border-red-500/40 rounded-full text-[11px] font-bold text-red-300 shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 transition-transform"
+                                    >
+                                        <Zap className="w-3 h-3 inline mr-1" />
+                                        Suggest
+                                    </motion.button>
+                                    <motion.button
+                                        initial={{ opacity: 0, x: 10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        transition={{ delay: 0.03 }}
                                         onClick={() => {
                                             setShowMobileFilters(false);
                                             if (showMobileSearch) {

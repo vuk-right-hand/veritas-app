@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veritas — Real Human Experts",
+  title: "VibeCodersHQ",
   description: "No AI. No entertainment. No faceless BS. Real undiscovered experts from the YouTube ocean.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Veritas",
+    title: "VibeCodersHQ",
   },
   other: {
     "mobile-web-app-capable": "yes",

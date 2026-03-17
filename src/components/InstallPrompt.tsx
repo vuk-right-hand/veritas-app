@@ -107,14 +107,14 @@ export default function InstallPrompt({ videoViewCount }: InstallPromptProps) {
                         />
 
                         <h2 className="text-xl font-bold text-white mb-2">
-                            Unlock Full Veritas Experience
+                            Unlock Full Experience
                         </h2>
 
                         {platform === 'ios' ? (
                             /* iOS Flow */
                             <>
                                 <p className="text-sm text-gray-400 mb-6 max-w-xs">
-                                    To enable premium features and instant access, add Veritas app to your home screen.
+                                    Add the app to your home screen for premium features and instant access.
                                 </p>
 
                                 {/* Step-by-step instructions */}
@@ -162,15 +162,40 @@ export default function InstallPrompt({ videoViewCount }: InstallPromptProps) {
                             /* Android Flow */
                             <>
                                 <p className="text-sm text-gray-400 mb-6 max-w-xs">
-                                    Tap below to enable premium features and instant access. Add Veritas app to your home screen.
+                                    {deferredPrompt
+                                        ? 'Tap below to add the app to your home screen for instant access.'
+                                        : 'Open your browser menu (⋮) and tap "Add to Home Screen" for instant access.'}
                                 </p>
 
-                                <button
-                                    onClick={handleAndroidInstall}
-                                    className="w-full max-w-xs py-4 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_rgba(220,38,38,0.3)] text-center"
-                                >
-                                    Add Veritas to Home Screen
-                                </button>
+                                {deferredPrompt ? (
+                                    <button
+                                        onClick={handleAndroidInstall}
+                                        className="w-full max-w-xs py-4 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-[0_0_30px_rgba(220,38,38,0.3)] text-center"
+                                    >
+                                        Add to Home Screen
+                                    </button>
+                                ) : (
+                                    <div className="w-full max-w-xs space-y-4 mb-2">
+                                        <div className="flex items-center gap-4 bg-white/5 rounded-xl p-3 border border-white/5">
+                                            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-lg">⋮</span>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-semibold text-white">1. Tap ⋮ menu</p>
+                                                <p className="text-[11px] text-gray-500">Top right corner of Chrome</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 bg-white/5 rounded-xl p-3 border border-white/5">
+                                            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                                <Plus className="w-5 h-5 text-green-400" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-semibold text-white">2. "Add to Home Screen"</p>
+                                                <p className="text-[11px] text-gray-500">Tap it and confirm — you're done!</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
 

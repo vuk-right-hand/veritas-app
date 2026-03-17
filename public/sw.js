@@ -1,5 +1,5 @@
 // Veritas Service Worker — App Shell Cache
-const CACHE_NAME = 'veritas-v2';
+const CACHE_NAME = 'veritas-v3';
 const SHELL_ASSETS = [
     '/dashboard',
     '/manifest.json',

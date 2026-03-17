@@ -1,12 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowRight, Sparkles } from "lucide-react";
 import Footer from "@/components/Footer";
+import { Suspense } from "react";
+
+function StrayCodeRedirect() {
+  const searchParams = useSearchParams();
+  const code = searchParams.get('code');
+  if (code) {
+    // Supabase sent the PKCE code to root instead of /auth/callback — redirect
+    if (typeof window !== 'undefined') {
+      window.location.href = `/auth/callback?flow=onboarding&code=${code}`;
+    }
+    return null;
+  }
+  return null;
+}
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+      <Suspense><StrayCodeRedirect /></Suspense>
 
       {/* Background Gradient - Dark Red */}
       <div className="absolute top-[-20%] right-[-10%] w-[400px] md:w-[800px] h-[400px] md:h-[800px] bg-red-900/20 rounded-full blur-[80px] md:blur-[120px] pointer-events-none" />
