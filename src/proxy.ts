@@ -127,6 +127,6 @@ export const config = {
          * - favicon.ico
          * - Any file with an extension (.svg, .png, .jpg, etc.)
          */
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js|xml|ico|txt|webmanifest)$).*)',
     ],
 }
