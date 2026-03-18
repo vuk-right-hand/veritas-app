@@ -1017,7 +1017,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                     <img
                                                                         src="/veritas-heart.svg"
                                                                         alt="Like"
-                                                                        className={`w-8 h-8 object-contain animate-heartbeat transition-[filter,opacity] duration-300 ${isLiked ? '' : 'grayscale brightness-[4] opacity-90'}`}
+                                                                        className={`w-8 h-8 object-contain animate-heartbeat transition-[filter,opacity] duration-300 ${isLiked ? '' : 'brightness-0 invert'}`}
                                                                     />
                                                                 </button>
 
