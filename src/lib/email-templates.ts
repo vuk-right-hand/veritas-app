@@ -12,7 +12,7 @@ function escapeHtml(str: string): string {
         .replace(/'/g, '&#039;');
 }
 
-function baseLayout(content: string): string {
+function baseLayout(content: string, unsubscribeUrl: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -31,7 +31,7 @@ function baseLayout(content: string): string {
         <!-- Footer -->
         <tr><td style="padding:16px 32px;border-top:1px solid #e4e4e7;color:#a1a1aa;font-size:12px;line-height:1.6;">
           You're receiving this because you use VibeCodersHQ.<br>
-          <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#a1a1aa;text-decoration:underline;">Unsubscribe</a>
+          <a href="${escapeHtml(unsubscribeUrl)}" style="color:#a1a1aa;text-decoration:underline;">Unsubscribe</a>
         </td></tr>
       </table>
     </td></tr>
@@ -52,10 +52,11 @@ interface UserApprovedParams {
     videoSlug: string;
     channelName: string;
     siteUrl: string;
+    unsubscribeUrl: string;
 }
 
 export function videoApprovedUserEmail(params: UserApprovedParams): { subject: string; html: string } {
-    const { userName, videoTitle, videoSlug, channelName, siteUrl } = params;
+    const { userName, videoTitle, videoSlug, channelName, siteUrl, unsubscribeUrl } = params;
     const videoUrl = `${siteUrl}/v/${videoSlug}`;
 
     const shareText = `Yo ${escapeHtml(channelName)}, I just passed the active recall quiz for your video on VibeCodersHQ: ${videoUrl}\nThe knowledge-retention is crazy when you actually have to earn it after watching. You have a verified profile up there now, you should claim it to update the links to your stuff.`;
@@ -88,7 +89,7 @@ export function videoApprovedUserEmail(params: UserApprovedParams): { subject: s
 
     return {
         subject: 'Your video pick is live (time to take the credit)',
-        html: baseLayout(content),
+        html: baseLayout(content, unsubscribeUrl),
     };
 }
 
@@ -99,10 +100,11 @@ interface CreatorApprovedParams {
     videoTitle: string;
     videoSlug: string;
     siteUrl: string;
+    unsubscribeUrl: string;
 }
 
 export function videoApprovedCreatorEmail(params: CreatorApprovedParams): { subject: string; html: string } {
-    const { creatorName, videoTitle, videoSlug, siteUrl } = params;
+    const { creatorName, videoTitle, videoSlug, siteUrl, unsubscribeUrl } = params;
     const videoUrl = `${siteUrl}/v/${videoSlug}`;
 
     const content = `
@@ -132,7 +134,7 @@ export function videoApprovedCreatorEmail(params: CreatorApprovedParams): { subj
 
     return {
         subject: 'Your video is live on VibeCodersHQ.',
-        html: baseLayout(content),
+        html: baseLayout(content, unsubscribeUrl),
     };
 }
 
@@ -144,10 +146,11 @@ interface MilestoneParams {
     videoSlug: string;
     milestone: number;
     siteUrl: string;
+    unsubscribeUrl: string;
 }
 
 export function viewMilestoneEmail(params: MilestoneParams): { subject: string; html: string } {
-    const { creatorName, videoTitle, videoSlug, milestone, siteUrl } = params;
+    const { creatorName, videoTitle, videoSlug, milestone, siteUrl, unsubscribeUrl } = params;
     const videoUrl = `${siteUrl}/v/${videoSlug}`;
 
     const m = milestone.toLocaleString('en-US');
@@ -184,6 +187,6 @@ export function viewMilestoneEmail(params: MilestoneParams): { subject: string; 
 
     return {
         subject: `${m} verified learners on: ${escapeHtml(videoTitle)}`,
-        html: baseLayout(content),
+        html: baseLayout(content, unsubscribeUrl),
     };
 }

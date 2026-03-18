@@ -2,6 +2,7 @@
 
 import { resend, EMAIL_FROM } from '@/lib/resend';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { buildUnsubscribeUrl } from '@/app/api/unsubscribe/route';
 import {
     videoApprovedUserEmail,
     videoApprovedCreatorEmail,
@@ -11,15 +12,41 @@ import {
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
+// ─── Check if email is unsubscribed ─────────────────────────
+
+async function isUnsubscribed(email: string): Promise<boolean> {
+    const { data } = await supabaseAdmin
+        .from('email_unsubscribes')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+    return !!data;
+}
+
 // ─── Low-level send wrapper ─────────────────────────────────
 
-async function sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; id?: string }> {
+async function sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    unsubscribeUrl: string
+): Promise<{ success: boolean; id?: string }> {
+    // Check opt-out before sending
+    if (await isUnsubscribed(to)) {
+        console.log(`[sendEmail] Skipping unsubscribed recipient: ${to}`);
+        return { success: false };
+    }
+
     try {
         const { data, error } = await resend.emails.send({
             from: EMAIL_FROM,
             to,
             subject,
             html,
+            headers: {
+                'List-Unsubscribe': `<${unsubscribeUrl}>`,
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
         });
         if (error) {
             console.error('[sendEmail] Resend error:', error);
@@ -93,14 +120,16 @@ export async function sendApprovalEmails(videoId: string, videoData: VideoData) 
                     .maybeSingle();
 
                 if (!existing) {
+                    const unsubscribeUrl = buildUnsubscribeUrl(creatorEmail, SITE_URL);
                     const { subject, html } = videoApprovedCreatorEmail({
                         creatorName: creator.channel_name || 'Creator',
                         videoTitle: videoData.title,
                         videoSlug: videoData.slug,
                         siteUrl: SITE_URL,
+                        unsubscribeUrl,
                     });
 
-                    const result = await sendEmail(creatorEmail, subject, html);
+                    const result = await sendEmail(creatorEmail, subject, html, unsubscribeUrl);
 
                     await supabaseAdmin.from('email_notifications_log').insert({
                         email_type: 'video_approved_creator',
@@ -154,15 +183,17 @@ export async function sendApprovalEmails(videoId: string, videoData: VideoData) 
             if (mission?.name) userName = mission.name;
         }
 
+        const unsubscribeUrl = buildUnsubscribeUrl(email, SITE_URL);
         const { subject, html } = videoApprovedUserEmail({
             userName,
             videoTitle: videoData.title,
             videoSlug: videoData.slug,
             channelName: videoData.channel_title || 'the creator',
             siteUrl: SITE_URL,
+            unsubscribeUrl,
         });
 
-        const result = await sendEmail(email, subject, html);
+        const result = await sendEmail(email, subject, html, unsubscribeUrl);
 
         await supabaseAdmin.from('email_notifications_log').insert({
             email_type: 'video_approved_user',
@@ -211,15 +242,17 @@ export async function checkViewMilestone(videoId: string, milestone: number) {
     if (!creatorEmail) return;
 
     // 4. Send milestone email
+    const unsubscribeUrl = buildUnsubscribeUrl(creatorEmail, SITE_URL);
     const { subject, html } = viewMilestoneEmail({
         creatorName: creator.channel_name || 'Creator',
         videoTitle: video.title,
         videoSlug: video.slug,
         milestone,
         siteUrl: SITE_URL,
+        unsubscribeUrl,
     });
 
-    const result = await sendEmail(creatorEmail, subject, html);
+    const result = await sendEmail(creatorEmail, subject, html, unsubscribeUrl);
 
     await supabaseAdmin.from('email_notifications_log').insert({
         email_type: 'view_milestone',
