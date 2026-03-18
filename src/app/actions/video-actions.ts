@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { slugify } from '@/lib/utils';
 import { suggestChannel } from './channel-actions';
 import { getAuthenticatedUserId } from './auth-actions';
+import { sendApprovalEmails, checkViewMilestone } from './email-actions';
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -275,6 +276,18 @@ export async function suggestVideo(videoUrl: string) {
             .update({ suggestion_count: (existing.suggestion_count || 1) + 1 })
             .eq('id', videoId);
 
+        // Record who suggested (for approval notification emails)
+        const cookieStore = await cookies();
+        const missionId = cookieStore.get('veritas_user')?.value || null;
+        const userId = await getAuthenticatedUserId();
+        if (missionId || userId) {
+            await supabase.from('video_suggestions').insert({
+                video_id: videoId,
+                mission_id: missionId,
+                user_id: userId,
+            });
+        }
+
         if (existing.status === 'banned') {
             return { success: false, message: "This video has been declined by the moderators." };
         }
@@ -362,9 +375,23 @@ export async function suggestVideo(videoUrl: string) {
         insertSuccess = true;
     }
 
+    // Record who suggested (for approval notification emails)
+    const cookieStore2 = await cookies();
+    const suggestMissionId = cookieStore2.get('veritas_user')?.value || null;
+    const suggestUserId = await getAuthenticatedUserId();
+    if (suggestMissionId || suggestUserId) {
+        await supabase.from('video_suggestions').insert({
+            video_id: videoId,
+            mission_id: suggestMissionId,
+            user_id: suggestUserId,
+        });
+    }
+
     revalidatePath('/founder-meeting');
     return { success: true, message: "Video submitted for verification!" };
 }
+
+const MILESTONES = [100, 500, 1000, 3000, 5000, 10000];
 
 export async function recordVideoView(videoId: string, metadata: any = {}) {
     // Fire and forget - don't await in critical path if possible, or await but suppress errors
@@ -377,8 +404,15 @@ export async function recordVideoView(videoId: string, metadata: any = {}) {
                 metadata
             });
 
-        // Increment global counter
-        await supabase.rpc('increment_video_view', { video_id_param: videoId });
+        // Increment global counter — RPC returns new total (zero extra DB reads for milestones)
+        const { data: newViewCount } = await supabase.rpc('increment_video_view', { video_id_param: videoId });
+
+        // Only fire milestone check when count exactly hits a threshold
+        if (typeof newViewCount === 'number' && MILESTONES.includes(newViewCount)) {
+            checkViewMilestone(videoId, newViewCount).catch(err =>
+                console.error('[recordVideoView] Milestone email error:', err)
+            );
+        }
 
     } catch (e) {
         console.error("Failed to record view:", e);
@@ -487,6 +521,13 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
                     revalidatePath(`/c/${creator.slug}`);
                 }
             }
+        }
+
+        // Fire approval notification emails (non-blocking)
+        if (data && data.length > 0) {
+            sendApprovalEmails(videoId, data[0]).catch(err =>
+                console.error('[moderateVideo] Email notification error:', err)
+            );
         }
     }
 
