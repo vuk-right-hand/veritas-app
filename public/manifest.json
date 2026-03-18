@@ -38,5 +38,28 @@
             "purpose": "maskable"
         }
     ],
-    "id": "/dashboard"
+    "id": "/dashboard",
+    "screenshots": [
+        {
+            "src": "/screenshots/Screenshot_20260318-144655.png",
+            "sizes": "1080x2340",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Discover curated experts on your feed"
+        },
+        {
+            "src": "/screenshots/Screenshot_20260318-144747.png",
+            "sizes": "1080x2340",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Watch real human experts, no AI fluff"
+        },
+        {
+            "src": "/screenshots/Screenshot_20260318-144930.png",
+            "sizes": "1080x2340",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Your personalised VibeCodersHQ experience"
+        }
+    ]
 }
