@@ -7,6 +7,7 @@ import { ArrowLeft, MessageSquare, Send, Sparkles, Calendar, Lightbulb, Loader2,
 import SmartVideoPlayer, { SmartVideoPlayerRef } from '@/components/SmartVideoPlayer';
 import FeatureRequestModal from '@/components/FeatureRequestModal';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
+import BottomNav from '@/components/BottomNav';
 import { getComments } from '@/app/actions/video-actions';
 import { postPlatformComment } from '@/app/actions/platform-update-actions';
 import { useUser } from '@/components/UserContext';
@@ -1048,6 +1049,8 @@ export default function FounderMeeting() {
                 isOpen={showProfileRequiredModal}
                 onClose={() => setShowProfileRequiredModal(false)}
             />
+
+            <BottomNav />
         </div>
     );
 }

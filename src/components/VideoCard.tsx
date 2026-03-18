@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, Pause, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles, RotateCcw, RotateCw, Handshake } from 'lucide-react';
+import { Play, X, Brain, CheckCircle2, Volume2, Maximize2, VolumeX, Send, Loader2, ChevronDown, ExternalLink, Zap, Trophy, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SmartVideoPlayer, { SmartVideoPlayerRef } from './SmartVideoPlayer';
@@ -534,36 +534,6 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
         }
     };
 
-    const togglePlay = () => {
-        if (playerRef.current) {
-            if (isPlaying) {
-                playerRef.current.pauseVideo();
-            } else {
-                playerRef.current.playVideo();
-            }
-            setIsPlaying(!isPlaying);
-        }
-    };
-
-    // Skip ±10s — seeks with allowSeekAhead=true so it works even outside
-    // the buffered range. Re-issues playVideo() to push through the brief
-    // BUFFERING state on mobile. Sets lastSeekTimeRef so the progress poll
-    // doesn't overwrite our UI update with the stale pre-seek position.
-    const skipSeconds = useCallback((delta: number) => {
-        if (!playerRef.current) return;
-        const wasPlaying = isPlaying;
-        const curr = playerRef.current.getCurrentTime() || 0;
-        const dur = playerRef.current.getDuration() || duration;
-        const newTime = Math.max(0, Math.min(curr + delta, dur));
-        lastSeekTimeRef.current = Date.now();
-        playerRef.current.seekTo(newTime, true);
-        setCurrentTime(newTime);
-        if (dur > 0) setProgress((newTime / dur) * 100);
-        if (wasPlaying) {
-            setTimeout(() => playerRef.current?.playVideo(), 100);
-        }
-    }, [duration, isPlaying]);
-
     const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newProgress = parseFloat(e.target.value);
         setProgress(newProgress);
@@ -930,7 +900,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                 {/* CONTROLS BAR — sits BELOW the iframe, never overlays it */}
                                                 {!isVideoEnded && (
-                                                    <div ref={controlsBarRef} className={`w-full bg-[#0f0f0f] flex flex-col relative ${isFullscreen ? 'px-3 py-1.5 gap-1 flex-shrink-0' : 'px-4 py-2 gap-1.5'}`}>
+                                                    <div ref={controlsBarRef} className={`w-full bg-[#0f0f0f] flex flex-col relative ${isFullscreen ? 'pl-3 pr-4 py-1.5 gap-1 flex-shrink-0' : 'pl-4 pr-5 py-2 gap-1.5'}`}>
 
                                                         {/* "Love it!" toast — above controls bar, visually above the heart button */}
                                                         <AnimatePresence>
@@ -975,34 +945,8 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         {/* Buttons Row */}
                                                         <div className="flex items-center justify-between">
 
-                                                            {/* Left Side: Play | Skip Back | Skip Forward | Volume | Time */}
+                                                            {/* Left Side: Volume | Time */}
                                                             <div className="flex items-center gap-2 md:gap-3">
-                                                                {/* Play/Pause */}
-                                                                <button
-                                                                    onClick={togglePlay}
-                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                                                                >
-                                                                    {isPlaying ? <Pause className="w-4 h-4 text-white fill-white" /> : <Play className="w-4 h-4 text-white fill-white ml-0.5" />}
-                                                                </button>
-
-                                                                {/* Skip Back -10s */}
-                                                                <button
-                                                                    onClick={() => skipSeconds(-10)}
-                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                                                                    title="Skip back 10s"
-                                                                >
-                                                                    <RotateCcw className="w-4 h-4 text-white" />
-                                                                </button>
-
-                                                                {/* Skip Forward +10s */}
-                                                                <button
-                                                                    onClick={() => skipSeconds(10)}
-                                                                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                                                                    title="Skip forward 10s"
-                                                                >
-                                                                    <RotateCw className="w-4 h-4 text-white" />
-                                                                </button>
-
                                                                 {/* Volume */}
                                                                 <div
                                                                     className="relative flex items-center"
@@ -1063,7 +1007,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                                             {/* Right Side: Heart | Speed | Fullscreen */}
                                                             <div className="flex items-center gap-3">
-                                                                {/* Heart Like Button — no circle, raw on dark bg */}
+                                                                {/* Heart Like Button */}
                                                                 <button
                                                                     onClick={handleLike}
                                                                     disabled={isLikeLoading}
@@ -1073,7 +1017,7 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                                     <img
                                                                         src="/veritas-heart.svg"
                                                                         alt="Like"
-                                                                        className={`w-6 h-6 object-contain animate-heartbeat transition-[filter,opacity] duration-300 ${isLiked ? '' : 'grayscale brightness-[3] opacity-80'}`}
+                                                                        className={`w-8 h-8 object-contain animate-heartbeat transition-[filter,opacity] duration-300 ${isLiked ? '' : 'grayscale brightness-[4] opacity-90'}`}
                                                                     />
                                                                 </button>
 
@@ -1173,30 +1117,9 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
 
                                             {/* Description & Links (Moved OUT of Video Container) */}
                                             <div className="flex flex-col gap-2">
-                                                <div className="flex items-center justify-between">
-                                                    <h3 className="text-2xl font-bold text-white leading-tight">{title}</h3>
-                                                    {slug && <ShareButton path={`/v/${slug}`} />}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-2">
-                                                    {creatorSlug ? (
-                                                        <Link href={`/c/${creatorSlug}`} className="hover:text-red-400 transition-colors uppercase tracking-wider">
-                                                            {channelTitle || 'Unknown Channel'}
-                                                        </Link>
-                                                    ) : (
-                                                        <span className="uppercase tracking-wider">{channelTitle || 'Unknown Channel'}</span>
-                                                    )}
-                                                    {publishedAt && (
-                                                        <>
-                                                            <span>•</span>
-                                                            <span>{new Date(publishedAt).toLocaleDateString()}</span>
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                {/* Handshake (follow) pill */}
+                                                {/* Handshake (follow) pill — above headline */}
                                                 {creatorId && (
-                                                    <div className="mb-1">
+                                                    <div>
                                                         <button
                                                             onClick={handleHandshake}
                                                             disabled={handshakeLoading}
@@ -1217,6 +1140,27 @@ export default function VideoCard({ videoId, title, humanScore, takeaways, custo
                                                         </button>
                                                     </div>
                                                 )}
+
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-2xl font-bold text-white leading-tight">{title}</h3>
+                                                    {slug && <ShareButton path={`/v/${slug}`} />}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-2">
+                                                    {creatorSlug ? (
+                                                        <Link href={`/c/${creatorSlug}`} className="hover:text-red-400 transition-colors uppercase tracking-wider">
+                                                            {channelTitle || 'Unknown Channel'}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="uppercase tracking-wider">{channelTitle || 'Unknown Channel'}</span>
+                                                    )}
+                                                    {publishedAt && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>{new Date(publishedAt).toLocaleDateString()}</span>
+                                                        </>
+                                                    )}
+                                                </div>
 
                                                 {/* Description & Links - Priority Display */}
                                                 <div className="text-sm text-gray-300 leading-relaxed">
