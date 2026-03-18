@@ -10,4 +10,4 @@ export const resend = new Resend(process.env.RESEND_API_KEY || '');
 
 // Verified domain sender
 // eslint-disable-next-line no-useless-escape
-export const EMAIL_FROM = 'Veritas <admin@vibecodershq.io>';
+export const EMAIL_FROM = 'Admin at VibeCodersHQ <admin@vibecodershq.io>';
