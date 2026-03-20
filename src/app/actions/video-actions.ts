@@ -391,6 +391,141 @@ export async function suggestVideo(videoUrl: string) {
     return { success: true, message: "Video submitted for verification!" };
 }
 
+// Admin-only: suggests a video without recording who suggested it (no email automations on approval)
+export async function adminSuggestVideo(videoUrl: string) {
+    // 1. Parse URL
+    let parsedUrl: URL;
+    try {
+        parsedUrl = new URL(videoUrl);
+    } catch (e) {
+        return { success: false, message: "Please paste the exact YouTube video URL" };
+    }
+
+    const isYouTube = parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be');
+    if (!isYouTube) {
+        return { success: false, message: "Please paste the exact YouTube video URL" };
+    }
+
+    // Reject channel URLs — admin should use the channels tab for those
+    const isChannelUrl =
+        parsedUrl.hostname.includes('youtube.com') && (
+            parsedUrl.pathname.startsWith('/@') ||
+            parsedUrl.pathname.startsWith('/c/') ||
+            parsedUrl.pathname.startsWith('/channel/')
+        );
+    if (isChannelUrl) {
+        return { success: false, message: "That looks like a channel URL. Use the Channels tab instead." };
+    }
+
+    // 2. Extract Video ID
+    let videoId = "";
+    if (parsedUrl.hostname.includes('youtube.com')) {
+        videoId = parsedUrl.searchParams.get('v') || "";
+    } else if (parsedUrl.hostname.includes('youtu.be')) {
+        videoId = parsedUrl.pathname.slice(1).split('?')[0];
+    }
+    if (!videoId) return { success: false, message: "Could not extract video ID from URL" };
+
+    // 3. Check if video already exists
+    const { data: existing } = await supabase
+        .from('videos')
+        .select('status, suggestion_count')
+        .eq('id', videoId)
+        .single();
+
+    if (existing) {
+        await supabase
+            .from('videos')
+            .update({ suggestion_count: (existing.suggestion_count || 1) + 1 })
+            .eq('id', videoId);
+
+        // No video_suggestions insert — no emails will fire on approval
+
+        if (existing.status === 'banned') {
+            return { success: false, message: "This video has been declined by the moderators." };
+        }
+        if (existing.status === 'verified') {
+            return { success: true, message: "Video already approved! Vote added." };
+        }
+        return { success: true, message: "Video already pending. Vote added!" };
+    }
+
+    // 4. Fetch metadata
+    const metadata = await getYouTubeMetadata(videoId);
+
+    let parsedChannelId = null;
+    if (metadata.author_url) {
+        const match = metadata.author_url.match(/@([^/?]+)/);
+        if (match && match[1]) {
+            parsedChannelId = match[1];
+        } else {
+            parsedChannelId = metadata.author_url.split('/').filter(Boolean).pop() || null;
+        }
+    }
+
+    // Auto-register channel
+    if (parsedChannelId && metadata.author_name) {
+        await supabase
+            .from('channels')
+            .upsert({
+                youtube_channel_id: parsedChannelId,
+                name: metadata.author_name,
+                status: 'pending',
+                is_claimed: false
+            }, { onConflict: 'youtube_channel_id', ignoreDuplicates: true });
+    }
+
+    // 5. Insert new pending video
+    let generatedSlug = slugify(metadata.title).substring(0, 100);
+    let insertSuccess = false;
+
+    while (!insertSuccess) {
+        const { error: insertError } = await supabase
+            .from('videos')
+            .insert({
+                id: videoId,
+                slug: generatedSlug,
+                title: metadata.title,
+                description: metadata.description,
+                channel_title: metadata.author_name,
+                channel_id: parsedChannelId,
+                channel_url: metadata.author_url,
+                published_at: metadata.published_at,
+                status: 'pending',
+                human_score: 50,
+                suggestion_count: 1
+            });
+
+        if (insertError) {
+            if (insertError.code === '23505' && insertError.message.includes('slug')) {
+                generatedSlug = `${slugify(metadata.title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
+                continue;
+            }
+            if (insertError.message.includes("column")) {
+                const { error: retryError } = await supabase
+                    .from('videos')
+                    .insert({
+                        id: videoId,
+                        slug: generatedSlug,
+                        title: metadata.title,
+                        status: 'pending',
+                        human_score: 50,
+                        suggestion_count: 1
+                    });
+                if (retryError) return { success: false, message: "Failed to submit video. " + retryError.message };
+            } else {
+                return { success: false, message: "Failed to submit video. " + insertError.message };
+            }
+        }
+        insertSuccess = true;
+    }
+
+    // No video_suggestions insert — no emails will fire on approval
+
+    revalidatePath('/suggested-videos');
+    return { success: true, message: "Video submitted for verification!" };
+}
+
 const MILESTONES = [100, 500, 1000, 3000, 5000, 10000];
 
 export async function recordVideoView(videoId: string, metadata: any = {}) {

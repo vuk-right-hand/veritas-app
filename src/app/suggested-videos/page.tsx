@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Box, MoreVertical, Trash2 } from 'lucide-react';
 import Hexagon from '@/components/Hexagon';
 import Portal from '@/components/ui/portal';
-import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo } from '@/app/actions/video-actions';
+import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo, adminSuggestVideo } from '@/app/actions/video-actions';
 import { suggestChannel, getPendingChannels, getApprovedChannels, getDeniedChannels, getStorageChannels, moderateChannel, deleteChannel } from '@/app/actions/channel-actions';
 import { getFeatureRequestsByStatus, moderateFeatureRequest, deleteFeatureRequest } from '@/app/actions/feature-actions';
 import { getContentGapsByStatus, moderateContentGap, deleteContentGap } from '@/app/actions/content-gap-actions';
@@ -383,6 +383,26 @@ export default function SuggestedVideosPage() {
         setIsSuggesting(false);
     };
 
+    const handleAdminSuggestVideo = async () => {
+        if (!suggestionUrl) return;
+        setIsSuggesting(true);
+        setSuggestionStatus('idle');
+
+        const result = await adminSuggestVideo(suggestionUrl);
+
+        if (result.success) {
+            setSuggestionStatus('success');
+            setSuggestionUrl("");
+            loadAllData();
+            setTimeout(() => setSuggestionStatus('idle'), 3000);
+        } else {
+            alert(result.message);
+            setSuggestionStatus('error');
+        }
+
+        setIsSuggesting(false);
+    };
+
     const handleSuggestPlatformUpdate = async () => {
         if (!suggestionUrl) return;
         setIsSuggesting(true);
@@ -686,9 +706,12 @@ export default function SuggestedVideosPage() {
 
             {/* Main Content */}
             <main className="pt-24 pb-8 px-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col">
-                {(activeView === 'channels' || activeView === 'platformUpdates') && (
+                {(activeView === 'videos' || activeView === 'channels' || activeView === 'platformUpdates') && (
                     <div className="w-full max-w-lg mb-6 self-start relative">
-                        <div className={`absolute inset-0 rounded-full blur-xl animate-pulse ${activeView === 'platformUpdates' ? 'bg-red-600/20' : 'bg-blue-600/20'}`} />
+                        <div className={`absolute inset-0 rounded-full blur-xl animate-pulse ${
+                            activeView === 'platformUpdates' || activeView === 'videos' ? 'bg-red-600/20'
+                            : 'bg-blue-600/20'
+                        }`} />
                         <input
                             type="text"
                             value={suggestionStatus === 'success' ? "Success! Added." : suggestionUrl}
@@ -697,28 +720,42 @@ export default function SuggestedVideosPage() {
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
-                                    if (activeView === 'channels') handleSuggestChannel();
+                                    if (activeView === 'videos') handleAdminSuggestVideo();
+                                    else if (activeView === 'channels') handleSuggestChannel();
                                     else handleSuggestPlatformUpdate();
                                 }
                             }}
-                            placeholder={activeView === 'platformUpdates' ? "Paste YouTube Update URL..." : "Paste a channel url..."}
+                            placeholder={
+                                activeView === 'platformUpdates' ? "Paste YouTube Update URL..."
+                                : activeView === 'videos' ? "Paste a video url..."
+                                : "Paste a channel url..."
+                            }
                             disabled={suggestionStatus === 'success'}
                             className={`w-full border-2 rounded-full py-3 px-6 text-sm focus:outline-none transition-all relative z-10 ${
-                                activeView === 'platformUpdates' ? 'shadow-[0_0_20px_rgba(255,59,59,0.4)]' : 'shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                                activeView === 'platformUpdates' || activeView === 'videos' ? 'shadow-[0_0_20px_rgba(255,59,59,0.4)]'
+                                : 'shadow-[0_0_20px_rgba(37,99,235,0.4)]'
                             } ${suggestionStatus === 'success'
                                 ? 'bg-green-900/20 border-green-500/50 text-green-400 font-bold tracking-wide'
                                 : activeView === 'platformUpdates'
+                                ? 'bg-[#1a1a1a] border-[#ff3b3b]/60 text-white placeholder:text-[#ff3b3b]/50 focus:border-[#ff3b3b] focus:bg-[#202020]'
+                                : activeView === 'videos'
                                 ? 'bg-[#1a1a1a] border-[#ff3b3b]/60 text-white placeholder:text-[#ff3b3b]/50 focus:border-[#ff3b3b] focus:bg-[#202020]'
                                 : 'bg-[#1a1a1a] border-blue-600/60 text-white placeholder:text-blue-300/50 focus:border-blue-500 focus:bg-[#202020]'
                                 }`}
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
                             <button
-                                onClick={activeView === 'channels' ? handleSuggestChannel : handleSuggestPlatformUpdate}
+                                onClick={
+                                    activeView === 'videos' ? handleAdminSuggestVideo
+                                    : activeView === 'channels' ? handleSuggestChannel
+                                    : handleSuggestPlatformUpdate
+                                }
                                 disabled={isSuggesting || suggestionStatus === 'success'}
                                 className={`p-1.5 rounded-full transition-all duration-500 ease-out disabled:opacity-100 ${suggestionStatus === 'success'
                                     ? 'bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.6)]'
                                     : activeView === 'platformUpdates'
+                                    ? 'bg-[#ff3b3b] text-white hover:bg-red-500 shadow-[0_0_10px_rgba(255,59,59,0.8)]'
+                                    : activeView === 'videos'
                                     ? 'bg-[#ff3b3b] text-white hover:bg-red-500 shadow-[0_0_10px_rgba(255,59,59,0.8)]'
                                     : 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.8)]'
                                     }`}
