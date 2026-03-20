@@ -17,6 +17,9 @@ interface OAuthButtonsProps {
     next?: string;
 }
 
+// Canonical origin — always matches Supabase redirect whitelist regardless of what the user typed in the browser
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'https://vibecodershq.io';
+
 export function OAuthButtons({ flow, size = 'md', extraScopes = [], onBeforeRedirect, className, next }: OAuthButtonsProps) {
 
     const handleOAuth = async (provider: 'google' | 'github') => {
@@ -30,8 +33,8 @@ export function OAuthButtons({ flow, size = 'md', extraScopes = [], onBeforeRedi
             : undefined;
 
         const redirectTo = next
-            ? `${window.location.origin}/auth/callback?flow=${flow}&next=${encodeURIComponent(next)}`
-            : `${window.location.origin}/auth/callback?flow=${flow}`;
+            ? `${SITE_ORIGIN}/auth/callback?flow=${flow}&next=${encodeURIComponent(next)}`
+            : `${SITE_ORIGIN}/auth/callback?flow=${flow}`;
 
         const { error } = await supabase.auth.signInWithOAuth({
             provider,
