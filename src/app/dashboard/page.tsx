@@ -520,7 +520,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-4 pl-6 border-l border-white/10">
                             <div className="flex flex-col items-end mr-2">
                                 <span className="text-sm font-semibold text-white">{userName || 'The Builder'}</span>
-                                {isLoggedIn === false ? (
+                                {isLoggedIn !== true ? (
                                     <button
                                         onClick={() => setShowProfileModal(true)}
                                         className="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
@@ -532,7 +532,7 @@ export default function Dashboard() {
                                     </Link>
                                 )}
                             </div>
-                            {isLoggedIn === false ? (
+                            {isLoggedIn !== true ? (
                                 <button
                                     onClick={() => setShowProfileModal(true)}
                                     className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors group overflow-hidden">

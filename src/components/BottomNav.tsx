@@ -91,7 +91,7 @@ export default function BottomNav() {
                 )}
 
                 {/* Profile Tab */}
-                {isLoggedIn === false ? (
+                {isLoggedIn !== true ? (
                     <button
                         onClick={() => setShowProfileModal(true)}
                         className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors text-gray-500 active:text-gray-300`}

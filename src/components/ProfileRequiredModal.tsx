@@ -71,7 +71,7 @@ export default function ProfileRequiredModal({ isOpen, onClose, source = 'defaul
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 50 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full md:max-w-sm bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-hidden max-h-[85vh] md:max-h-none overscroll-contain pb-safe"
+                        className="fixed bottom-0 md:top-1/2 left-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[201] w-full md:max-w-sm bg-[#111] border border-red-900/50 rounded-t-[2rem] md:rounded-[2rem] shadow-2xl shadow-red-900/20 overflow-y-auto max-h-[90vh] md:max-h-none overscroll-contain pb-safe"
                     >
                         {/* Header Accent */}
                         <div className="h-1 w-full bg-gradient-to-r from-red-600 to-red-900" />
