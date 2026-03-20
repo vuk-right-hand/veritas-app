@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
     const flow = searchParams.get('flow') as 'onboarding' | 'claim' | 'login' | 'creator-login' | null;
+    console.log(`[auth/callback] flow=${flow}, origin=${origin}, next=${searchParams.get('next')}, fullUrl=${request.url}`);
 
     if (!code) {
         return NextResponse.redirect(errorDest(flow, 'no_code', origin));
@@ -191,7 +192,14 @@ async function handleLogin(
     next: string | null
 ): Promise<NextResponse> {
     const result = await establishOAuthViewerSession(userId);
-    // Use `next` param if provided, otherwise use the default destination from session establishment
+    // New users MUST complete onboarding first — never let `next` skip it
+    if (result.isNewUser) {
+        const onboardingUrl = next
+            ? `/onboarding?next=${encodeURIComponent(next)}`
+            : '/onboarding';
+        return NextResponse.redirect(new URL(onboardingUrl, origin));
+    }
+    // Existing user — use `next` param if provided, otherwise default destination
     return NextResponse.redirect(new URL(next || result.destination, origin));
 }
 

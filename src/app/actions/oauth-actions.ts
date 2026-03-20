@@ -148,7 +148,7 @@ export async function finalizeOAuthChannelClaim(
  */
 export async function establishOAuthViewerSession(
     userId: string
-): Promise<{ success: boolean; destination: string }> {
+): Promise<{ success: boolean; destination: string; isNewUser?: boolean }> {
     const cookieStore = await cookies();
 
     // Check for existing mission (viewer path)
@@ -184,7 +184,7 @@ export async function establishOAuthViewerSession(
         return { success: true, destination: '/creator-dashboard' };
     }
 
-    // Brand new OAuth user with no data — send to onboarding
-    return { success: true, destination: '/onboarding' };
+    // Brand new OAuth user with no data — send to onboarding (must complete profile first)
+    return { success: true, destination: '/onboarding', isNewUser: true };
 }
 
