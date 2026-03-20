@@ -93,6 +93,172 @@ export function videoApprovedUserEmail(params: UserApprovedParams): { subject: s
     };
 }
 
+// ─── Video Approved: User #2 (The Streak Starter) ───────────
+
+export function videoApprovedUserEmail2(params: UserApprovedParams): { subject: string; html: string } {
+    const { userName, videoTitle, videoSlug, channelName, siteUrl, unsubscribeUrl } = params;
+    const videoUrl = `${siteUrl}/v/${videoSlug}`;
+    const foundersMeetingUrl = `${siteUrl}/founder-meeting`;
+
+    const content = `
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Hey ${escapeHtml(userName)},
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          You're officially building a streak. Another one of your picks just passed the verification engine and is live on the feed.
+        </p>
+        <p style="margin:0 0 8px;color:#18181b;font-size:16px;font-weight:600;">
+          ${escapeHtml(videoTitle)} <span style="font-weight:400;color:#71717a;">by ${escapeHtml(channelName)}</span>
+        </p>
+        <p style="margin:0 0 24px;">
+          ${ctaButton('Watch & Take the Quiz', videoUrl)}
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Since you are bringing high-signal creators to the platform, make sure you take the credit. Drop them a DM or leave a comment on their video letting them know you got them verified on VibeCodersHQ.
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Keep filtering out the noise. MUCH appreciated!
+        </p>
+        <p style="margin:0 0 24px;color:#18181b;font-size:15px;font-weight:600;">
+          Vuk, Founder
+        </p>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;">
+        <p style="margin:0 0 8px;color:#71717a;font-size:13px;line-height:1.6;">
+          P.S. Since you're actively helping build the library, you get a say in how we build the platform. If you have a feature request or want a specific upgrade, drop it in the Founders Meeting here:
+        </p>
+        <p style="margin:0;">
+          <a href="${escapeHtml(foundersMeetingUrl)}" style="color:#18181b;font-size:13px;font-weight:600;text-decoration:underline;">Founders Meeting</a>
+        </p>
+    `;
+
+    return {
+        subject: "Another one! Keep 'em coming.",
+        html: baseLayout(content, unsubscribeUrl),
+    };
+}
+
+// ─── Video Approved: User #3 (The Taste Maker) ──────────────
+
+export function videoApprovedUserEmail3(params: UserApprovedParams): { subject: string; html: string } {
+    const { userName, videoTitle, videoSlug, channelName, siteUrl, unsubscribeUrl } = params;
+    const videoUrl = `${siteUrl}/v/${videoSlug}`;
+    const foundersMeetingUrl = `${siteUrl}/founder-meeting`;
+
+    const content = `
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Hey ${escapeHtml(userName)},
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          We built VibeCodersHQ to filter out the algorithm's cheap dopamine and faceless BS, and your curation is making that happen.
+        </p>
+        <p style="margin:0 0 8px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Your latest suggestion just went live:
+        </p>
+        <p style="margin:0 0 8px;color:#18181b;font-size:16px;font-weight:600;">
+          ${escapeHtml(videoTitle)} <span style="font-weight:400;color:#71717a;">by ${escapeHtml(channelName)}</span>
+        </p>
+        <p style="margin:0 0 24px;">
+          ${ctaButton('Watch & Pass the Quiz', videoUrl)}
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Don't forget to let the creator know you're doing the heavy lifting for them. Tell them their material is gated behind an active recall quiz, and they have a verified profile waiting to be claimed.
+        </p>
+        <p style="margin:0 0 24px;color:#18181b;font-size:15px;font-weight:600;">
+          Vuk, Founder
+        </p>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;">
+        <p style="margin:0 0 8px;color:#71717a;font-size:13px;line-height:1.6;">
+          P.S. You have a better pulse on quality than 99% of the internet. If there is a feature you want to see on the platform, let me know directly at the Founders Meeting:
+        </p>
+        <p style="margin:0;">
+          <a href="${escapeHtml(foundersMeetingUrl)}" style="color:#18181b;font-size:13px;font-weight:600;text-decoration:underline;">Founders Meeting</a>
+        </p>
+    `;
+
+    return {
+        subject: "You know what's worth watching!",
+        html: baseLayout(content, unsubscribeUrl),
+    };
+}
+
+// ─── Video Approved: User #4 (The Top 1% / Leaderboard Play) ─
+
+export function videoApprovedUserEmail4(params: UserApprovedParams): { subject: string; html: string } {
+    const { userName, videoTitle, videoSlug, channelName, siteUrl, unsubscribeUrl } = params;
+    const videoUrl = `${siteUrl}/v/${videoSlug}`;
+    const foundersMeetingUrl = `${siteUrl}/founder-meeting`;
+
+    const content = `
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Hey ${escapeHtml(userName)},
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          At this point, you are officially in the top 1% of curators on the platform. Most people just mindlessly consume; you are actively building the ultimate high-signal library.
+        </p>
+        <p style="margin:0 0 8px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Your newest verified pick is live:
+        </p>
+        <p style="margin:0 0 8px;color:#18181b;font-size:16px;font-weight:600;">
+          ${escapeHtml(videoTitle)} <span style="font-weight:400;color:#71717a;">by ${escapeHtml(channelName)}</span>
+        </p>
+        <p style="margin:0 0 24px;">
+          ${ctaButton('Hit the Quiz', videoUrl)}
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          You know the drill by now&#8212;take the credit, you deserve it. Let ${escapeHtml(channelName)} know you are putting their material on the map for a crowd that actually wants to learn.
+        </p>
+        <p style="margin:0 0 24px;color:#18181b;font-size:15px;font-weight:600;">
+          Vuk, Founder
+        </p>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0;">
+        <p style="margin:0 0 8px;color:#71717a;font-size:13px;line-height:1.6;">
+          P.S. Power users drive the roadmap. Since you are shaping the content, I want you shaping the code. Bring your feature requests straight to the Founders Meeting here:
+        </p>
+        <p style="margin:0;">
+          <a href="${escapeHtml(foundersMeetingUrl)}" style="color:#18181b;font-size:13px;font-weight:600;text-decoration:underline;">Founders Meeting</a>
+        </p>
+    `;
+
+    return {
+        subject: 'VibeCodersHQ "Curator" status.',
+        html: baseLayout(content, unsubscribeUrl),
+    };
+}
+
+// ─── Video Approved: User #5+ (The Insider / Short & Ruthless) ─
+
+export function videoApprovedUserEmail5Plus(params: UserApprovedParams): { subject: string; html: string } {
+    const { userName, videoTitle, videoSlug, channelName, siteUrl, unsubscribeUrl } = params;
+    const videoUrl = `${siteUrl}/v/${videoSlug}`;
+    const foundersMeetingUrl = `${siteUrl}/founder-meeting`;
+
+    const content = `
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Hey ${escapeHtml(userName)},
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          Another flawless pick verified.
+        </p>
+        <p style="margin:0 0 8px;color:#18181b;font-size:16px;font-weight:600;">
+          ${escapeHtml(videoTitle)} <span style="font-weight:400;color:#71717a;">by ${escapeHtml(channelName)}</span>
+        </p>
+        <p style="margin:0 0 24px;">
+          ${ctaButton('Watch & Take the Quiz', videoUrl)}
+        </p>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:15px;line-height:1.6;">
+          And I'll see you in the <a href="${escapeHtml(foundersMeetingUrl)}" style="color:#18181b;font-weight:600;text-decoration:underline;">Founders Meeting</a> if you need any new tools built within the platform.
+        </p>
+        <p style="margin:0;color:#18181b;font-size:15px;font-weight:600;">
+          Vuk
+        </p>
+    `;
+
+    return {
+        subject: 'Approved!',
+        html: baseLayout(content, unsubscribeUrl),
+    };
+}
+
 // ─── Video Approved: Creator Notification (The Ego Hook) ────
 
 interface CreatorApprovedParams {

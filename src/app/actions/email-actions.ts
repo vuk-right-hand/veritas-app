@@ -5,6 +5,10 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { buildUnsubscribeUrl } from '@/app/api/unsubscribe/route';
 import {
     videoApprovedUserEmail,
+    videoApprovedUserEmail2,
+    videoApprovedUserEmail3,
+    videoApprovedUserEmail4,
+    videoApprovedUserEmail5Plus,
     videoApprovedCreatorEmail,
     viewMilestoneEmail,
 } from '@/lib/email-templates';
@@ -77,6 +81,38 @@ async function resolveEmail(userId: string | null, missionId: string | null): Pr
         if (data?.email) return data.email;
     }
     return null;
+}
+
+// ─── Count monthly approval emails for a recipient ──────────
+
+async function getMonthlyApprovalCount(email: string): Promise<number> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const { count } = await supabaseAdmin
+        .from('email_notifications_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('email_type', 'video_approved_user')
+        .eq('recipient_email', email)
+        .gte('created_at', startOfMonth);
+
+    return count ?? 0;
+}
+
+// ─── Pick the right user email template based on monthly count ─
+
+function pickUserApprovalTemplate(priorCount: number) {
+    // priorCount = how many were already sent this month BEFORE this one
+    // 0 prior = this is their 1st → original template
+    // 1 prior = this is their 2nd → streak starter
+    // 2 prior = this is their 3rd → taste maker
+    // 3 prior = this is their 4th → top 1%
+    // 4+ prior = this is their 5th+ → insider
+    if (priorCount === 0) return videoApprovedUserEmail;
+    if (priorCount === 1) return videoApprovedUserEmail2;
+    if (priorCount === 2) return videoApprovedUserEmail3;
+    if (priorCount === 3) return videoApprovedUserEmail4;
+    return videoApprovedUserEmail5Plus;
 }
 
 // ─── Video Approval Emails ──────────────────────────────────
@@ -184,7 +220,11 @@ export async function sendApprovalEmails(videoId: string, videoData: VideoData) 
         }
 
         const unsubscribeUrl = buildUnsubscribeUrl(email, SITE_URL);
-        const { subject, html } = videoApprovedUserEmail({
+
+        // Pick email template based on how many approval emails this user got this month
+        const priorCount = await getMonthlyApprovalCount(email);
+        const templateFn = pickUserApprovalTemplate(priorCount);
+        const { subject, html } = templateFn({
             userName,
             videoTitle: videoData.title,
             videoSlug: videoData.slug,
