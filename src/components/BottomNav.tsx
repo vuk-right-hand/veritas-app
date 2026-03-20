@@ -90,8 +90,8 @@ export default function BottomNav() {
                     </Link>
                 )}
 
-                {/* Profile Tab */}
-                {isLoggedIn !== true ? (
+                {/* Profile Tab — show claim modal if not logged in OR if auth exists but no profile */}
+                {(isLoggedIn !== true || !userProfile) ? (
                     <button
                         onClick={() => setShowProfileModal(true)}
                         className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors text-gray-500 active:text-gray-300`}

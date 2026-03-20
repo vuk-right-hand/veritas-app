@@ -96,7 +96,13 @@ export async function proxy(request: NextRequest) {
     }
 
     // Rule 1: Logged-in user hitting auth pages → Dashboard
+    //         Exception: /onboarding without veritas_user cookie = new OAuth user
+    //         who authenticated but hasn't completed profile setup yet — let them through.
     if (user && isAuthPage) {
+        const hasProfile = !!request.cookies.get('veritas_user')?.value
+        if (pathname === '/onboarding' && !hasProfile) {
+            return supabaseResponse
+        }
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
         return NextResponse.redirect(url)
