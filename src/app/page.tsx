@@ -30,7 +30,7 @@ export default function Home() {
       <div className="z-10 max-w-4xl flex flex-col items-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/30 border border-red-900/50 text-xs font-medium text-red-400 mb-8 backdrop-blur-md">
           <Sparkles className="w-3 h-3" />
-          Veritas Alpha
+          VibeCodersHQ
         </div>
 
         <h1 className="text-4xl sm:text-6xl md:text-8xl font-bold tracking-tighter mb-6 md:mb-8 bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">

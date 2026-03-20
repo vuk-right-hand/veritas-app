@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Privacy Policy — Vibe Coders HQ",
-  description: "How Vibe Coders HQ collects, uses, and protects your data.",
+  title: "Privacy Policy — VibeCodersHQ",
+  description: "How VibeCodersHQ collects, uses, and protects your data.",
 };
 
 export default function PrivacyPage() {
@@ -23,10 +23,10 @@ export default function PrivacyPage() {
         </Link>
 
         <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-3 bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
-          Privacy Policy
+          VibeCodersHQ — Privacy Policy
         </h1>
         <p className="text-sm text-gray-500 font-mono mb-12">
-          Effective Date: March 5, 2026
+          Effective Date: March 5, 2026 | VibeCodersHQ (vibecodershq.io)
         </p>
 
         <article className="space-y-10">
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
               1. What We Build and What We Collect
             </h2>
             <p className="text-gray-400 leading-relaxed mb-4">
-              Vibe Coders HQ is a curated educational platform. To provide you with
+              VibeCodersHQ is a curated educational platform. To provide you with
               personalized learning curriculums and our Proof of Work
               verification, we collect the following information:
             </p>
@@ -135,7 +135,24 @@ export default function PrivacyPage() {
             <p className="text-gray-400 leading-relaxed">
               You own your data. You can request to export or delete your
               profile, including all accumulated Proof of Work points and watch
-              history, at any time by contacting our support team.
+              history, at any time by contacting us at{" "}
+              <a href="mailto:admin@vibecodershq.io" className="text-white underline">
+                admin@vibecodershq.io
+              </a>.
+            </p>
+          </section>
+
+          {/* Section 5 */}
+          <section className="bg-[#0f0f0f] border border-white/5 rounded-2xl p-6 md:p-10">
+            <h2 className="text-xl font-bold text-white mb-4">
+              5. Contact
+            </h2>
+            <p className="text-gray-400 leading-relaxed">
+              If you have questions about this Privacy Policy or how we handle
+              your data, contact VibeCodersHQ at{" "}
+              <a href="mailto:admin@vibecodershq.io" className="text-white underline">
+                admin@vibecodershq.io
+              </a>.
             </p>
           </section>
         </article>
