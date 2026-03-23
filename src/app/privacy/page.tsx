@@ -140,10 +140,10 @@ export default function PrivacyPage() {
               Proof of Work points, watch history, and quiz data, at any time by
               contacting us at{" "}
               <a
-                href="mailto:admin@vibecodershq.io"
+                href="mailto:vuk@vibecodershq.io"
                 className="text-blue-600 underline"
               >
-                admin@vibecodershq.io
+                vuk@vibecodershq.io
               </a>
               . Upon request, your data will be permanently removed within 30
               days.
@@ -158,10 +158,10 @@ export default function PrivacyPage() {
               You own your data. You can request to export or delete your
               profile at any time by contacting us at{" "}
               <a
-                href="mailto:admin@vibecodershq.io"
+                href="mailto:vuk@vibecodershq.io"
                 className="text-blue-600 underline"
               >
-                admin@vibecodershq.io
+                vuk@vibecodershq.io
               </a>
               .
             </p>
@@ -175,10 +175,10 @@ export default function PrivacyPage() {
               If you have questions about this Privacy Policy or how we handle
               your data, contact VibeCodersHQ at{" "}
               <a
-                href="mailto:admin@vibecodershq.io"
+                href="mailto:vuk@vibecodershq.io"
                 className="text-blue-600 underline"
               >
-                admin@vibecodershq.io
+                vuk@vibecodershq.io
               </a>
               .
             </p>
