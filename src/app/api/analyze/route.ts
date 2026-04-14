@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getAiModel, generateEmbedding } from '@/lib/gemini';
+import { getAiModel, generateEmbedding1536 } from '@/lib/gemini';
 import { fetchVideoMeta, saveVideoAnalysis } from '@/lib/video-service';
 
 export const maxDuration = 60; // Max duration for Vercel Hobby tier
@@ -169,7 +169,7 @@ export async function POST(req: Request) {
         const cleanContentToEmbed = `Title: ${meta.title} | Category: ${analysis.category} | Key Insights: ${analysis.takeaways.join(", ")} | Topics: ${tagsString}`;
 
         console.log("Generating embedding for cleaned content:", cleanContentToEmbed);
-        const embeddingVector = await generateEmbedding(cleanContentToEmbed);
+        const embeddingVector = await generateEmbedding1536(cleanContentToEmbed);
 
         // 5. Save to Database (The Library)
         await saveVideoAnalysis(meta, analysis, embeddingVector);

@@ -34,63 +34,21 @@ export async function recordWatchProgress(
 
         const watchPct = Math.min(100, (currentTime / duration) * 100);
 
-        // 1. Fetch Content DNA tags for this video
-        const { data: tags, error: tagError } = await supabase
-            .from('video_tags')
-            .select('tag, weight, segment_start_pct, segment_end_pct')
-            .eq('video_id', videoId);
-
-        if (tagError) {
-            console.error('[Interest] Failed to fetch video tags:', tagError);
-            return { success: false, message: "Failed to fetch tags" };
-        }
-
-        if (!tags || tags.length === 0) {
-            // Video hasn't been tagged yet — no scoring possible
-            console.log(`[Interest] No tags found for video ${videoId}, skipping scoring`);
-        } else {
-            // 2. Calculate score deltas using segment-aware logic
-            const scoreDeltas: { tag: string; delta: number }[] = [];
-
-            for (const tag of tags) {
-                const { tag: tagName, weight, segment_start_pct, segment_end_pct } = tag;
-                let delta = 0;
-
-                if (watchPct >= segment_end_pct) {
-                    // User watched past the entire segment → full weight
-                    delta = weight;
-                } else if (watchPct <= segment_start_pct) {
-                    // User quit before the segment started → 0
-                    delta = 0;
-                } else {
-                    // User is somewhere in the middle of this segment → proportional
-                    const segmentLength = segment_end_pct - segment_start_pct;
-                    const watchedInSegment = watchPct - segment_start_pct;
-                    delta = Math.round(weight * (watchedInSegment / segmentLength));
-                }
-
-                if (delta > 0) {
-                    scoreDeltas.push({ tag: tagName, delta });
-                }
-            }
-
-            if (scoreDeltas.length > 0) {
-                // 3. Upsert each score using the RPC function
-                console.log(`🧠 Scoring user ${userId}: ${scoreDeltas.map(s => `${s.tag}:+${s.delta}`).join(', ')}`);
-
-                for (const { tag, delta } of scoreDeltas) {
-                    const { error: rpcError } = await supabase.rpc('upsert_user_interest', {
-                        p_user_id: userId,
-                        p_tag: tag,
-                        p_score_delta: delta,
-                    });
-
-                    if (rpcError) {
-                        console.error(`[Interest] Failed to upsert score for tag "${tag}":`, rpcError);
-                    }
-                }
+        // Taste-vector update — ranking path.
+        // Gated at watchPct >= 25: a 5% bounce shouldn't define taste.
+        // RPC SELECTs videos.embedding_1536 internally — we pass the id only so
+        // no 1536-float array crosses the wire (serialization footgun).
+        if (watchPct >= 25) {
+            const weight = Math.min(watchPct / 100, 1);
+            const { error: rpcError } = await supabase.rpc('upsert_user_taste_vector', {
+                p_user_id: userId,
+                p_video_id: videoId,
+                p_weight: weight,
+            });
+            if (rpcError) {
+                console.error('[Interest] upsert_user_taste_vector failed:', rpcError);
             } else {
-                console.log(`[Interest] User ${userId} didn't reach any tag segments in video ${videoId}`);
+                console.log(`🧠 Taste vector updated for ${userId} (watchPct=${Math.round(watchPct)}, weight=${weight.toFixed(2)})`);
             }
         }
 

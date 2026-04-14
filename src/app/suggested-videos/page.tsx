@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Box, MoreVertical, Trash2 } from 'lucide-react';
 import Hexagon from '@/components/Hexagon';
 import Portal from '@/components/ui/portal';
-import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo, adminSuggestVideo } from '@/app/actions/video-actions';
+import { getPendingVideos, getVerifiedVideos, getDeniedVideos, getStorageVideos, moderateVideo, deleteVideo, adminSuggestVideo, setFeedCategory } from '@/app/actions/video-actions';
+
+type FeedCategory = 'pulse' | 'forge' | 'alchemy';
 import { suggestChannel, getPendingChannels, getApprovedChannels, getDeniedChannels, getStorageChannels, moderateChannel, deleteChannel } from '@/app/actions/channel-actions';
 import { getFeatureRequestsByStatus, moderateFeatureRequest, deleteFeatureRequest } from '@/app/actions/feature-actions';
 import { getContentGapsByStatus, moderateContentGap, deleteContentGap } from '@/app/actions/content-gap-actions';
@@ -73,6 +75,9 @@ export default function SuggestedVideosPage() {
 
     // Changed to CSSProperties to support top/bottom switching
     const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+
+    // Per-video feed_category selection (for Approve gate + legacy reclassification)
+    const [categoryByVideoId, setCategoryByVideoId] = useState<Record<string, FeedCategory | ''>>({});
 
     // Drag and Drop State
     const [draggedVideoId, setDraggedVideoId] = useState<string | null>(null);
@@ -218,7 +223,13 @@ export default function SuggestedVideosPage() {
 
         let result;
         if (activeView === 'videos') {
-            result = await moderateVideo(id, serverAction as any);
+            const feedCat = serverAction === 'approve' ? (categoryByVideoId[id] || undefined) : undefined;
+            if (serverAction === 'approve' && !feedCat) {
+                alert('Pick a feed category (Pulse / Forge / Alchemy) before approving.');
+                loadAllData();
+                return;
+            }
+            result = await moderateVideo(id, serverAction as any, feedCat as any);
         } else if (activeView === 'channels') {
             result = await moderateChannel(id, serverAction as any);
         } else if (activeView === 'contentGaps') {
@@ -267,6 +278,13 @@ export default function SuggestedVideosPage() {
 
         const videoId = e.dataTransfer.getData('text/plain');
         if (videoId) {
+            // Approve requires a feed category — drag-to-Verified has no
+            // category-picker path, so force the admin through the menu.
+            if (activeView === 'videos' && status === 'verified') {
+                alert('To approve a video, open its menu and pick a feed category (Pulse / Forge / Alchemy). Drag-to-approve is disabled.');
+                setDraggedVideoId(null);
+                return;
+            }
             handleMove(videoId, status);
         }
         setDraggedVideoId(null);
@@ -819,13 +837,59 @@ export default function SuggestedVideosPage() {
 
                                     if (!activeItem || !activeStatus) return null;
 
+                                    const isVideo = activeView === 'videos';
+                                    const showCategoryPicker = isVideo && (
+                                        activeStatus === 'pending' ||
+                                        (activeStatus === 'verified' && !activeItem.feed_category)
+                                    );
+                                    const pickedCat = categoryByVideoId[activeItem.id] || '';
+                                    const approveDisabled = isVideo && activeStatus === 'pending' && !pickedCat;
+
                                     return (
                                         <>
+                                            {showCategoryPicker && (
+                                                <div className="px-3 py-2 border-b border-white/10">
+                                                    <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Feed section</div>
+                                                    <select
+                                                        value={pickedCat}
+                                                        onChange={(e) => setCategoryByVideoId((prev) => ({ ...prev, [activeItem.id]: e.target.value as FeedCategory | '' }))}
+                                                        className="w-full bg-[#0a0a0a] border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-white/30"
+                                                    >
+                                                        <option value="" disabled>Pick category…</option>
+                                                        <option value="pulse">Pulse</option>
+                                                        <option value="forge">Forge</option>
+                                                        <option value="alchemy">Alchemy</option>
+                                                    </select>
+                                                    {activeStatus === 'verified' && (
+                                                        <button
+                                                            disabled={!pickedCat}
+                                                            onClick={async () => {
+                                                                if (!pickedCat) return;
+                                                                const r = await setFeedCategory(activeItem.id, pickedCat as FeedCategory);
+                                                                if (!r.success) alert(r.message || 'Failed');
+                                                                setActiveMenuId(null);
+                                                                loadAllData();
+                                                            }}
+                                                            className="mt-2 w-full px-2 py-1 text-xs rounded bg-green-600/20 border border-green-600/30 text-green-400 hover:bg-green-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        >
+                                                            Set Feed Category
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                             {activeStatus !== 'pending' && <button onClick={() => handleMove(activeItem.id, 'pending')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-yellow-500">Move to Pending</button>}
-                                            
+
                                             {activeView !== 'platformUpdates' ? (
                                                 <>
-                                                    {activeStatus !== 'verified' && <button onClick={() => handleMove(activeItem.id, 'verified')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500">Approve</button>}
+                                                    {activeStatus !== 'verified' && (
+                                                        <button
+                                                            onClick={() => !approveDisabled && handleMove(activeItem.id, 'verified')}
+                                                            disabled={approveDisabled}
+                                                            className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-green-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                                        >
+                                                            Approve{approveDisabled ? ' (pick category)' : ''}
+                                                        </button>
+                                                    )}
                                                     {activeStatus !== 'banned' && <button onClick={() => handleMove(activeItem.id, 'banned')} className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 text-red-500">Deny</button>}
                                                 </>
                                             ) : (

@@ -19,15 +19,6 @@ export default function ProblemSolver({ onSearchResults, onClear, activeFilter }
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Convert filter label to API value
-    const getTemporalFilterValue = (label?: string): string | undefined => {
-        if (!label) return undefined;
-        if (label === "Last 14 days") return '14';
-        if (label === "Last 28 days") return '28';
-        if (label === "Last 69 days") return '60';
-        return 'evergreen';
-    };
-
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
@@ -43,11 +34,10 @@ export default function ProblemSolver({ onSearchResults, onClear, activeFilter }
         setLoading(true);
         setHasSearched(true);
         try {
-            const temporalFilter = getTemporalFilterValue(activeFilter);
             const res = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, temporalFilter }),
+                body: JSON.stringify({ query, feedCategory: activeFilter }),
             });
             const data = await res.json();
             if (data.success) {
@@ -105,11 +95,10 @@ export default function ProblemSolver({ onSearchResults, onClear, activeFilter }
         setLoading(true);
         setHasSearched(true);
         try {
-            const temporalFilter = getTemporalFilterValue(activeFilter);
             const res = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: suggestion, temporalFilter }),
+                body: JSON.stringify({ query: suggestion, feedCategory: activeFilter }),
             });
             const data = await res.json();
             if (data.success) {

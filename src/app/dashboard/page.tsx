@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Infinity as InfinityIcon, Lightbulb, Youtube } from 'lucide-react';
+import { User, Zap, CheckCircle2, Search, Sparkles, X, ArrowRight, Clock, Calendar, Flame, Hammer, Infinity as InfinityIcon, Lightbulb, Youtube } from 'lucide-react';
 import VideoCard from '@/components/VideoCard';
 import ProblemSolver from '@/components/ProblemSolver';
 import AuthChoiceModal from '@/components/AuthChoiceModal';
@@ -21,11 +21,24 @@ import { useUser } from '@/components/UserContext';
 // MOCK_VIDEOS removed
 
 
-const TABS = [
-    { id: 'Last 14 days', label: 'Last 14 days', icon: Zap },
-    { id: 'Last 28 days', label: 'Last 28 days', icon: Clock },
-    { id: 'Last 69 days', label: 'Last 69 days', icon: Flame },
-    { id: 'Evergreen', label: 'Evergreen', icon: InfinityIcon },
+type FeedCategory = 'pulse' | 'forge' | 'alchemy';
+type TemporalFilter = '14' | '28' | 'evergreen';
+const TEMPORAL_OPTIONS: { id: TemporalFilter; label: string }[] = [
+    { id: '14', label: '14 days' },
+    { id: '28', label: '28 days' },
+    { id: 'evergreen', label: 'Evergreen' },
+];
+const getCutoff = (f: TemporalFilter): string | undefined => {
+    if (f === 'evergreen') return undefined;
+    const days = f === '14' ? 14 : 28;
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString();
+};
+const TABS: { id: FeedCategory; label: string; icon: typeof Zap }[] = [
+    { id: 'pulse',   label: 'Pulse',   icon: Zap },
+    { id: 'forge',   label: 'Forge',   icon: Hammer },
+    { id: 'alchemy', label: 'Alchemy', icon: Flame },
 ];
 
 // Skeleton card shown while the initial feed loads — matches VideoCard collapsed height
@@ -52,16 +65,10 @@ function VideoCardSkeleton() {
     );
 }
 
-// Convert UI filter labels to API parameter values
-function getTemporalFilterValue(label: string): '14' | '28' | '60' | 'evergreen' {
-    if (label === "Last 14 days") return '14';
-    if (label === "Last 28 days") return '28';
-    if (label === "Last 69 days") return '60'; // Handled as 60 for now
-    return 'evergreen';
-}
-
 export default function Dashboard() {
-    const [activeTab, setActiveTab] = useState('Evergreen');
+    const [activeTab, setActiveTab] = useState<FeedCategory>('pulse');
+    const [temporalFilter, setTemporalFilter] = useState<TemporalFilter>('evergreen');
+    const [curationIdsRef, setCurationIdsRef] = useState<string[]>([]);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalDefaultView, setAuthModalDefaultView] = useState<'choice' | 'login'>('choice');
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -106,12 +113,16 @@ export default function Dashboard() {
     const [showMobileSuggestionList, setShowMobileSuggestionList] = useState(false);
     const mobileSearchInputRef = useRef<HTMLInputElement>(null);
     const searchSectionRef = useRef<HTMLDivElement>(null);
+    const inlinePFARef = useRef<HTMLDivElement>(null);
+    const [isPFAStuck, setIsPFAStuck] = useState(false);
 
     useEffect(() => {
         const handleScroll = () => {
             const threshold = searchSectionRef.current?.offsetTop ?? 200;
             const scrolledPast = window.scrollY > threshold + 100;
             setIsScrolled(scrolledPast);
+            const inlineTop = inlinePFARef.current?.getBoundingClientRect().top ?? Infinity;
+            setIsPFAStuck(inlineTop <= 56);
         };
         window.addEventListener('scroll', handleScroll, { passive: true });
 
@@ -144,121 +155,63 @@ export default function Dashboard() {
     const userName = isLoggedIn ? (userProfile?.name || '') : '';
     const avatarUrl = isLoggedIn ? (userProfile?.avatar_url || '') : '';
 
-    // Load videos with temporal filter
-    const loadVideos = React.useCallback(async (filterLabel: string) => {
-        // Reset pagination on new load
+    // Load videos for the active feed category (Pulse / Forge / Alchemy)
+    // Resets offset + curationIdsRef, then repopulates curationIdsRef from the
+    // initial load response before any loadMoreVideos can fire — this closes
+    // the duplicate-key trap where curations (exempt from temporal) re-inject
+    // and would otherwise be fetched a second time as part of the RPC tail.
+    const loadVideos = React.useCallback(async (feedCategory: FeedCategory, publishedAfter?: string) => {
         setStandardVideoOffset(0);
+        setCurationIdsRef([]);
         setHasMore(true);
         setIsLoading(true);
 
-        const temporalFilter = getTemporalFilterValue(filterLabel);
-
-        // 🚀 ONE server-action call (replaces 3 serial calls).
-        // Internally fires mission + verified queries in parallel, then batches creator lookup.
         const [feedData, userId] = await Promise.all([
-            getInitialFeedData(temporalFilter),
+            getInitialFeedData(feedCategory, publishedAfter),
             getAuthenticatedUserId(),
         ]);
 
         setIsLoggedIn(!!userId);
 
-        const { mission, verified, creatorMap } = feedData;
+        const { verified, creatorMap, curationIds } = feedData as any;
+        const curationIdSet = new Set<string>(curationIds || []);
+        setCurationIdsRef(curationIds || []);
 
-        let finalVideos: any[] = [];
+        const formatBatch = (vids: any[]) => vids.map((v: any) => {
+            const creator = creatorMap[v.channel_url] || null;
+            const isCurated = curationIdSet.has(v.id);
+            return {
+                id: v.id,
+                title: v.title,
+                humanScore: v.human_score || 0,
+                category: v.category_tag || 'Community',
+                customDescription: v.custom_description || undefined,
+                customLinks: v.custom_links || undefined,
+                channelTitle: v.channel_title || 'Community Creator',
+                channelUrl: v.channel_url || '',
+                publishedAt: v.published_at || v.created_at,
+                takeaways: v.summary_points || ['Analysis pending...', 'Watch to find out.'],
+                channelDescription: creator?.description || undefined,
+                channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
+                isChannelClaimed: !!creator,
+                isCurated,
+                slug: v.slug || null,
+                creatorSlug: creator?.slug || null,
+                creatorId: creator?.id || null,
+            };
+        });
 
-        // ── CURATED PATH: user has goals/obstacles → show their personalised feed ──
-        if (mission && (mission.mission_curations?.length ?? 0) > 0) {
-            let curations = mission.mission_curations.filter((c: any) => c.videos?.status === 'verified');
+        const finalVideos = formatBatch(verified);
 
-            if (temporalFilter !== 'evergreen') {
-                const cutoff = new Date();
-                cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
-                curations = curations.filter((c: any) => {
-                    const dateStr = c.videos?.published_at || c.videos?.created_at;
-                    return dateStr && new Date(dateStr) >= cutoff;
-                });
-            }
-
-            finalVideos = curations.map((c: any) => {
-                const creator = creatorMap[c.videos?.channel_url] || null;
-                return {
-                    id: c.videos.id,
-                    title: c.videos.title,
-                    humanScore: c.videos.human_score || 99,
-                    category: c.videos.category_tag || 'Mission',
-                    channelTitle: c.videos.channel_title || 'Human Expert',
-                    channelUrl: c.videos.channel_url || '',
-                    publishedAt: c.videos.published_at || c.videos.created_at,
-                    takeaways: c.videos.summary_points || [`Selected for: ${mission.goal}`, `Reason: ${c.curation_reason}`],
-                    customDescription: c.videos.custom_description || undefined,
-                    customLinks: c.videos.custom_links || undefined,
-                    channelDescription: creator?.description || undefined,
-                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
-                    isChannelClaimed: !!creator,
-                    isCurated: true,
-                    slug: c.videos.slug || null,
-                    creatorSlug: creator?.slug || null,
-                    creatorId: creator?.id || null,
-                };
-            });
-        }
-
-        // ── GENERIC PATH: zero curations for this filter → use verified pool ──────
-        // KEY FIX: Only backfill if we have NO curated videos.
-        // Previously mixed curated + generic which caused the "reassembly" flash.
-        if (finalVideos.length === 0) {
-            const formatBatch = (vids: any[]) => vids.map(v => {
-                const creator = creatorMap[v.channel_url] || null;
-                return {
-                    id: v.id,
-                    title: v.title,
-                    humanScore: v.human_score || 0,
-                    category: v.category_tag || 'Community',
-                    customDescription: v.custom_description || undefined,
-                    customLinks: v.custom_links || undefined,
-                    channelTitle: v.channel_title || 'Community Creator',
-                    channelUrl: v.channel_url || '',
-                    publishedAt: v.published_at || v.created_at,
-                    takeaways: v.summary_points || ['Analysis pending...', 'Watch to find out.'],
-                    channelDescription: creator?.description || undefined,
-                    channelLinks: creator?.links?.length > 0 ? creator.links : undefined,
-                    isChannelClaimed: !!creator,
-                    isCurated: false,
-                    slug: v.slug || null,
-                    creatorSlug: creator?.slug || null,
-                    creatorId: creator?.id || null,
-                };
-            });
-
-            finalVideos = formatBatch(verified);
-
-            const initialOffset = verified.length;
-            if (verified.length < 6) {
-                setHasMore(false);
-                setStandardVideoOffset(initialOffset);
-            } else {
-                // Reserve next 6 slots then silently prefetch them
-                setStandardVideoOffset(initialOffset + 6);
-                getVerifiedVideosWithCreators(temporalFilter, 6, initialOffset).then((bg) => {
-                    if (!bg.length) { setHasMore(false); return; }
-                    setVideos(prev => {
-                        const seen = new Set(prev.map((v: any) => v.id));
-                        return [...prev, ...bg.filter((v: any) => !seen.has(v.id))];
-                    });
-                    if (bg.length < 6) {
-                        setHasMore(false);
-                        setStandardVideoOffset(initialOffset + bg.length);
-                    }
-                });
-            }
-        } else {
-            // Curated content present — scroll pagination will pull generic pool
-            setStandardVideoOffset(0);
-            setHasMore(true);
-        }
+        // Pagination offset for RPC / plain query. Curations are NOT counted in
+        // the RPC offset — they're passed as p_exclude_ids on every loadMore,
+        // so the offset only advances for the non-curation (RPC or chronological) tail.
+        const nonCurationCount = finalVideos.filter((v) => !v.isCurated).length;
+        setStandardVideoOffset(nonCurationCount);
+        setHasMore(finalVideos.length > 0);
 
         setVideos(finalVideos);
-        setFeedVideos(finalVideos); // snapshot for zero-state fallback
+        setFeedVideos(finalVideos);
         setIsLoading(false);
     }, []);
 
@@ -270,20 +223,26 @@ export default function Dashboard() {
             setPriorityRequested(false);
             setShowMobileSearch(false);
             setMobileSearchQuery('');
-            loadVideos(activeTab);
+            loadVideos(activeTab, getCutoff(temporalFilter));
         };
         window.addEventListener('veritas:reset-feed', onResetFeed);
         return () => window.removeEventListener('veritas:reset-feed', onResetFeed);
-    }, [activeTab, loadVideos]);
+    }, [activeTab, temporalFilter, loadVideos]);
 
     const loadMoreVideos = React.useCallback(async () => {
         if (isLoadingMore || !hasMore || currentSearchQuery) return;
 
         setIsLoadingMore(true);
         try {
-            const temporalFilter = getTemporalFilterValue(activeTab);
-            // Single server action — fetches videos + creators in one call
-            const batch = await getVerifiedVideosWithCreators(temporalFilter, 3, standardVideoOffset);
+            // Curation ids pushed into the RPC (or the Pulse .not(id,in) clause) so
+            // OFFSET math stays honest — never filter dedupe client-side.
+            const batch = await getVerifiedVideosWithCreators(
+                activeTab,
+                3,
+                standardVideoOffset,
+                curationIdsRef,
+                getCutoff(temporalFilter)
+            );
 
             if (batch.length > 0) {
                 setVideos(prev => {
@@ -300,7 +259,7 @@ export default function Dashboard() {
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, currentSearchQuery, activeTab, standardVideoOffset]);
+    }, [isLoadingMore, hasMore, currentSearchQuery, activeTab, temporalFilter, standardVideoOffset, curationIdsRef]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -321,16 +280,15 @@ export default function Dashboard() {
     React.useEffect(() => {
         const loadAndReapplySearch = async () => {
             setShowPostZeroMessage(false);
-            await loadVideos(activeTab);
+            await loadVideos(activeTab, getCutoff(temporalFilter));
 
             // If there's an active search query, reapply it
             if (currentSearchQuery) {
                 // Trigger a new search with the current filter
-                const temporalFilter = getTemporalFilterValue(activeTab);
                 const response = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: currentSearchQuery, temporalFilter })
+                    body: JSON.stringify({ query: currentSearchQuery, feedCategory: activeTab })
                 });
 
                 if (response.ok) {
@@ -365,7 +323,7 @@ export default function Dashboard() {
         };
 
         loadAndReapplySearch();
-    }, [activeTab, loadVideos]);
+    }, [activeTab, temporalFilter, loadVideos]);
 
 
 
@@ -416,7 +374,7 @@ export default function Dashboard() {
         setPriorityRequested(false);
         setShowPostZeroMessage(false);
         setSearchClearKey(k => k + 1);
-        loadVideos(activeTab);
+        loadVideos(activeTab, getCutoff(temporalFilter));
     };
 
     // Called when zero-state modal is dismissed (X or auto-close after request)
@@ -566,31 +524,21 @@ export default function Dashboard() {
 
                     {/* Right: Founder Meeting pill (pre-scroll) + Suggest + Search + Filter icons (when scrolled) */}
                     <div className="flex items-center gap-2">
-                        <AnimatePresence>
-                            {!isScrolled && (
-                                <motion.div
-                                    key="founder-meeting-btn"
-                                    initial={{ opacity: 0, scale: 0.85 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.85 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <button
-                                        onClick={() => {
-                                            if (!isLoggedIn) {
-                                                setShowProfileModal(true);
-                                            } else {
-                                                window.location.href = '/founder-meeting';
-                                            }
-                                        }}
-                                        className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 bg-red-600/15 border border-red-500/30 rounded-full text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"
-                                    >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                        Meeting
-                                    </button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {!isScrolled && (
+                            <button
+                                onClick={() => {
+                                    if (!isLoggedIn) {
+                                        setShowProfileModal(true);
+                                    } else {
+                                        window.location.href = '/founder-meeting';
+                                    }
+                                }}
+                                className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 bg-red-600/15 border border-red-500/30 rounded-full text-red-300 shadow-[0_0_12px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                Meeting
+                            </button>
+                        )}
                         <AnimatePresence>
                             {isScrolled && (
                                 <>
@@ -668,11 +616,10 @@ export default function Dashboard() {
                                         setMobileSearchLoading(true);
                                         setShowMobileSuggestionList(false);
                                         try {
-                                            const temporalFilter = getTemporalFilterValue(activeTab);
                                             const res = await fetch('/api/search', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ query: mobileSearchQuery, temporalFilter }),
+                                                body: JSON.stringify({ query: mobileSearchQuery, feedCategory: activeTab }),
                                             });
                                             const data = await res.json();
                                             if (data.success) {
@@ -777,11 +724,10 @@ export default function Dashboard() {
                                                         setShowMobileSuggestionList(false);
                                                         setMobileSearchLoading(true);
                                                         try {
-                                                            const temporalFilter = getTemporalFilterValue(activeTab);
                                                             const res = await fetch('/api/search', {
                                                                 method: 'POST',
                                                                 headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ query: s, temporalFilter }),
+                                                                body: JSON.stringify({ query: s, feedCategory: activeTab }),
                                                             });
                                                             const data = await res.json();
                                                             if (data.success) await handleSearchResults(data.matches || [], s);
@@ -804,7 +750,7 @@ export default function Dashboard() {
                     )}
                 </AnimatePresence>
 
-                {/* Mobile Filters Dropdown (when clock icon tapped) */}
+                {/* Mobile Temporal Filters Dropdown (when clock icon tapped) */}
                 <AnimatePresence>
                     {showMobileFilters && isScrolled && (
                         <motion.div
@@ -814,16 +760,15 @@ export default function Dashboard() {
                             className="md:hidden overflow-hidden border-t border-white/5 bg-black/90"
                         >
                             <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto no-scrollbar">
-                                {TABS.map((tab) => (
+                                {TEMPORAL_OPTIONS.map((opt) => (
                                     <button
-                                        key={tab.id}
-                                        onClick={() => { setActiveTab(tab.id); setShowMobileFilters(false); }}
-                                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all border flex items-center gap-1.5 ${activeTab === tab.id
+                                        key={opt.id}
+                                        onClick={() => { setTemporalFilter(opt.id); setShowMobileFilters(false); }}
+                                        className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all border ${temporalFilter === opt.id
                                             ? 'bg-red-950/30 text-red-200 border-red-900/50'
                                             : 'bg-transparent text-gray-500 border-transparent active:bg-white/5'}`}
                                     >
-                                        <tab.icon className={`w-3 h-3 ${activeTab === tab.id ? 'text-red-400' : 'opacity-70'}`} />
-                                        {tab.label}
+                                        {opt.label}
                                     </button>
                                 ))}
                             </div>
@@ -921,7 +866,40 @@ export default function Dashboard() {
                 }
             </AnimatePresence >
 
-            {/* Main Content */}
+            {/* Mobile sticky category tabs — fixed below the 14h navbar, visible ONLY when scrolled.
+                When not scrolled, PFA lives inline above the video grid (attached to feed).
+                Solid background + high z-index + stopPropagation on tap so the row can
+                never leak touches through to the video cards scrolling beneath it. */}
+            <div
+                className={`md:hidden fixed left-0 right-0 top-14 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/10 pb-safe-top transition-opacity duration-150 ${isPFAStuck ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-end gap-0.5 px-3 pt-2">
+                    {TABS.map((tab) => {
+                        const active = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id); }}
+                                className={`group relative flex-1 -mb-px whitespace-nowrap px-2 py-2 rounded-t-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 border ${
+                                    active
+                                        ? 'bg-[#0a0a0a] text-white border-red-500/25 border-b-transparent shadow-[0_-6px_16px_-10px_rgba(220,38,38,0.5)]'
+                                        : 'bg-white/[0.02] text-gray-500 border-white/5 border-b-white/10 active:bg-white/[0.06]'
+                                }`}
+                            >
+                                {active && (
+                                    <span className="absolute top-0 left-3 right-3 h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent rounded-full" />
+                                )}
+                                <tab.icon className={`w-3.5 h-3.5 ${active ? 'text-red-500 drop-shadow-[0_0_5px_rgba(220,38,38,0.6)]' : 'opacity-60'}`} />
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Main Content — mobile pt accounts for 14h nav + 12h sticky PFA row */}
             < main className="pt-20 md:pt-32 pb-24 md:pb-20 px-4 md:px-8 max-w-[1600px] mx-auto pb-safe" >
 
                 {/* Header Section */}
@@ -937,28 +915,22 @@ export default function Dashboard() {
                 {/* The Brain (Search) */}
                 < ProblemSolver key={searchClearKey} onSearchResults={handleSearchResults} onClear={handleClearSearch} activeFilter={activeTab} />
 
-                {/* Filters - Centered below Search */}
-                < div className="mt-6 md:mt-8 mb-10 md:mb-16 flex justify-center w-full" >
-                    <div className="flex items-center gap-1 md:gap-2 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5 overflow-x-auto no-scrollbar max-w-full">
-                        <span className="hidden md:inline pl-3 pr-2 text-xs font-semibold uppercase tracking-wider opacity-60">Filter by:</span>
-                        {/* Tabs */}
-                        <div className="flex items-center gap-1">
-                            {TABS.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        whitespace-nowrap pl-2.5 md:pl-3 pr-3 md:pr-4 py-1.5 rounded-full text-[11px] md:text-xs font-medium transition-all duration-300 border flex items-center gap-1.5 md:gap-2
-                                        ${activeTab === tab.id
-                                            ? 'bg-red-950/30 text-red-200 border-red-900/50 shadow-[0_0_10px_rgba(220,38,38,0.2)]'
-                                            : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5'}
-                                    `}
-                                >
-                                    <tab.icon className={`w-3 h-3 ${activeTab === tab.id ? 'text-red-400' : 'opacity-70'}`} />
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
+                {/* Temporal filter — pill group, sticky across category switches. Mobile: inline pre-scroll, clock icon in navbar once scrolled. */}
+                < div className="mt-6 md:mt-8 mb-8 md:mb-12 flex justify-center w-full" >
+                    <div className="flex items-center gap-1 text-sm text-gray-500 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/5">
+                        {TEMPORAL_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.id}
+                                onClick={() => setTemporalFilter(opt.id)}
+                                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border ${
+                                    temporalFilter === opt.id
+                                        ? 'bg-red-950/30 text-red-200 border-red-900/50 shadow-[0_0_10px_rgba(220,38,38,0.2)]'
+                                        : 'bg-transparent text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/5'
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
                     </div>
                 </div >
 
@@ -1062,24 +1034,78 @@ export default function Dashboard() {
                 </div>
 
 
-                {/* Bridge message after zero-state modal dismissal */}
-                <AnimatePresence>
-                    {showPostZeroMessage && !isLoading && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="flex items-center gap-4 mb-10"
-                        >
-                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-                            <span className="text-xs font-light text-gray-600 tracking-wide text-center max-w-[260px] leading-relaxed">
-                                While we hunt for it, here are the latest videos matching your goals &amp; obstacles
-                            </span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-                        </motion.div>
+                {/* Category folder tabs — MOBILE inline (pre-scroll), attached to feed. Once user scrolls, the fixed sticky row above takes over. */}
+                <div ref={inlinePFARef} className="md:hidden flex justify-center w-full mb-0">
+                    <div className="flex items-end gap-0.5 w-full">
+                        {TABS.map((tab) => {
+                            const active = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`group relative flex-1 -mb-px whitespace-nowrap px-2 py-2.5 rounded-t-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 border ${
+                                        active
+                                            ? 'bg-[#0a0a0a] text-white border-red-500/25 border-b-transparent shadow-[0_-6px_16px_-10px_rgba(220,38,38,0.5)]'
+                                            : 'bg-white/[0.02] text-gray-500 border-white/5 border-b-white/10 active:bg-white/[0.06]'
+                                    }`}
+                                >
+                                    {active && (
+                                        <span className="absolute top-0 left-3 right-3 h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent rounded-full" />
+                                    )}
+                                    <tab.icon className={`w-3.5 h-3.5 ${active ? 'text-red-500 drop-shadow-[0_0_5px_rgba(220,38,38,0.6)]' : 'opacity-60'}`} />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Category folder tabs — DESKTOP ONLY, attached visually to the feed below.
+                    Active tab's background matches the main bg (#0a0a0a) and its -mb-px overlap
+                    cuts through the divider line so it reads as one physical tabbed card. */}
+                <div className="hidden md:flex justify-center w-full mb-0">
+                    <div className="flex items-end gap-0.5 w-full max-w-3xl">
+                        {TABS.map((tab) => {
+                            const active = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`group relative flex-1 -mb-px whitespace-nowrap px-5 py-3 rounded-t-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 border ${
+                                        active
+                                            ? 'bg-[#0a0a0a] text-white border-red-500/25 border-b-transparent shadow-[0_-8px_24px_-12px_rgba(220,38,38,0.45)]'
+                                            : 'bg-white/[0.02] text-gray-500 border-white/5 border-b-white/10 hover:bg-white/[0.05] hover:text-gray-300'
+                                    }`}
+                                >
+                                    {active && (
+                                        <span className="absolute top-0 left-4 right-4 h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent rounded-full" />
+                                    )}
+                                    <tab.icon className={`w-4 h-4 transition-colors ${active ? 'text-red-500 drop-shadow-[0_0_6px_rgba(220,38,38,0.6)]' : 'opacity-60 group-hover:opacity-100'}`} />
+                                    <span className="tracking-wide">{tab.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Caption row — sits inside the feed card (border-t from PFA tabs).
+                    Shows a sleek silver PFA subtitle normally, OR the zero-state bridge
+                    message after a search returns no results. */}
+                <div className="border-t border-white/10 pt-6 md:pt-8 mb-6 md:mb-8 flex items-center gap-4">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                    {showPostZeroMessage && !isLoading ? (
+                        <span className="text-xs font-light text-gray-600 tracking-wide text-center max-w-[260px] leading-relaxed">
+                            While we hunt for it, here are the latest videos matching your goals &amp; obstacles
+                        </span>
+                    ) : (
+                        <span className="text-xs md:text-sm font-light tracking-[0.15em] uppercase text-center bg-clip-text text-transparent bg-gradient-to-b from-white/80 to-white/30">
+                            {activeTab === 'pulse' && 'Latest News in AI & Vibecoding'}
+                            {activeTab === 'forge' && 'Tutorials & How-Tos'}
+                            {activeTab === 'alchemy' && 'Focus & Making Money'}
+                        </span>
                     )}
-                </AnimatePresence>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                </div>
 
                 {/* Video Grid - 3 Columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">

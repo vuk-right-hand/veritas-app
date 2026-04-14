@@ -1,12 +1,55 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { cookies } from 'next/headers';
 import { slugify } from '@/lib/utils';
 import { suggestChannel } from './channel-actions';
 import { getAuthenticatedUserId } from './auth-actions';
 import { sendApprovalEmails, checkViewMilestone } from './email-actions';
+import { resolveViewerIdReadOnly } from '@/lib/viewer-identity';
+
+type FeedCategory = 'pulse' | 'forge' | 'alchemy';
+const FEED_CATEGORIES: FeedCategory[] = ['pulse', 'forge', 'alchemy'];
+
+// Cookie-bound SSR client — carries the caller's JWT so auth.uid() resolves
+// inside SECURITY DEFINER / INVOKER RPCs (e.g. get_personalized_feed).
+// Service-role client stays for writes only.
+async function getSSRClient() {
+    const cookieStore = await cookies();
+    return createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy_key',
+        {
+            cookies: {
+                getAll() { return cookieStore.getAll(); },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        );
+                    } catch {}
+                },
+            },
+        }
+    );
+}
+
+// Server-session-only admin check. Never trust a caller-supplied email/id.
+// Returns the admin user's id on success, or null if unauthorized.
+async function assertAdminFromSession(): Promise<string | null> {
+    const sb = await getSSRClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user?.email) return null;
+    const { data: adminRole } = await supabase
+        .from('admin_roles')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
+    if (!adminRole) return null;
+    return user.id;
+}
 
 // Initialize Supabase Client (Prefer Service Role if available for Admin actions, fall back to Anon for now with RLS)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -580,7 +623,22 @@ export async function getPendingVideos() {
     return data;
 }
 
-export async function moderateVideo(videoId: string, action: 'approve' | 'ban' | 'storage' | 'pending') {
+export async function moderateVideo(
+    videoId: string,
+    action: 'approve' | 'ban' | 'storage' | 'pending',
+    feedCategory?: FeedCategory
+) {
+    // Admin gate: derived from SSR session ONLY. Never from an argument.
+    const adminUserId = await assertAdminFromSession();
+    if (!adminUserId) return { success: false, message: 'Unauthorized' };
+
+    // Whitelist category for approve. Other actions ignore it entirely.
+    if (action === 'approve') {
+        if (!feedCategory || !FEED_CATEGORIES.includes(feedCategory)) {
+            return { success: false, message: 'Invalid category' };
+        }
+    }
+
     let newStatus = 'pending';
     if (action === 'approve') newStatus = 'verified';
     else if (action === 'ban') newStatus = 'banned';
@@ -589,9 +647,12 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
 
     console.log(`[moderateVideo] Attempting to set video ${videoId} to ${newStatus}`);
 
+    const updatePayload: Record<string, unknown> = { status: newStatus };
+    if (action === 'approve') updatePayload.feed_category = feedCategory;
+
     const { data, error } = await supabase
         .from('videos')
-        .update({ status: newStatus })
+        .update(updatePayload)
         .eq('id', videoId)
         .select();
 
@@ -602,6 +663,14 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
 
     // Trigger analysis if approving (background)
     if (action === 'approve') {
+        // Telemetry — catches admin category bias in week-1 metrics
+        supabase.from('analytics_events').insert({
+            event_type: 'feed_category_assigned',
+            payload: { admin_id: adminUserId, video_id: videoId, feed_category: feedCategory },
+        }).then(({ error: telErr }) => {
+            if (telErr) console.error('[moderateVideo] Telemetry error:', telErr);
+        });
+
         const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
         // Prevent hitting localhost in Vercel prod if NEXT_PUBLIC_SITE_URL is missing
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -672,8 +741,41 @@ export async function moderateVideo(videoId: string, action: 'approve' | 'ban' |
     return { success: true, message: `Video moved to ${newStatus}` };
 }
 
+/**
+ * setFeedCategory — reclassify a legacy verified video whose feed_category is NULL.
+ * Same admin gate + whitelist as moderateVideo. Does NOT change status.
+ */
+export async function setFeedCategory(videoId: string, feedCategory: FeedCategory) {
+    const adminUserId = await assertAdminFromSession();
+    if (!adminUserId) return { success: false, message: 'Unauthorized' };
+    if (!FEED_CATEGORIES.includes(feedCategory)) {
+        return { success: false, message: 'Invalid category' };
+    }
+
+    const { error } = await supabase
+        .from('videos')
+        .update({ feed_category: feedCategory })
+        .eq('id', videoId);
+
+    if (error) {
+        console.error('[setFeedCategory] Update Error:', error);
+        return { success: false, message: error.message };
+    }
+
+    supabase.from('analytics_events').insert({
+        event_type: 'feed_category_assigned',
+        payload: { admin_id: adminUserId, video_id: videoId, feed_category: feedCategory, reclassified: true },
+    }).then(({ error: telErr }) => {
+        if (telErr) console.error('[setFeedCategory] Telemetry error:', telErr);
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/suggested-videos');
+    return { success: true };
+}
+
 // Columns needed by feed cards — excludes heavy/unused fields like embedding, description, suggestion_count
-const FEED_VIDEO_COLS = 'id, title, human_score, category_tag, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, created_at, status, slug';
+const FEED_VIDEO_COLS = 'id, title, human_score, category_tag, feed_category, channel_title, channel_url, published_at, summary_points, custom_description, custom_links, created_at, status, slug';
 
 export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'evergreen', limit: number = 12, offset: number = 0) {
     noStore();
@@ -717,59 +819,96 @@ export async function getVerifiedVideos(temporalFilter?: '14' | '28' | '60' | 'e
  * then batches the creator lookup as a single IN query.
  * Net result: 2 parallel DB hops + 1 serial hop → ~60 % faster than before.
  */
-export async function getInitialFeedData(temporalFilter: '14' | '28' | '60' | 'evergreen') {
+export async function getInitialFeedData(feedCategory: FeedCategory, publishedAfter?: string) {
     noStore();
+    if (!FEED_CATEGORIES.includes(feedCategory)) {
+        return { mission: null, verified: [], creatorMap: {}, curationIds: [] };
+    }
     const cookieStore = await cookies();
     const missionId = cookieStore.get('veritas_user')?.value;
+    const PAGE_SIZE = 6;
 
-    // ── Build verified-videos query ──────────────────────────────────────────
-    let verifiedQ = supabase
-        .from('videos')
-        .select(FEED_VIDEO_COLS)
-        .eq('status', 'verified')
-        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+    // ── PULSE: pure chronological, no curations, no RPC ──────────────────────
+    if (feedCategory === 'pulse') {
+        let pulseQ = supabase
+            .from('videos')
+            .select(FEED_VIDEO_COLS)
+            .eq('status', 'verified')
+            .eq('feed_category', 'pulse')
+            .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+        if (publishedAfter) pulseQ = pulseQ.gte('published_at', publishedAfter);
+        const { data: verifiedData } = await pulseQ
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .range(0, PAGE_SIZE - 1);
 
-    if (temporalFilter !== 'evergreen') {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
-        verifiedQ = verifiedQ.gte('published_at', cutoff.toISOString());
+        const verified = (verifiedData ?? []) as any[];
+        const creatorMap = await fetchCreatorMap(
+            verified.map((v) => v.channel_url).filter(Boolean)
+        );
+        return { mission: null, verified, creatorMap, curationIds: [] as string[] };
     }
-    verifiedQ = verifiedQ.order('created_at', { ascending: false }).range(0, 5);
 
-    // ── Build mission query (only if cookie present) ─────────────────────────
+    // ── FORGE / ALCHEMY: curations (in-SQL filtered) + personalized RPC ─────
     const missionQ = missionId
         ? supabase
             .from('user_missions')
-            .select(`id, goal, user_id, mission_curations(curation_reason, videos(${FEED_VIDEO_COLS}))`)
+            .select(`id, goal, user_id, mission_curations(curation_reason, videos!inner(${FEED_VIDEO_COLS}))`)
             .eq('id', missionId)
-            .single()
+            .eq('mission_curations.videos.feed_category', feedCategory)
+            .maybeSingle()
         : Promise.resolve({ data: null, error: null });
 
-    // 🚀 PARALLEL — both DB queries fire at the same time
-    const [missionResult, verifiedResult] = await Promise.all([missionQ, verifiedQ]);
+    const [missionResult] = await Promise.all([missionQ]);
+    const mission = (missionResult as any)?.data ?? null;
 
-    const mission = missionResult?.data ?? null;
-    const verified = (verifiedResult?.data ?? []) as any[];
-
-    // ── Batch-fetch creator data for all channel URLs in one IN query ────────
-    const allUrls = [
-        ...(mission?.mission_curations?.map((c: any) => c.videos?.channel_url).filter(Boolean) ?? []),
-        ...verified.map((v: any) => v.channel_url).filter(Boolean),
-    ];
-    const uniqueUrls = [...new Set(allUrls)] as string[];
-
-    const creatorMap: Record<string, { id: string; description: string; links: any[]; slug: string | null }> = {};
-    if (uniqueUrls.length > 0) {
-        const { data: creators } = await supabase
-            .from('creators')
-            .select('id, channel_url, description, links, slug')
-            .in('channel_url', uniqueUrls);
-        creators?.forEach((c: any) => {
-            creatorMap[c.channel_url] = { id: c.id, description: c.description || '', links: c.links || [], slug: c.slug || null };
+    let curationVideos: any[] = (mission?.mission_curations ?? [])
+        .map((c: any) => c.videos)
+        .filter(Boolean);
+    // Curations respect the temporal filter too — if the user picks "last 14
+    // days" they don't want a 2-year-old video pinned at the top just because
+    // an admin curated it. Keeps behavior consistent with the rest of the feed.
+    if (publishedAfter) {
+        const cutoff = new Date(publishedAfter).getTime();
+        curationVideos = curationVideos.filter((v: any) => {
+            const t = v.published_at ? new Date(v.published_at).getTime() : 0;
+            return t >= cutoff;
         });
     }
+    const curationIds: string[] = curationVideos.map((v: any) => v.id);
 
-    return { mission, verified, creatorMap };
+    // Service-role client only — RPC is NOT granted to anon/authenticated.
+    // Read-only viewer id resolution (MUST NOT touch cookies in SSR render).
+    const viewerId = await resolveViewerIdReadOnly();
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('get_personalized_feed', {
+        p_user_id: viewerId,
+        p_feed_category: feedCategory,
+        p_limit: PAGE_SIZE,
+        p_offset: 0,
+        p_exclude_ids: curationIds,
+        p_published_after: publishedAfter ?? null,
+    });
+    if (rpcErr) console.error('[getInitialFeedData] RPC error:', rpcErr);
+
+    const verified = [...curationVideos, ...((rpcData ?? []) as any[])];
+    const creatorMap = await fetchCreatorMap(
+        verified.map((v: any) => v.channel_url).filter(Boolean)
+    );
+
+    return { mission, verified, creatorMap, curationIds };
+}
+
+async function fetchCreatorMap(urls: string[]) {
+    const uniqueUrls = [...new Set(urls)] as string[];
+    const creatorMap: Record<string, { id: string; description: string; links: any[]; slug: string | null }> = {};
+    if (uniqueUrls.length === 0) return creatorMap;
+    const { data: creators } = await supabase
+        .from('creators')
+        .select('id, channel_url, description, links, slug')
+        .in('channel_url', uniqueUrls);
+    creators?.forEach((c: any) => {
+        creatorMap[c.channel_url] = { id: c.id, description: c.description || '', links: c.links || [], slug: c.slug || null };
+    });
+    return creatorMap;
 }
 
 /**
@@ -777,27 +916,60 @@ export async function getInitialFeedData(temporalFilter: '14' | '28' | '60' | 'e
  * Returns fully-formatted video objects (no second round-trip needed on the client).
  */
 export async function getVerifiedVideosWithCreators(
-    temporalFilter: '14' | '28' | '60' | 'evergreen',
+    feedCategory: FeedCategory,
     limit: number = 3,
-    offset: number = 0
+    offset: number = 0,
+    excludeIds: string[] = [],
+    publishedAfter?: string
 ) {
     noStore();
-    let query = supabase
-        .from('videos')
-        .select(FEED_VIDEO_COLS)
-        .eq('status', 'verified')
-        .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+    if (!FEED_CATEGORIES.includes(feedCategory)) return [];
 
-    if (temporalFilter !== 'evergreen') {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - parseInt(temporalFilter));
-        query = query.gte('published_at', cutoff.toISOString());
+    let videos: any[] = [];
+
+    if (feedCategory === 'pulse') {
+        // Pulse = pure chronological. No RPC, no personalization.
+        let q = supabase
+            .from('videos')
+            .select(FEED_VIDEO_COLS)
+            .eq('status', 'verified')
+            .eq('feed_category', 'pulse')
+            .or('channel_id.neq.UC_VERITAS_OFFICIAL,channel_id.is.null');
+        if (publishedAfter) q = q.gte('published_at', publishedAfter);
+        if (excludeIds.length > 0) {
+            // PostgREST .not('id','in',...) only accepts a string list. Hard-validate
+            // each id against the YouTube charset before interpolation — anything
+            // outside [A-Za-z0-9_-] is dropped, so no PostgREST filter injection.
+            const safeIds = excludeIds.filter((id) => /^[A-Za-z0-9_-]+$/.test(id));
+            if (safeIds.length > 0) {
+                q = q.not('id', 'in', `(${safeIds.join(',')})`);
+            }
+        }
+        const { data, error } = await q
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .range(offset, offset + limit - 1);
+        if (error) { console.error('[getVerifiedVideosWithCreators] pulse error:', error); return []; }
+        videos = data ?? [];
+    } else {
+        // Forge / Alchemy: RPC owns ranking + pagination + exclusion.
+        // Service-role client only; RPC takes p_user_id explicitly and is not
+        // granted to anon/authenticated (would leak taste profiles via ordering).
+        // Personalized branch in the RPC ignores p_offset and relies on
+        // p_exclude_ids — the frontend already accumulates seen IDs into excludeIds.
+        const viewerId = await resolveViewerIdReadOnly();
+        const { data, error } = await supabase.rpc('get_personalized_feed', {
+            p_user_id: viewerId,
+            p_feed_category: feedCategory,
+            p_limit: limit,
+            p_offset: offset,
+            p_exclude_ids: excludeIds,
+            p_published_after: publishedAfter ?? null,
+        });
+        if (error) { console.error('[getVerifiedVideosWithCreators] rpc error:', error); return []; }
+        videos = (data ?? []) as any[];
     }
-    const { data: videos, error } = await query
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
 
-    if (error || !videos?.length) return [];
+    if (!videos.length) return [];
 
     const channelUrls = [...new Set(videos.map((v: any) => v.channel_url).filter(Boolean))] as string[];
     const creatorMap: Record<string, any> = {};

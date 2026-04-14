@@ -97,7 +97,9 @@ export async function saveVideoAnalysis(
             human_score: analysis.humanScore,
             summary_points: analysis.takeaways,
             category_tag: analysis.category,
-            embedding: embedding // SAVE THE VECTOR!
+            // pgvector text literal — sending a raw number[] via PostgREST
+            // is version-dependent and can silently write NULL. Always '[a,b,c]'.
+            embedding_1536: '[' + embedding.join(',') + ']'
         })
         .eq('id', meta.youtube_id.trim())
         .select()
