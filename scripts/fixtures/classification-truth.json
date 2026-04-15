@@ -1,0 +1,250 @@
+{
+  "_instructions": "Hand-label ~50 videos from preapproved channels. Mix 12+ per class. Include clickbait-titled tutorials (should resolve to 'forge' via transcript signals), genuine news (pulse), pure motivation (reject), monetization frameworks (alchemy). The 'expected' field must be one of: pulse | forge | alchemy | reject. The 'url' field is a full YouTube URL. Labels should be what YOU think the correct classification is — Gemini is graded against this ground truth.",
+  "videos": [
+    {
+      "url": "https://www.youtube.com/watch?v=fQAfN0D1UBw",
+      "expected": "forge",
+      "note": "Marketing, but tutorial transcript"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=o_Vkl9oXxxY",
+      "expected": "alchemy",
+      "note": "Content engine to land high-ticket clients — primary topic is client acquisition"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=CtB4HP7kHyw",
+      "expected": "forge",
+      "note": "LinkedIn, but tutorial transcript"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=6TNZKtlF2p4",
+      "expected": "forge",
+      "note": "How-to list"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=z_rXNjNnx7s&t=26s",
+      "expected": "forge",
+      "note": "Personal brand step-by-step"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=cMI2t8M8Pgc",
+      "expected": "forge",
+      "note": "Clickbait title, tutorial transcript"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=wMR9UUQrB8U",
+      "expected": "alchemy",
+      "note": "AI influencer — monetization via brand deals is the point"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=Vachtj-xjXI",
+      "expected": "forge",
+      "note": "Clickbait title, tutorial transcript"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=m7U0353WlrQ",
+      "expected": "forge",
+      "note": "Focus with AI step-by-step"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=loujaeBy8p0",
+      "expected": "forge",
+      "note": "AI step-by-step"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=A8_nNYLTXEQ",
+      "expected": "forge",
+      "note": "AI step-by-step"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=UPtmKh1vMN8&pp=0gcJCdMKAYcqIYzv",
+      "expected": "forge",
+      "note": "AI Tutorial"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=fIRq5sW9ZC0",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=eehsSUlXZN4",
+      "expected": "forge",
+      "note": "Tutorial shape — relabeled from pulse (>8d, 8-day gate applies)"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=5u6uCeqaZAU",
+      "expected": "pulse",
+      "note": "Named new feature within 8-day window — pulse"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=5ehtJzeXv-k",
+      "expected": "forge",
+      "note": "Tutorial shape — relabeled from pulse (>8d, 8-day gate applies)"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=uD7prXJCRY0&pp=0gcJCdMKAYcqIYzv",
+      "expected": "forge",
+      "note": "Tutorial shape — relabeled from pulse (>8d, 8-day gate applies)"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=DPuZafJ6UEs&t=380s",
+      "expected": "forge",
+      "note": "Tutorial shape — relabeled from pulse (>8d, 8-day gate applies)"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=j3aXJNu9804",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=Ob5Vu-gD3mo&t=259s",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=oCuttuCQmZg",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=1EPsUXSManU&pp=ugUEEgJlbg%3D%3D",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=0vdlwOK_Qdk",
+      "expected": "pulse",
+      "note": "LLM Update/Just dropped"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=E1idsrv79tI&pp=0gcJCdMKAYcqIYzv",
+      "expected": "forge",
+      "note": "Relabeled from pulse (>8d, 8-day gate applies)"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=T0CMHwVh0u4&pp=ugUEEgJlbtIHCQnTCgGHKiGM7w%3D%3D",
+      "expected": "alchemy",
+      "note": "Selling AI websites"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=ExL35N8RPjA&pp=ugUHEgVlbi1HQtIHCQnTCgGHKiGM7w%3D%3D",
+      "expected": "alchemy",
+      "note": "Selling AI websites"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=zTuV3chQCus",
+      "expected": "alchemy",
+      "note": "Selling AI websites step-by-step"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=yyb5fgWXPSc",
+      "expected": "pulse",
+      "note": "Named new feature (Claude Co-work Dispatch) within 8-day window — pulse"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=YFlCDHYsWyg",
+      "expected": "alchemy",
+      "note": "$0 to X money"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=gRcBu8LyfGo",
+      "expected": "alchemy",
+      "note": "Business model"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=lHfsW17Z7g0",
+      "expected": "alchemy",
+      "note": "Business model"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=uqlbND_pRAc",
+      "expected": "alchemy",
+      "note": "Business model"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=Ns9kaPV1254",
+      "expected": "alchemy",
+      "note": "$0 to X money"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=rLCUTiFe32I",
+      "expected": "alchemy",
+      "note": "Mindset"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=wj4ZRihxMZY",
+      "expected": "reject",
+      "note": "Charli Morgan rah-rah — no measurable specifics, fails the anti-motivation test"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=A8PxRHQrLJ8",
+      "expected": "alchemy",
+      "note": "Content system"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=_K9ECAYrU2Q",
+      "expected": "alchemy",
+      "note": "Productivity"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=A9S5pq7pNw8",
+      "expected": "alchemy",
+      "note": "Focus"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=uSTGNHGFOAo",
+      "expected": "alchemy",
+      "note": "Tutorial"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=EsTrWCV0Ph4",
+      "expected": "forge",
+      "note": "Tutorial"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=V4PmrRnJHAc",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=A3PGldJ6Tww&pp=ugUEEgJlbtIHCQnTCgGHKiGM7w%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://youtu.be/1tCHGAOw_ic",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=tgj3KYmcpvs&pp=ygUKbW90aXZhdGlvbg%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://youtu.be/AJ1-WE1B2Ss",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=5RgKuX3AZt0&pp=ygUKbW90aXZhdGlvbg%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=XWxKXpwwvz8&pp=ygUKbW90aXZhdGlvbg%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=IKZtj-5LNeo&pp=ygUKbW90aXZhdGlvbg%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=XMiihNhk4P0&pp=ygUKbW90aXZhdGlvbg%3D%3D",
+      "expected": "reject",
+      "note": "Vague motivation"
+    }
+  ]
+}

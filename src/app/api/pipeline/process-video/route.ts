@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { generateEmbedding } from '@/lib/gemini';
+import { generateEmbedding1536 } from '@/lib/gemini';
 import { fetchVideoMeta } from '@/lib/video-service';
 import { slugify } from '@/lib/utils';
 import {
@@ -9,6 +9,12 @@ import {
   updatePipelineJob,
 } from '@/lib/pipeline-utils';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  ANALYSIS_RESPONSE_SCHEMA,
+  SKILL_TAGS,
+  buildAnalysisPrompt,
+  parseAnalysisResult,
+} from '@/lib/analysis-prompt';
 
 export const maxDuration = 60; // Vercel Hobby tier supports up to 60s with explicit config
 
@@ -16,50 +22,10 @@ const SUPADATA_API_URL = 'https://api.supadata.ai/v1/youtube/transcript';
 const MIN_DURATION_SECONDS = 180;     // 3 minutes — filters out YouTube Shorts (up to 3min)
 const MAX_DURATION_SECONDS = 2100;    // 35 minutes
 
-const SKILL_TAGS = [
-  'Sales', 'Copywriting', 'Marketing Psychology', 'AI/Automation',
-  'Content Creation', 'Outreach', 'Time Management', 'VibeCoding/Architecture',
-];
-
-// Structured output schema for Gemini
-const ANALYSIS_SCHEMA = {
-  type: 'object' as const,
-  properties: {
-    humanScore: { type: 'number' as const },
-    humanScoreReason: { type: 'string' as const },
-    takeaways: {
-      type: 'array' as const,
-      items: { type: 'string' as const },
-    },
-    category: { type: 'string' as const },
-    content_tags: {
-      type: 'array' as const,
-      items: {
-        type: 'object' as const,
-        properties: {
-          tag: { type: 'string' as const },
-          weight: { type: 'number' as const },
-          segment_start_pct: { type: 'number' as const },
-          segment_end_pct: { type: 'number' as const },
-        },
-        required: ['tag', 'weight', 'segment_start_pct', 'segment_end_pct'] as const,
-      },
-    },
-    quiz_questions: {
-      type: 'array' as const,
-      items: {
-        type: 'object' as const,
-        properties: {
-          lesson_number: { type: 'number' as const },
-          skill_tag: { type: 'string' as const },
-          question: { type: 'string' as const },
-        },
-        required: ['lesson_number', 'skill_tag', 'question'] as const,
-      },
-    },
-  },
-  required: ['humanScore', 'humanScoreReason', 'takeaways', 'category', 'content_tags', 'quiz_questions'] as const,
-};
+// CLASSIFICATION_ENABLED is a FULL kill switch, not a classification-only toggle.
+// When false, new videos land as classification_status='pending' + feed_category=null
+// and are invisible to all three feed tabs until the flag flips back on.
+const CLASSIFICATION_ENABLED = process.env.CLASSIFICATION_ENABLED !== 'false';
 
 function getPipelineAiModel() {
   const apiKey = process.env.GOOGLE_API_KEY;
@@ -67,59 +33,11 @@ function getPipelineAiModel() {
   return new GoogleGenerativeAI(apiKey).getGenerativeModel({
     model: 'gemini-2.5-flash-lite',
     generationConfig: {
-      temperature: 0.3,
+      temperature: 0.1,
       responseMimeType: 'application/json',
-      responseSchema: ANALYSIS_SCHEMA,
+      responseSchema: ANALYSIS_RESPONSE_SCHEMA,
     } as any, // generationConfig type doesn't include responseSchema yet
   });
-}
-
-// The same battle-tested prompt from /api/analyze
-function buildAnalysisPrompt(transcript: string): string {
-  return `
-Analyze this YouTube video transcript.
-
-Goal 1: Calculate a "Human Verification Score" (0-100).
-- CRITICAL: For verified/high-quality content (which this is), the score MUST be between 91 and 100.
-- 91-99: Excellent, authentic, high signal.
-- 100: Absolute masterpiece, purely human, deeply rigorous.
-- NEVER return a score below 91 for this specific task.
-
-Goal 2: Extract 3 specific, high-value Key Lessons.
-- STYLE: Curiosity-Driven & Benefit-Oriented.
-- LENGTH: Each lesson MUST be 75 characters or less (including spaces/punctuation).
-- Do NOT just summarize. Tease the value.
-- BAD: "He talks about being consistent."
-- GOOD: "The 'Rule of 100' framework that guarantees your first result."
-- GOOD: "Why 'Shallow Work' destroys careers (and the fix)."
-- Make the user feel they *must* watch to get the full secret.
-- Look for specific frameworks, numbers, or unique insights.
-- Keep it punchy and concise - single line per lesson!
-
-Goal 3: Determine the "Vibe" category (e.g., Productivity, Mindset, Sales, Coding).
-
-Goal 4: Extract exactly 3 "Content DNA" tags for interest-based scoring.
-- Each tag is a lowercase_slug (e.g., cold_approach, dating, business_mindset, morning_routine).
-- Keep tags broad enough to be reusable across videos, but specific enough to be meaningful.
-- Assign weights: the primary/dominant topic = 10, secondary = 8, tertiary = 5.
-- For each tag, estimate what percentage range of the video discusses that topic.
-  Use segment_start_pct (0-100) and segment_end_pct (0-100).
-  These can overlap if topics are interwoven.
-
-Goal 5: Generate EXACTLY 6 "Proof of Work" Questions.
-- CRITICAL: YOU MUST GENERATE EXACTLY 6 QUESTIONS. DO NOT GENERATE 3. DO NOT GENERATE 5. EXACTLY 6.
-- Convert the essence of the lessons into 6 UNIQUE, open-ended application questions.
-- Draw from the full context of the video to create 6 varied questions.
-- The questions must force the user to apply the concept to their own business, life, or workflow.
-- Do NOT ask "What did the video say?" Ask "How would you use this to..."
-- You MUST assign one of these exact 'Skill Tags' to each question: ['Sales', 'Copywriting', 'Marketing Psychology', 'AI/Automation', 'Content Creation', 'Outreach', 'Time Management', 'VibeCoding/Architecture'].
-- Questions must be SHORT and punchy. MAXIMUM 15 WORDS per question. No fluff.
-- Do NOT start with "Based on..." or "According to..." — just ask directly.
-- Number them exactly 1, 2, 3, 4, 5, and 6 via the "lesson_number" field.
-
-Transcript:
-"${transcript}"
-`;
 }
 
 export async function POST(req: Request) {
@@ -144,10 +62,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create pipeline job' }, { status: 500 });
     }
 
-    // 3. Duplicate check
+    // 3. Idempotency — extended from a bare existence check to also recognize
+    //    videos that have already been classified or rejected, so retries from
+    //    n8n don't burn Gemini calls.
     const { data: existingVideo } = await supabaseAdmin
       .from('videos')
-      .select('id')
+      .select('id, classification_status')
       .eq('id', video_id)
       .single();
 
@@ -156,7 +76,12 @@ export async function POST(req: Request) {
         status: 'skipped_duplicate',
         processing_time_ms: Date.now() - startTime,
       });
-      return NextResponse.json({ success: true, status: 'skipped_duplicate', job_id: jobId });
+      return NextResponse.json({
+        success: true,
+        status: 'skipped_duplicate',
+        job_id: jobId,
+        classification_status: existingVideo.classification_status ?? null,
+      });
     }
 
     // 4. Fetch transcript from Supadata
@@ -244,41 +169,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Metadata fetch failed', job_id: jobId });
     }
 
-    // 7. Gemini analysis with structured output
-    await updatePipelineJob(supabaseAdmin, jobId, { status: 'analyzing' });
-
-    const aiModel = getPipelineAiModel();
-    const prompt = buildAnalysisPrompt(truncatedTranscript);
-    const analysisResult = await aiModel.generateContent(prompt);
-    const responseText = analysisResult.response.text();
-
-    let analysis: any;
-    try {
-      // With responseMimeType: "application/json", Gemini should return pure JSON
-      analysis = JSON.parse(responseText);
-    } catch {
-      // Fallback: try stripping markdown code fences
-      const cleaned = responseText.replace(/```json|```/g, '').trim();
-      analysis = JSON.parse(cleaned);
-    }
-
-    // Force score 91-100 (safety net)
-    if (analysis.humanScore < 91) {
-      analysis.humanScore = Math.floor(Math.random() * (99 - 91 + 1) + 91);
-    }
-    if (analysis.humanScore > 100) analysis.humanScore = 100;
-
-    // 8. Generate embedding
-    await updatePipelineJob(supabaseAdmin, jobId, { status: 'generating_embedding' });
-
-    const tagsString = analysis.content_tags
-      ? analysis.content_tags.map((t: any) => t.tag).join(' ')
-      : '';
-    const cleanContentToEmbed = `Title: ${meta.title} | Category: ${analysis.category} | Key Insights: ${analysis.takeaways.join(', ')} | Topics: ${tagsString}`;
-    const embeddingVector = await generateEmbedding(cleanContentToEmbed);
-
-    // 9. Upsert channel (FK requirement)
-    const channelSlug = meta.channel_id; // slugified channel name from fetchVideoMeta
+    // 6.5. Upsert channel BEFORE classification so the Zod-failure fallback
+    //      insert below doesn't FK-violate on a brand-new channel. Safe to
+    //      run unconditionally — even rejected videos don't insert a videos
+    //      row so the channel row is harmless.
+    const channelSlug = meta.channel_id;
     await supabaseAdmin
       .from('channels')
       .upsert(
@@ -290,7 +185,80 @@ export async function POST(req: Request) {
         { onConflict: 'youtube_channel_id' }
       );
 
-    // 10. INSERT video with slug collision handling
+    // 7. Gemini analysis with structured output
+    await updatePipelineJob(supabaseAdmin, jobId, { status: 'analyzing' });
+
+    const aiModel = getPipelineAiModel();
+    const prompt = buildAnalysisPrompt(truncatedTranscript, meta.published_at);
+    const analysisResult = await aiModel.generateContent(prompt);
+    const responseText = analysisResult.response.text();
+
+    let rawAnalysis: any;
+    try {
+      rawAnalysis = JSON.parse(responseText);
+    } catch {
+      const cleaned = responseText.replace(/```json|```/g, '').trim();
+      rawAnalysis = JSON.parse(cleaned);
+    }
+
+    // 8. Zod parse — on failure, insert a row with classification_status='failed'
+    //    so the record exists but is invisible to feed readers (status stays
+    //    non-verified). Recoverable via a future backfill retry.
+    let analysis;
+    try {
+      analysis = parseAnalysisResult(rawAnalysis);
+    } catch (parseErr: any) {
+      console.error('[Pipeline] Zod parse failed:', parseErr?.message);
+      await updatePipelineJob(supabaseAdmin, jobId, {
+        status: 'failed',
+        error_message: `Zod parse failed: ${parseErr?.message?.substring(0, 200) ?? 'unknown'}`,
+        processing_time_ms: Date.now() - startTime,
+      });
+      // Insert a minimal row so the video_id is tracked but invisible
+      await supabaseAdmin.from('videos').insert({
+        id: video_id,
+        slug: slugify(meta.title).substring(0, 100) + '-' + Math.random().toString(36).substring(2, 6),
+        title: meta.title,
+        channel_title: meta.channel_name,
+        channel_id: meta.channel_id,
+        channel_url: channel_id ? `https://www.youtube.com/channel/${channel_id}` : undefined,
+        status: 'pending',
+        classification_status: 'failed',
+        thumbnail_url: meta.thumbnail_url,
+        published_at: meta.published_at,
+        suggestion_count: 0,
+      });
+      return NextResponse.json({
+        success: false,
+        status: 'failed',
+        job_id: jobId,
+        error: 'Analysis parse failure',
+      });
+    }
+
+    // Force score 91-100 (safety net)
+    if (analysis.humanScore < 91) {
+      analysis.humanScore = Math.floor(Math.random() * (99 - 91 + 1) + 91);
+    }
+    if (analysis.humanScore > 100) analysis.humanScore = 100;
+
+    // 9. Reject videos still get the full insert (embedding, tags, quiz) —
+    //    the work is already computed in this same hop, and writing
+    //    status='banned' keeps them visible in /suggested-videos Denied
+    //    column for audit + pure-DB approve-anyway override.
+    const isRejected = CLASSIFICATION_ENABLED && analysis.verdict === 'reject';
+
+    // 11. Generate embedding (1536-dim, pgvector text literal)
+    await updatePipelineJob(supabaseAdmin, jobId, { status: 'generating_embedding' });
+
+    const tagsString = analysis.content_tags
+      ? analysis.content_tags.map((t: any) => t.tag).join(' ')
+      : '';
+    const cleanContentToEmbed = `Title: ${meta.title} | Category: ${analysis.category} | Key Insights: ${analysis.takeaways.join(', ')} | Topics: ${tagsString}`;
+    const embeddingVector = await generateEmbedding1536(cleanContentToEmbed);
+    const embeddingLiteral = '[' + embeddingVector.join(',') + ']';
+
+    // 12. INSERT video with slug collision handling
     let generatedSlug = slugify(meta.title).substring(0, 100);
     let insertSuccess = false;
 
@@ -304,11 +272,19 @@ export async function POST(req: Request) {
           channel_title: meta.channel_name,
           channel_id: channelSlug,
           channel_url: channel_id ? `https://www.youtube.com/channel/${channel_id}` : undefined,
-          status: 'verified', // Pipeline videos are auto-verified
+          thumbnail_url: meta.thumbnail_url,
+          published_at: meta.published_at,
+          status: isRejected ? 'banned' : 'verified',
           human_score: analysis.humanScore,
           summary_points: analysis.takeaways,
           category_tag: analysis.category,
-          embedding: embeddingVector,
+          embedding_1536: embeddingLiteral,
+          // Classification fields — gated by kill switch
+          classification_status: CLASSIFICATION_ENABLED ? (isRejected ? 'rejected' : 'classified') : 'pending',
+          feed_category: CLASSIFICATION_ENABLED ? analysis.feed_category : null,
+          category_confidence: CLASSIFICATION_ENABLED ? analysis.category_confidence : null,
+          category_rationale: CLASSIFICATION_ENABLED ? analysis.category_rationale : null,
+          category_signals: CLASSIFICATION_ENABLED ? analysis.category_signals : null,
           suggestion_count: 0,
         });
 
@@ -317,7 +293,8 @@ export async function POST(req: Request) {
           generatedSlug = `${slugify(meta.title).substring(0, 95)}-${Math.random().toString(36).substring(2, 6)}`;
           continue;
         }
-        // If it's a true duplicate video (race condition), mark as duplicate
+        // Race with concurrent call — second caller wasted a Gemini call but
+        // no data corruption. Acknowledged, handled.
         if (insertError.code === '23505') {
           await updatePipelineJob(supabaseAdmin, jobId, {
             status: 'skipped_duplicate',
@@ -331,7 +308,7 @@ export async function POST(req: Request) {
       insertSuccess = true;
     }
 
-    // 11. INSERT content DNA tags
+    // 13. INSERT content DNA tags
     if (analysis.content_tags && Array.isArray(analysis.content_tags)) {
       for (const tagData of analysis.content_tags) {
         await supabaseAdmin
@@ -349,7 +326,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 12. INSERT quiz questions
+    // 14. INSERT quiz questions
     if (analysis.quiz_questions && Array.isArray(analysis.quiz_questions)) {
       for (let i = 0; i < analysis.quiz_questions.length; i++) {
         const q = analysis.quiz_questions[i];
@@ -360,7 +337,7 @@ export async function POST(req: Request) {
             {
               video_id: video_id,
               lesson_number: lessonNum,
-              skill_tag: SKILL_TAGS.includes(q.skill_tag) ? q.skill_tag : 'Content Creation',
+              skill_tag: SKILL_TAGS.includes(q.skill_tag as any) ? q.skill_tag : 'Content Creation',
               question_text: q.question,
             },
             { onConflict: 'video_id,lesson_number' }
@@ -368,19 +345,23 @@ export async function POST(req: Request) {
       }
     }
 
-    // 13. Mark job completed
+    // 15. Mark job completed (or skipped_rejected — row still written)
     await updatePipelineJob(supabaseAdmin, jobId, {
-      status: 'completed',
+      status: isRejected ? 'skipped_rejected' : 'completed',
+      error_message: isRejected
+        ? analysis.category_rationale?.substring(0, 500) ?? 'Rejected by classifier'
+        : undefined,
       processing_time_ms: Date.now() - startTime,
     });
 
     return NextResponse.json({
       success: true,
-      status: 'completed',
+      status: isRejected ? 'skipped_rejected' : 'completed',
       job_id: jobId,
       video_id: video_id,
       title: meta.title,
       human_score: analysis.humanScore,
+      feed_category: CLASSIFICATION_ENABLED ? analysis.feed_category : null,
       processing_time_ms: Date.now() - startTime,
     });
   } catch (error: any) {

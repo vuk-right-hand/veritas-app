@@ -12,6 +12,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { suggestVideo, getInitialFeedData, getVerifiedVideosWithCreators } from '@/app/actions/video-actions';
 import { getCreatorsByChannelUrls, checkIsCreator } from '@/app/actions/creator-actions';
 import { getAuthenticatedUserId } from '@/app/actions/auth-actions';
+import { logSearchClick } from '@/app/actions/search-actions';
 import ProfileRequiredModal from '@/components/ProfileRequiredModal';
 import ZeroStateModal from '@/components/ZeroStateModal';
 import { useUser } from '@/components/UserContext';
@@ -298,7 +299,7 @@ export default function Dashboard() {
                     // Fetch channel data for search results
                     const searchChannelUrls = results.map((r: any) => r.channel_url).filter(Boolean);
                     const searchCreatorMap = await getCreatorsByChannelUrls(searchChannelUrls);
-                    const mapped = results.map((r: any) => {
+                    const mapped = results.map((r: any, idx: number) => {
                         const creator = searchCreatorMap[r.channel_url] || null;
                         return {
                             id: r.id,
@@ -315,6 +316,8 @@ export default function Dashboard() {
                             isChannelClaimed: !!creator,
                             slug: r.slug || null,
                             creatorSlug: creator?.slug || null,
+                            _searchRank: idx,
+                            _searchScore: typeof r.score === 'number' ? r.score : null,
                         };
                     });
                     setVideos(mapped);
@@ -345,7 +348,7 @@ export default function Dashboard() {
         // Fetch channel data for search results
         const searchChannelUrls = results.map(r => r.channel_url).filter(Boolean);
         const searchCreatorMap = await getCreatorsByChannelUrls(searchChannelUrls);
-        const mapped = results.map(r => {
+        const mapped = results.map((r, idx) => {
             const creator = searchCreatorMap[r.channel_url] || null;
             return {
                 id: r.id,
@@ -362,6 +365,8 @@ export default function Dashboard() {
                 isChannelClaimed: !!creator,
                 slug: r.slug || null,
                 creatorSlug: creator?.slug || null,
+                _searchRank: idx,
+                _searchScore: typeof (r as any).score === 'number' ? (r as any).score : null,
             };
         });
         setVideos(mapped);
@@ -1143,7 +1148,19 @@ export default function Dashboard() {
                                     creatorSlug={video.creatorSlug}
                                     creatorId={video.creatorId}
                                     onQuizStart={() => { }}
-                                    onVideoView={() => setVideoViewCount(c => c + 1)}
+                                    onVideoView={() => {
+                                        setVideoViewCount(c => c + 1);
+                                        // If this view came from a search result, log the click
+                                        // for Phase 3 threshold tuning. Fire-and-forget.
+                                        if (currentSearchQuery && typeof (video as any)._searchRank === 'number') {
+                                            logSearchClick(
+                                                currentSearchQuery,
+                                                video.id,
+                                                (video as any)._searchRank,
+                                                (video as any)._searchScore ?? null,
+                                            ).catch(() => { });
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         ))

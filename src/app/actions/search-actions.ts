@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { resolveViewerIdReadOnly } from '@/lib/viewer-identity';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -75,4 +76,46 @@ export async function logPriorityRequest(query: string): Promise<{ success: bool
     }
 
     return { success: true, message: 'Request logged' };
+}
+
+// Click-through logging for search results. Writes an analytics_events row
+// so Phase 3 threshold tuning can correlate clicks with the score distribution
+// already captured by /api/search. Fire-and-forget — errors are logged, never
+// thrown to the UI. Uses supabaseAdmin (not anon) for payload-shape discipline:
+// analytics_events has a public INSERT policy but the server path keeps the
+// metadata schema consistent across writers.
+export async function logSearchClick(
+    query: string,
+    videoId: string,
+    rank: number,
+    score: number | null,
+): Promise<void> {
+    const trimmed = (query || '').trim().toLowerCase();
+    if (!trimmed || trimmed.length > 200 || !videoId) return;
+    // videoId is a YouTube 11-char id in this app. Reject anything else so a
+    // caller can't stuff arbitrary strings into analytics_events.target_id.
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
+    // Gate on a resolvable viewer identity. This is an unauthenticated server
+    // action otherwise — without a gate, anyone can poison the Phase 3
+    // threshold-tuning data this was built to collect.
+    try {
+        const viewerId = await resolveViewerIdReadOnly();
+        if (!viewerId) return;
+    } catch {
+        return;
+    }
+    try {
+        const { error } = await supabaseAdmin.from('analytics_events').insert({
+            event_type: 'search_click',
+            target_id: videoId,
+            metadata: {
+                query: trimmed,
+                rank,
+                score,
+            },
+        });
+        if (error) console.error('[search-actions] logSearchClick error:', error);
+    } catch (e) {
+        console.error('[search-actions] logSearchClick threw:', (e as Error).message);
+    }
 }

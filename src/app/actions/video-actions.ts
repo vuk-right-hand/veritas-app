@@ -9,6 +9,7 @@ import { suggestChannel } from './channel-actions';
 import { getAuthenticatedUserId } from './auth-actions';
 import { sendApprovalEmails, checkViewMilestone } from './email-actions';
 import { resolveViewerIdReadOnly } from '@/lib/viewer-identity';
+import { getYouTubeMetadata } from '@/lib/youtube-metadata';
 
 type FeedCategory = 'pulse' | 'forge' | 'alchemy';
 const FEED_CATEGORIES: FeedCategory[] = ['pulse', 'forge', 'alchemy'];
@@ -58,63 +59,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.
 
 // Use Service Role if available to bypass RLS for insertions
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
-
-// Helper: Fetch YouTube video metadata via oEmbed + HTML Scrape
-async function getYouTubeMetadata(videoId: string): Promise<{
-    title: string;
-    author_name: string;
-    author_url: string;
-    description: string;
-    published_at: string | null;
-}> {
-    let title = "Unknown Title";
-    let author_name = "Unknown Channel";
-    let author_url = "";
-    let description = "";
-    let published_at: string | null = null;
-
-    try {
-        // 1. oEmbed for reliable Title/Author
-        const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-        const response = await fetch(oembedUrl);
-        if (response.ok) {
-            const data = await response.json();
-            title = data.title || title;
-            author_name = data.author_name || author_name;
-            author_url = data.author_url || author_url;
-        }
-
-        // 2. Scrape Page for Description + Publish Date
-        const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-            }
-        });
-        const html = await pageResponse.text();
-
-        // Extract description
-        const descriptionMatch = html.match(/<meta\s+name="description"\s+content="([^"]*)"/i);
-        if (descriptionMatch && descriptionMatch[1]) {
-            description = descriptionMatch[1];
-        }
-
-        // Extract publish date - try multiple patterns
-        let publishDateMatch = html.match(/<meta itemprop="uploadDate" content="([^"]+)">/);
-        if (!publishDateMatch) {
-            publishDateMatch = html.match(/"uploadDate":"([^"]+)"/);
-        }
-        if (!publishDateMatch) {
-            publishDateMatch = html.match(/"publishDate":"([^"]+)"/);
-        }
-        if (publishDateMatch && publishDateMatch[1]) {
-            published_at = publishDateMatch[1];
-        }
-    } catch (e) {
-        console.error("Failed to fetch YouTube metadata:", e);
-    }
-
-    return { title, author_name, author_url, description, published_at };
-}
 
 // Ensure we can handle partial URLs or handles
 function normalizeChannelUrl(url: string): string {
@@ -388,6 +332,7 @@ export async function suggestVideo(videoUrl: string) {
                 channel_url: metadata.author_url,
                 published_at: metadata.published_at,
                 status: 'pending',
+                classification_status: 'pending',
                 human_score: 50,
                 suggestion_count: 1
             });
@@ -535,6 +480,7 @@ export async function adminSuggestVideo(videoUrl: string) {
                 channel_url: metadata.author_url,
                 published_at: metadata.published_at,
                 status: 'pending',
+                classification_status: 'pending',
                 human_score: 50,
                 suggestion_count: 1
             });
@@ -1215,3 +1161,40 @@ export async function getVideoLikeStatus(videoId: string): Promise<boolean> {
     return !!data;
 }
 
+// -----------------------------------------------------------------------------
+// Manual override: user clicked "Submit anyway" after classifier rejection.
+// Pure DB flip — no re-classification round-trip. Gemini's best-guess
+// feed_category is already persisted on the row from the original reject call;
+// we just flip status + classification_status to make it visible.
+// -----------------------------------------------------------------------------
+export async function overrideClassificationReject(videoId: string) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return { success: false, message: 'Unauthorized' };
+
+    const { data: row, error: readErr } = await supabase
+        .from('videos')
+        .select('id, status, classification_status, feed_category')
+        .eq('id', videoId)
+        .single();
+
+    if (readErr || !row) return { success: false, message: 'Video not found' };
+    if (row.classification_status !== 'rejected') {
+        return { success: false, message: 'Video is not in a rejected state' };
+    }
+    if (!row.feed_category) {
+        return { success: false, message: 'No feed category available for override' };
+    }
+
+    const { error: updateErr } = await supabase
+        .from('videos')
+        .update({
+            status: 'verified',
+            classification_status: 'manual_override',
+        })
+        .eq('id', videoId);
+
+    if (updateErr) return { success: false, message: updateErr.message };
+
+    revalidatePath('/');
+    return { success: true, feed_category: row.feed_category };
+}

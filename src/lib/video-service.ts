@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import type { AnalysisResult } from '@/lib/analysis-prompt';
+import { getYouTubeMetadata } from '@/lib/youtube-metadata';
 
 export interface VideoMetadata {
     youtube_id: string;
@@ -7,13 +9,7 @@ export interface VideoMetadata {
     channel_name: string;
     channel_id: string; // Added field
     thumbnail_url: string;
-}
-
-export interface AnalysisResult {
-    humanScore: number;
-    humanScoreReason: string;
-    takeaways: string[];
-    category: string;
+    published_at: string | null;
 }
 
 /**
@@ -49,12 +45,22 @@ export async function fetchVideoMeta(youtubeUrl: string): Promise<VideoMetadata 
         // Let's create a deterministic ID from the name if we can't get the regex.
         channelId = data.author_name.replace(/\s+/g, '-').toLowerCase();
 
+        // Scrape publish date via shared helper. Falls back to null on
+        // failure — never guess. Prompt handles the "publish date unknown"
+        // case, feed readers tolerate NULL via NULLS LAST.
+        let published_at: string | null = null;
+        if (videoId) {
+            const scraped = await getYouTubeMetadata(videoId);
+            published_at = scraped.published_at;
+        }
+
         return {
             youtube_id: videoId,
             title: data.title,
             channel_name: data.author_name,
             channel_id: channelId, // Temporary ID based on name if real one missing
-            thumbnail_url: data.thumbnail_url
+            thumbnail_url: data.thumbnail_url,
+            published_at,
         };
 
     } catch (e) {
@@ -91,12 +97,25 @@ export async function saveVideoAnalysis(
 
     // 2. Update Video with Analysis (don't touch existing metadata)
     // Use admin client to bypass RLS
+    //
+    // Classification branches:
+    //   verdict='approve' → status='verified', classification_status='classified'
+    //   verdict='reject'  → status='banned',   classification_status='rejected'
+    //                       ('banned' so /suggested-videos Denied column surfaces
+    //                       it; feed_category still written — override flow reads it)
+    const isApproved = analysis.verdict === 'approve';
     const { data, error } = await supabaseAdmin
         .from('videos')
         .update({
             human_score: analysis.humanScore,
             summary_points: analysis.takeaways,
             category_tag: analysis.category,
+            status: isApproved ? 'verified' : 'banned',
+            classification_status: isApproved ? 'classified' : 'rejected',
+            feed_category: analysis.feed_category,
+            category_confidence: analysis.category_confidence,
+            category_rationale: analysis.category_rationale,
+            category_signals: analysis.category_signals,
             // pgvector text literal — sending a raw number[] via PostgREST
             // is version-dependent and can silently write NULL. Always '[a,b,c]'.
             embedding_1536: '[' + embedding.join(',') + ']'

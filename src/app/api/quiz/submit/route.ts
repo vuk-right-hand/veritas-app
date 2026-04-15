@@ -16,7 +16,11 @@ function calculateTier(score: number): string {
 }
 
 // Hard fail conditions
-const HARD_FAIL_WORDS = ['stupid', 'fuck', 'awful', 'f you', 'f u', 'bitch', 'shit', 'asshole', 'cunt', 'dick', 'idiot', 'moron', 'dumb', 'fck', 'fukk'];
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const HARD_FAIL_STEMS = ['shit', 'fuck', 'fck', 'fukk', 'dumb', 'dick', 'bitch', 'cunt'];
+const HARD_FAIL_WHOLE = ['stupid', 'awful', 'idiot', 'moron', 'f you', 'f u', 'asshole'];
+const STEM_RE = new RegExp(`\\b(${HARD_FAIL_STEMS.map(escapeRegex).join('|')})`, 'i');
+const WHOLE_RE = new RegExp(`\\b(${HARD_FAIL_WHOLE.map(escapeRegex).join('|')})\\b`, 'i');
 const NEGATIVE_PHRASES = ['dont know', "don't know", 'dunno', 'who cares', 'idk', 'i have no idea', 'no idea', 'not sure', 'whatever', 'giving up', 'give up'];
 
 function checkHardFail(answer: string): boolean {
@@ -26,7 +30,7 @@ function checkHardFail(answer: string): boolean {
     if (trimmed.length <= 1) return true;
 
     // 2. Swearing/Profanity
-    if (HARD_FAIL_WORDS.some(word => trimmed.includes(word))) return true;
+    if (STEM_RE.test(trimmed) || WHOLE_RE.test(trimmed)) return true;
 
     // 3. Negative/Give-up phrases
     if (NEGATIVE_PHRASES.some(phrase => trimmed.includes(phrase))) return true;
@@ -83,19 +87,24 @@ OUTPUT FORMAT:
 }`;
 
         const model = getQuizAiModel();
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        const jsonString = responseText.replace(/```json|```/g, '').trim();
 
-        let grading;
+        // Grading is best-effort for UX: if Gemini throws or returns unparseable JSON,
+        // we fall back to a generous pass so the user never sees an error mid-quiz.
+        // Fix D below still enforces isHardFail server-side regardless of this fallback.
+        let grading: { passed?: boolean; confidence?: string; feedback?: string } = {
+            passed: true,
+            confidence: 'low',
+            feedback: 'Great effort! Keep building on this concept.',
+        };
         try {
+            const result = await model.generateContent(prompt);
+            const jsonString = result.response.text().replace(/```json|```/g, '').trim();
             grading = JSON.parse(jsonString);
-        } catch {
-            // Fallback: be generous
-            grading = { passed: true, confidence: 'low', feedback: 'Great effort! Keep building on this concept.' };
+        } catch (err) {
+            console.error('Quiz grading fallback engaged (generous pass):', err);
         }
 
-        const passed = grading.passed ?? true;
+        const passed = isHardFail ? false : (grading.passed ?? true);
         const confidence = grading.confidence || 'low';
         const feedback = grading.feedback || 'Keep going!';
 
@@ -126,7 +135,9 @@ OUTPUT FORMAT:
                 });
             }
 
-            console.error('❌ Failed to save quiz attempt:', attemptError);
+            // Ledger insert failed for a non-unique reason. Log it and keep going —
+            // the user should never see an error mid-quiz. Points still award below.
+            console.error('❌ Failed to save quiz attempt (continuing for UX):', attemptError);
         }
 
         // 3. If passed, update skills_matrix JSONB in profiles
@@ -170,8 +181,9 @@ OUTPUT FORMAT:
                 portfolio,
             };
 
-            // Use upsert with onConflict so this works even if the profile row doesn't exist yet
-            const { error: upsertError } = await supabaseAdmin
+            // Use upsert with onConflict so this works even if the profile row doesn't exist yet.
+            // One-shot retry on failure so a transient blip doesn't silently lose the user's point.
+            let { error: upsertError } = await supabaseAdmin
                 .from('profiles')
                 .upsert({
                     id: user_id,
@@ -179,7 +191,17 @@ OUTPUT FORMAT:
                 }, { onConflict: 'id' });
 
             if (upsertError) {
-                console.error('❌ Failed to upsert skills_matrix:', upsertError);
+                console.warn('⚠️ skills_matrix upsert failed, retrying once:', upsertError);
+                ({ error: upsertError } = await supabaseAdmin
+                    .from('profiles')
+                    .upsert({
+                        id: user_id,
+                        skills_matrix: skillsMatrix,
+                    }, { onConflict: 'id' }));
+            }
+
+            if (upsertError) {
+                console.error('❌ skills_matrix upsert failed after retry (user still sees pass):', upsertError);
             } else {
                 console.log(`✅ Quiz passed for ${user_id} — ${topicSlug}: ${newScore} (${newTier})`);
             }
