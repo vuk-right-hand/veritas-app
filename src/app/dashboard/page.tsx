@@ -235,24 +235,28 @@ export default function Dashboard() {
 
         setIsLoadingMore(true);
         try {
-            // Curation ids pushed into the RPC (or the Pulse .not(id,in) clause) so
-            // OFFSET math stays honest — never filter dedupe client-side.
+            // Pulse paginates by OFFSET (curation ids only in the .not(id,in) clause).
+            // Forge/Alchemy RPC's personalized branch has NO offset — it pages purely
+            // via p_exclude_ids, so we send every loaded id and offset 0 (the
+            // cold-start branch would double-skip with offset + excludes).
+            const isPulse = activeTab === 'pulse';
             const batch = await getVerifiedVideosWithCreators(
                 activeTab,
                 3,
-                standardVideoOffset,
-                curationIdsRef,
+                isPulse ? standardVideoOffset : 0,
+                isPulse ? curationIdsRef : videos.map((v: any) => v.id),
                 getCutoff(temporalFilter)
             );
 
-            if (batch.length > 0) {
-                setVideos(prev => {
-                    const seen = new Set(prev.map((v: any) => v.id));
-                    return [...prev, ...batch.filter((v: any) => !seen.has(v.id))];
-                });
+            const seen = new Set(videos.map((v: any) => v.id));
+            const fresh = batch.filter((v: any) => !seen.has(v.id));
+
+            if (fresh.length > 0) {
+                setVideos(prev => [...prev, ...fresh]);
                 setStandardVideoOffset(prev => prev + batch.length);
                 if (batch.length < 3) setHasMore(false);
             } else {
+                // Nothing new — stop, or the observer re-fires forever.
                 setHasMore(false);
             }
         } catch (error) {
@@ -260,7 +264,7 @@ export default function Dashboard() {
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, currentSearchQuery, activeTab, temporalFilter, standardVideoOffset, curationIdsRef]);
+    }, [isLoadingMore, hasMore, currentSearchQuery, activeTab, temporalFilter, standardVideoOffset, curationIdsRef, videos]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(

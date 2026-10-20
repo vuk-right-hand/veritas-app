@@ -901,7 +901,7 @@ export async function getVerifiedVideosWithCreators(
         // Service-role client only; RPC takes p_user_id explicitly and is not
         // granted to anon/authenticated (would leak taste profiles via ordering).
         // Personalized branch in the RPC ignores p_offset and relies on
-        // p_exclude_ids — the frontend already accumulates seen IDs into excludeIds.
+        // p_exclude_ids — callers MUST pass every already-loaded id here (offset 0).
         const viewerId = await resolveViewerIdReadOnly();
         const { data, error } = await supabase.rpc('get_personalized_feed', {
             p_user_id: viewerId,
